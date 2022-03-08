@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from pydeation.constants import WHITE
-from pydeation.xpressions import XGroup, XObject
 import c4d
 
 class Tag():
@@ -68,10 +67,3 @@ class XPressoTag(Tag):
 
     def specify_tag_type(self):
         self.obj = c4d.BaseTag(c4d.Texpresso)
-
-    def set_universal_xpressions(self):
-        """sets up the universal basic xpressions for every visible object (material control etc.)"""
-        self.master = self.obj.GetNodeMaster()
-        xobject1 = XObject(self.master)
-        xobject2 = XObject(self.master)
-        xgroup = XGroup(xobject1, xobject2, master=self.master)

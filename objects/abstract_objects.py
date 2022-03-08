@@ -85,6 +85,7 @@ class HelperObject(ProtoObject):  # invisible helper objects
     def set_object_properties(self):
         pass
 
+
 class VisibleObject(ProtoObject):  # visible objects
 
     def __init__(self, visible=False, **kwargs):
@@ -128,7 +129,6 @@ class VisibleObject(ProtoObject):  # visible objects
         """adds an xpresso tag to the object"""
         self.xtag = XPressoTag()
         self.xtag.apply_to_object(self)
-        self.xtag.set_universal_xpressions()
 
 
 class LineObject(VisibleObject):  # line objects only require sketch material
@@ -164,6 +164,7 @@ class SolidObject(LineObject):  # solid objects also require fill material
     def set_object_properties(self):
         pass
 
+
 class Loft(SolidObject):
 
     def __init__(self, **kwargs):
@@ -174,6 +175,7 @@ class Loft(SolidObject):
 
     def set_object_properties(self):
         pass
+
 
 class SVG(LineObject):  # takes care of importing svgs
 

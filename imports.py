@@ -14,3 +14,6 @@ from pydeation.objects.line_objects import *
 from pydeation.objects.solid_objects import *
 from pydeation.objects.svg_objects import *
 from pydeation.constants import *
+from pydeation.xpresso.xpresso import *
+from pydeation.xpresso.xpressions import *
+from pydeation.xpresso.userdata import *
