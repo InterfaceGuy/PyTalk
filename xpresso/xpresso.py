@@ -18,6 +18,7 @@ class XNode:
             "matrix2vect": c4d.ID_OPERATOR_MATRIX2VECT,
             "memory": c4d.ID_OPERATOR_MEMORY,
             "object": c4d.ID_OPERATOR_OBJECT,
+            "python": 1022471,
             "rangemapper": c4d.ID_OPERATOR_RANGEMAPPER
         }
 
@@ -49,12 +50,6 @@ class XObject(XNode):
 
     def __init__(self, target, obj_target=None):
         super().__init__(target, "object")
-        self.set_obj_target(obj_target)
-
-    def set_obj_target(self, obj_target):
-        # sets the target object to which the node relates
-        if obj_target:
-            self.obj[c4d.GV_OBJECT_OBJECT_ID] = obj_target
 
 
 class XCondition(XNode):
@@ -72,7 +67,7 @@ class XCompare(XNode):
 
 
 class XBool(XNode):
-    """creates a compare node"""
+    """creates a bool node"""
 
     def __init__(self, target):
         super().__init__(target, "bool")
@@ -84,6 +79,17 @@ class XMemory(XNode):
     def __init__(self, target):
         super().__init__(target, "memory")
 
+class XPython(XNode):
+    """creates a python node"""
+
+    def __init__(self, target):
+        super().__init__(target, "python")
+
+class XFormula(XNode):
+    """creates a formula node"""
+
+    def __init__(self, target, formula=None):
+        super().__init__(target, "formula")
 
 class XPression(ABC):
     """creates xpressions for a given xpresso tag"""

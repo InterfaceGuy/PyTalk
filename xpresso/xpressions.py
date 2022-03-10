@@ -9,6 +9,7 @@ BOOL_DESCID_IN = c4d.DescID(c4d.DescLevel(401006001, 400007001, 1001144))
 BOOL_DESCID_OUT = c4d.DescID(c4d.DescLevel(936876913, 400007001, 1001144))
 INTEGER_DESCID_IN = c4d.DescID(c4d.DescLevel(1000015, 400007002, 1001144))
 INTEGER_DESCID_OUT = c4d.DescID(c4d.DescLevel(536870927, 400007002, 1001144))
+VALUE_DESCID_IN =  c4d.DescID(c4d.DescLevel(2000, 400007003, 400001133))
 
 
 class XActiveRange(XPression):
@@ -104,6 +105,68 @@ class XOverrideController(XPression):
         bool_node.obj.GetOutPort(0).Connect(self.bool_interface_out)
 
 
+class XAnimator(XPression):
+    """template for generic animator that drives single parameter using a given formula"""
+
+    def __init__(self, target, formula=None, name=None, params=[]):
+        self.target = target
+        self.obj_target = target.obj
+        self.formula = formula
+        self.name = name
+        self.params = params
+        super().__init__(target)
+
+    def construct(self):
+        # create userdata
+        completion_slider = UCompletion()
+        for i, udata in enumerate(self.params):
+            self.params[i] = udata()
+        u_group = UGroup(*self.params, completion_slider, target=self.obj_target, name=self.name)
+
+        # create nodes
+        object_node = XObject(self.target)
+        override_controller = XOverrideController(self.target)
+        formula_node = XFormula(self.target)
+        
+        # group nodes
+        self.xgroup = XGroup(object_node, override_controller, formula_node)
+        self.obj = self.xgroup.obj
+
+        # set params
+        if self.formula is None:
+            formula = "t"
+        formula_node.obj[c4d.GV_FORMULA_STRING] = formula
+        formula_node.obj[c4d.GV_FORMULA_USE_PORTNAMES] = True  # use portnames
+        formula_node.obj[c4d.GV_FORMULA_ANGLE] = 1  # use radians
+
+        # create ports
+        self.completion_interface_in = self.obj.AddPort(c4d.GV_PORT_INPUT, REAL_DESCID_IN)
+        self.driver_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
+        self.active_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, BOOL_DESCID_OUT)
+        completion_port_in = object_node.obj.AddPort(c4d.GV_PORT_INPUT, completion_slider.descId)
+        completion_port_out = object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, completion_slider.descId)
+        param_ports_out = []
+        param_ports_in = []
+        t_port = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
+        t_port.SetName("t")
+        driver_port_out = formula_node.obj.GetOutPort(0)
+        for i, param in enumerate(self.params):
+            param_port_out = object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, param.descId)
+            param_ports_out.append(param_port_out)
+            param_port_in = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
+            param_port_in.SetName("#"+str(i+1))
+            param_ports_in.append(param_port_in)
+
+        # connect ports
+        self.completion_interface_in.Connect(completion_port_in)
+        completion_port_out.Connect(override_controller.obj.GetInPort(0))
+        completion_port_out.Connect(t_port)
+        override_controller.obj.GetOutPort(0).Connect(self.active_interface_out)
+        driver_port_out.Connect(self.driver_interface_out)
+        for param_port_in, param_port_out in zip(param_ports_in, param_ports_out):
+            param_port_out.Connect(param_port_in)
+
+
 class XMaterialControl(XPression):
 
     def __init__(self, target):
@@ -119,18 +182,23 @@ class XMaterialControl(XPression):
             draw_completion, target=self.obj_target, name="Draw")
         
         # create nodes
+        python_node = XPython(self.target)
         override_controller = XOverrideController(self.target)
-        obj_target_node = XObject(self.target, obj_target=self.obj_target)
-        sketch_target_node_in = XObject(
-            self.target, obj_target=self.sketch_target)
-        sketch_target_node_out = XObject(
-            self.target, obj_target=self.sketch_target)
+        obj_target_node = XObject(self.target)
+        sketch_target_node_in = XObject(self.target)
+        sketch_target_node_out = XObject(self.target)
         condition_node = XCondition(self.target)
 
         # group nodes
-        self.xgroup = XGroup(override_controller, obj_target_node,
+        self.xgroup = XGroup(python_node, override_controller, obj_target_node,
             sketch_target_node_in, sketch_target_node_out, condition_node, name="MaterialControl")
         self.obj = self.xgroup.obj
+
+        # set params
+        obj_target_node.obj[c4d.GV_OBJECT_OBJECT_ID] = self.obj_target
+        sketch_target_node_in.obj[c4d.GV_OBJECT_OBJECT_ID] = self.sketch_target
+        sketch_target_node_out.obj[c4d.GV_OBJECT_OBJECT_ID] = self.sketch_target
+        python_node.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 0\n    for i in range(op.GetInPortCount()):\n        port = op.GetInPort(i)\n        value = globals()[port.GetName(op)]\n        if value == 1:\n            Output1 = i+1\n            return'
         
         # gather descIds
         sketch_completion_descId = c4d.DescID(c4d.DescLevel(
@@ -145,10 +213,9 @@ class XMaterialControl(XPression):
             c4d.GV_PORT_OUTPUT, sketch_completion_descId)
         
         # connect ports
-        condition_ports_in = condition_node.obj.GetInPorts()
-        condition_port_out = condition_node.obj.GetOutPort(0)
-        draw_completion_port.Connect(condition_ports_in[1])
-        sketch_completion_port_out.Connect(condition_ports_in[2])
-        condition_port_out.Connect(sketch_completion_port_in)
-        override_controller.bool_interface_out.Connect(condition_ports_in[0])
+        draw_completion_port.Connect(condition_node.obj.GetInPort(2))
+        sketch_completion_port_out.Connect(condition_node.obj.GetInPort(1))
+        condition_node.obj.GetOutPort(0).Connect(sketch_completion_port_in)
+        override_controller.bool_interface_out.Connect(python_node.obj.GetInPort(0))
         override_controller.real_interface_in.Connect(draw_completion_port)
+        python_node.obj.GetOutPort(0).Connect(condition_node.obj.GetInPort(0))
