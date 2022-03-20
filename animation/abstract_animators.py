@@ -5,11 +5,12 @@ from iteration_utilities import deepflatten  # used to flatten groups
 
 class ProtoAnimator(ABC):
     """an animator mainly stores the information of which parameters will be animated and performs logic on the input values.
-    it outputs only the necessary animations as an animation group and rescales said by the relative run time"""
+    it outputs only the necessary animations as an animation group and rescales them by the relative run time"""
 
     def __new__(cls, *objs, rel_start=0, rel_stop=1, relative=False, multiplicative=False, unpack_groups=True, animation_type="vector", category=None):
         cls.animation_type = animation_type
         cls.objs = cls.flatten_input(*objs, unpack_groups=unpack_groups)
+        #cls.create_xpression()
         cls.specify_desc_ids()
         cls.set_initial_values()
         cls.build_animation_group(
@@ -19,6 +20,11 @@ class ProtoAnimator(ABC):
         # add category for visibility handling
         animation_group_rescaled.category = category
         return animation_group_rescaled
+
+    @abstractmethod
+    def create_xpression(cls):
+        """creates the xpresso setup for the animation if needed"""
+        pass
 
     @abstractmethod
     def specify_desc_ids(cls):
