@@ -96,58 +96,6 @@ class XOverrideController(XPression):
         bool_node.obj.GetOutPort(0).Connect(self.bool_interface_out)
 
 
-class XAccessControl(XPression):
-    """xgroup for handling which input should override given parameter"""
-
-    def __init__(self, target, parameter=None):
-        self.parameter = parameter
-        super().__init__(target)
-
-    def construct(self):
-        # create nodes
-        self.condition_switch_node = XConditionSwitch(self.target)
-        self.condition_node = XCondition(self.target)
-        object_node_out = XObject(self.target)
-        object_node_in = XObject(self.target)
-
-        # group nodes
-        self.xgroup = XGroup(self.condition_switch_node, self.condition_node, object_node_out, object_node_in, name="AccessControl")
-        self.obj = self.xgroup.obj
-
-        # create ports
-        self.active_interfaces_in = []
-        self.driver_interfaces_in = []
-        parameter_port_out = object_node_out.obj.AddPort(c4d.GV_PORT_OUTPUT, self.parameter.descId)
-        parameter_port_in = object_node_in.obj.AddPort(c4d.GV_PORT_INPUT, self.parameter.descId)
-
-        # connect ports
-        self.condition_switch_node.obj.GetOutPort(0).Connect(self.condition_node.obj.GetInPort(0))
-        parameter_port_out.Connect(self.condition_node.obj.GetInPort(1))
-        self.condition_node.obj.GetOutPort(0).Connect(parameter_port_in)
-
-        # remove unused ports
-        self.condition_switch_node.obj.RemoveUnusedPorts()
-        self.condition_node.obj.RemoveUnusedPorts()
-
-
-    def add_input_source(self, source):
-        """adds and connects a bool input and a real input to a given input source"""
-        # create ports
-        self.active_interfaces_in.append(self.obj.AddPort(c4d.GV_PORT_INPUT, BOOL_DESCID_IN))
-        new_condition_switch_port_in = self.condition_switch_node.obj.AddPort(c4d.GV_PORT_INPUT, CONDITION_SWITCH_DESCID_IN)
-        self.driver_interfaces_in.append(self.obj.AddPort(c4d.GV_PORT_INPUT, REAL_DESCID_IN))
-        new_condition_port_in = self.condition_node.obj.AddPort(c4d.GV_PORT_INPUT, CONDITION_DESCID_IN)
-
-        # connect ports
-        # interior
-        self.active_interfaces_in[-1].Connect(new_condition_switch_port_in)
-        self.driver_interfaces_in[-1].Connect(new_condition_port_in)
-        # exterior
-        source.active_interface_out.Connect(self.active_interfaces_in[-1])
-        source.driver_interface_out.Connect(self.driver_interfaces_in[-1])
-
-
-
 class XAnimator(XPression):
     """template for generic animator that drives single parameter using a given formula"""
 
@@ -157,6 +105,7 @@ class XAnimator(XPression):
         self.formula = formula
         self.name = name
         self.params = params
+        self.access_control = None
         super().__init__(target)
         self.create_mapping()  # creates the mapping
 
@@ -235,6 +184,78 @@ class XComposer(XAnimator):
         self.completion_port_out.Connect(range_mapper_node.obj.GetInPort(0))
 
 
+class XAccessControl(XPression):
+    """xgroup for handling which input should override given parameter"""
+
+    def __init__(self, target, parameter=None, link_target=None):
+        # input counter for adding input sources
+        self.input_count = 0
+        # specify link target
+        self.link_target = link_target
+        # check for animator
+        if type(parameter) is XAnimator:
+            animator = parameter  # is animator
+            self.parameter = animator.completion_slider
+            self.name = animator.name
+        else:
+            self.parameter = parameter
+            self.name = parameter.name
+        super().__init__(target)
+
+    def construct(self):
+        # create nodes
+        self.condition_switch_node = XConditionSwitch(self.target)
+        self.condition_node = XCondition(self.target)
+        object_node_out = XObject(self.target, link_target=self.link_target)
+        object_node_in = XObject(self.target, link_target=self.link_target)
+
+        # group nodes
+        self.xgroup = XGroup(self.condition_switch_node, self.condition_node, object_node_out, object_node_in, name=self.name+"AccessControl")
+        self.obj = self.xgroup.obj
+
+        # create ports
+        self.active_interfaces_in = []
+        self.driver_interfaces_in = []
+        parameter_port_out = object_node_out.obj.AddPort(c4d.GV_PORT_OUTPUT, self.parameter.descId)
+        parameter_port_in = object_node_in.obj.AddPort(c4d.GV_PORT_INPUT, self.parameter.descId)
+
+        # connect ports
+        self.condition_switch_node.obj.GetOutPort(0).Connect(self.condition_node.obj.GetInPort(0))
+        parameter_port_out.Connect(self.condition_node.obj.GetInPort(1))
+        self.condition_node.obj.GetOutPort(0).Connect(parameter_port_in)
+
+        # remove unused ports
+        self.condition_switch_node.obj.RemoveUnusedPorts()
+        self.condition_node.obj.RemoveUnusedPorts()
+
+        # name ports
+        self.condition_node.obj.GetInPort(1).SetName("Idle")
+
+
+    def add_input_source(self, source):
+        """adds and connects a bool input and a real input to a given input source"""
+        # update input count
+        self.input_count += 1
+
+        # create ports
+        self.active_interfaces_in.append(self.obj.AddPort(c4d.GV_PORT_INPUT, BOOL_DESCID_IN))
+        self.driver_interfaces_in.append(self.obj.AddPort(c4d.GV_PORT_INPUT, REAL_DESCID_IN))
+        new_condition_switch_port_in = self.condition_switch_node.obj.AddPort(c4d.GV_PORT_INPUT, CONDITION_SWITCH_DESCID_IN)
+        new_condition_port_in = self.condition_node.obj.AddPort(c4d.GV_PORT_INPUT, CONDITION_DESCID_IN)
+
+        # connect ports
+        # interior
+        self.active_interfaces_in[-1].Connect(new_condition_switch_port_in)
+        self.driver_interfaces_in[-1].Connect(new_condition_port_in)
+        # exterior
+        source.active_interface_out.Connect(self.active_interfaces_in[-1])
+        source.driver_interface_out.Connect(self.driver_interfaces_in[-1])
+
+        # name ports
+        new_condition_switch_port_in.SetName("Input" + str(self.input_count))
+        new_condition_port_in.SetName("Input" + str(self.input_count))
+
+
 class XComposition(XPression):
     """template for generic composed animator"""
 
@@ -253,6 +274,10 @@ class XComposition(XPression):
             access_control = XAccessControl(self.target, parameter=sub_animator.completion_slider)
             access_control.add_input_source(self.composer)
             self.access_controls.append(access_control)
+            if sub_animator.access_control is None:  # add access control if needed
+                sub_animator.access_control = XAccessControl(self.target, parameter=sub_animator)
+            sub_animator.access_control.add_input_source(self.composition_animator)
+            self.access_controls.append(sub_animator.access_control)
 
 
 class XMaterialControl(XPression):

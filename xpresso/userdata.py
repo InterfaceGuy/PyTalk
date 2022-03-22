@@ -22,7 +22,7 @@ class UData(ABC):
     def specify_name(self, name):
         # sets the display name of the element
         self.name = name  # write as attribute
-        self.bc[c4d.DESC_NAME] = name
+        self.bc[c4d.DESC_NAME] = self.name
 
 
 ### data type classes ###
