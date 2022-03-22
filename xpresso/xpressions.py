@@ -158,6 +158,7 @@ class XAnimator(XPression):
         self.name = name
         self.params = params
         super().__init__(target)
+        self.create_mapping()  # creates the mapping
 
     def construct(self):
         # create userdata
@@ -167,37 +168,71 @@ class XAnimator(XPression):
         u_group = UGroup(self.completion_slider, *self.params, target=self.obj_target, name=self.name)
 
         # create nodes
-        object_node = XObject(self.target)
+        self.object_node = XObject(self.target)
         override_controller = XOverrideController(self.target)
-        formula_node = XFormula(self.target, formula=self.formula)
         
         # group nodes
-        self.xgroup = XGroup(object_node, override_controller, formula_node, name=self.name+"Animator")
+        self.xgroup = XGroup(self.object_node, override_controller, name=self.name+"Animator")
         self.obj = self.xgroup.obj
 
         # create ports
-        self.driver_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
         self.active_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, BOOL_DESCID_OUT)
-        completion_port_out = object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, self.completion_slider.descId)
+        self.completion_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, self.completion_slider.descId)
+
+        # connect ports
+        self.completion_port_out.Connect(override_controller.real_interface_in)
+        override_controller.bool_interface_out.Connect(self.active_interface_out)
+
+    def create_mapping(self):
+        """creates a mapping using the formula node"""
+        # create nodes
+        formula_node = XFormula(self.target, formula=self.formula)
+
+        # group nodes
+        self.xgroup.add(formula_node)
+        
+        # create ports
+        self.driver_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
         param_ports_out = []
         param_ports_in = []
         t_port = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
         t_port.SetName("t")
         driver_port_out = formula_node.obj.GetOutPort(0)
         for i, param in enumerate(self.params):
-            param_port_out = object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, param.descId)
+            param_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, param.descId)
             param_ports_out.append(param_port_out)
             param_port_in = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
             param_port_in.SetName("var"+str(i+1))
             param_ports_in.append(param_port_in)
-
+        
         # connect ports
-        completion_port_out.Connect(override_controller.obj.GetInPort(0))
-        completion_port_out.Connect(t_port)
-        override_controller.obj.GetOutPort(0).Connect(self.active_interface_out)
+        self.completion_port_out.Connect(t_port)
         driver_port_out.Connect(self.driver_interface_out)
         for param_port_in, param_port_out in zip(param_ports_in, param_ports_out):
             param_port_out.Connect(param_port_in)
+
+
+class XComposer(XAnimator):
+    """special kind of animator used for compositions, uses multiple range mappers instead of formula"""
+
+    def __init__(self, target, input_range=(0,1), name=None):
+        self.input_range = input_range
+        super().__init__(target, name=name)
+
+    def create_mapping(self):
+        """creates a mapping using range mapper nodes"""
+        # create nodes
+        range_mapper_node = XRangeMapper(self.target, input_range=self.input_range, easing="OUT")
+
+        # group nodes
+        self.xgroup.add(range_mapper_node)
+
+        # create ports
+        self.driver_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
+
+        # connect ports
+        range_mapper_node.obj.GetOutPort(0).Connect(self.driver_interface_out)
+        self.completion_port_out.Connect(range_mapper_node.obj.GetInPort(0))
 
 
 class XComposition(XPression):
@@ -212,11 +247,11 @@ class XComposition(XPression):
 
     def construct(self):
         # create nodes
-        self.composition_animator = XAnimator(self.target, name=self.name)
+        self.composer = XComposer(self.target, name=self.name)
         self.access_controls = []
         for sub_animator in self.sub_animators:
             access_control = XAccessControl(self.target, parameter=sub_animator.completion_slider)
-            access_control.add_input_source(self.composition_animator)
+            access_control.add_input_source(self.composer)
             self.access_controls.append(access_control)
 
 

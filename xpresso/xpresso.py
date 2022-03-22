@@ -45,9 +45,14 @@ class XGroup(XNode):
     def __init__(self, *nodes, name=None):
         target = nodes[0].target  # rip target from first group member
         super().__init__(target, "group", name=name)  # create group node
+        self.add(*nodes)
+
+    def add(self, *nodes):
+        """add node to xgroup"""
         for node in nodes:
             # insert node under group
             self.master.InsertFirst(self.obj, node.obj)
+
 
 
 class XObject(XNode):
@@ -161,6 +166,40 @@ class XFormula(XNode):
         self.obj[c4d.GV_FORMULA_STRING] = self.formula
         self.obj[c4d.GV_FORMULA_USE_PORTNAMES] = True  # use portnames
         self.obj[c4d.GV_FORMULA_ANGLE] = 1  # use radians
+
+
+class XRangeMapper(XNode):
+    """creates a range mapper node"""
+
+    def __init__(self, target, input_range=(0,1), easing=True, reverse=False):
+        self.input_range = input_range
+        self.easing = easing
+        self.reverse = reverse
+        super().__init__(target, "rangemapper")
+
+    def set_params(self):
+        # create spline
+        spline = c4d.SplineData()
+        spline.MakeLinearSplineBezier()
+        # set easing
+        knot_ini, knot_fin = spline.GetKnots()
+        if self.easing is True:
+            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(0,0,0), vTangentRight=c4d.Vector(0.25,0,0))
+            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"], vTangentLeft=c4d.Vector(-0.25,0,0), vTangentRight=c4d.Vector(0,0,0))
+        elif self.easing == "IN":
+            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(0,0,0), vTangentRight=c4d.Vector(0.25,0,0))
+        elif self.easing == "OUT":
+            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"], vTangentLeft=c4d.Vector(-0.25,0,0), vTangentRight=c4d.Vector(0,0,0))
+
+        self.obj[c4d.GV_RANGEMAPPER_SPLINE] = spline
+        # set options
+        self.obj[c4d.GV_RANGEMAPPER_OUTPUT_DEFS] = 4  # set output range to zero to one
+        self.obj[c4d.GV_RANGEMAPPER_CLAMP_LOWER] = True
+        self.obj[c4d.GV_RANGEMAPPER_CLAMP_UPPER] = True
+        self.obj[c4d.GV_RANGEMAPPER_REVERSE] = self.reverse
+        # set range
+        self.obj[c4d.GV_RANGEMAPPER_RANGE11] = self.input_range[0]
+        self.obj[c4d.GV_RANGEMAPPER_RANGE12] = self.input_range[1]
 
 
 class XPression(ABC):
