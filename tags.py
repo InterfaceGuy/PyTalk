@@ -59,6 +59,7 @@ class FillTag(MaterialTag):
     def link_to_material(self, material):
         self.obj.SetMaterial(material.obj)
         self.linked_material = material
+        material.linked_tag = self
 
     def set_tag_properties(self):
         pass

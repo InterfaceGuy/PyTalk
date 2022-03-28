@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pydeation.animation.animation import StateAnimation, VectorAnimation, AnimationGroup
+from pydeation.animation.animation import StateAnimation, VectorAnimation, CompletionAnimation, AnimationGroup
 from iteration_utilities import deepflatten  # used to flatten groups
 
 
@@ -10,8 +10,8 @@ class ProtoAnimator(ABC):
     def __new__(cls, *objs, rel_start=0, rel_stop=1, relative=False, multiplicative=False, unpack_groups=True, animation_type="vector", category=None):
         cls.animation_type = animation_type
         cls.objs = cls.flatten_input(*objs, unpack_groups=unpack_groups)
-        #cls.create_xpression()
         cls.specify_desc_ids()
+        cls.create_xpression()
         cls.set_initial_values()
         cls.build_animation_group(
             relative=relative, multiplicative=multiplicative)
@@ -21,10 +21,6 @@ class ProtoAnimator(ABC):
         animation_group_rescaled.category = category
         return animation_group_rescaled
 
-    @abstractmethod
-    def create_xpression(cls):
-        """creates the xpresso setup for the animation if needed"""
-        pass
 
     @abstractmethod
     def specify_desc_ids(cls):
@@ -39,6 +35,11 @@ class ProtoAnimator(ABC):
     @abstractmethod
     def specify_target(cls):
         """specifies the target to animate on"""
+        pass
+
+    @classmethod
+    def create_xpression(cls):
+        """creates the xpresso setup for the animation if needed"""
         pass
 
     @classmethod
@@ -74,10 +75,13 @@ class ProtoAnimator(ABC):
                 # create animation on target
                 if cls.animation_type == "vector":
                     animation = VectorAnimation(
-                        target, list(cls.desc_ids.values())[i], value, relative=relative, multiplicative=multiplicative)
+                        target, list(cls.desc_ids.values())[i], value_fin=value, relative=relative, multiplicative=multiplicative)
+                elif cls.animation_type == "xvector":
+                    animation = CompletionAnimation(
+                        obj, list(cls.desc_ids.values())[i], completion_slider=cls.completion_sliders[i])
                 elif cls.animation_type == "state":
                     animation = StateAnimation(
-                        target, list(cls.desc_ids.values())[i], value)
+                        target, list(cls.desc_ids.values())[i], value=value)
                 animations.append(animation)
         return AnimationGroup(*animations)
 

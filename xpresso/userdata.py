@@ -12,8 +12,8 @@ class UData(ABC):
         self.specify_constraints()
         # set the display name of the element
         self.specify_name(name)
-        # add attribute for descId
-        self.descId = None
+        # add attribute for desc_id
+        self.desc_id = None
 
     @abstractmethod
     def specify_data_type():
@@ -34,13 +34,13 @@ class UGroup(UData):
 
         super().__init__(**kwargs)
 
-        self.descId = target.AddUserData(self.bc)
+        self.desc_id = target.AddUserData(self.bc)
 
         for child in children:
             # add as child
-            child.bc[c4d.DESC_PARENTGROUP] = self.descId
+            child.bc[c4d.DESC_PARENTGROUP] = self.desc_id
             # Add the user data element, retrieving its DescId.
-            child.descId = target.AddUserData(child.bc)
+            child.desc_id = target.AddUserData(child.bc)
 
     def specify_data_type(self):
         # create base container
@@ -130,6 +130,7 @@ class UStrength(UReal):
     def specify_constraints(self):
         # set lower bound
         self.bc[c4d.DESC_MIN] = 0
+        self.bc[c4d.DESC_STEP] = 0.01
 
     def specify_name(self, name):
         # sets the display name of the element
@@ -160,3 +161,14 @@ class UCheckBox(UBool):
         if name is None:
             name = "checkbox"
         super().specify_name(name)
+
+
+class UParameter():
+    """represents an existing parameter to be targeted by an xpression"""
+
+    def __init__(self, target, desc_id, name="Parameter", link_target=None):
+        self.target = target
+        self.desc_id = desc_id
+        self.access_control = None
+        self.name = name
+        self.link_target = link_target

@@ -2,7 +2,7 @@ from pydeation.xpresso.xpresso import *
 from pydeation.xpresso.userdata import *
 import c4d
 
-# missing descIds
+# missing desc_ids
 REAL_DESCID_IN = c4d.DescID(c4d.DescLevel(1000019, 400007003, 1001144))
 REAL_DESCID_OUT = c4d.DescID(c4d.DescLevel(536870931, 400007003, 1001144))
 BOOL_DESCID_IN = c4d.DescID(c4d.DescLevel(401006001, 400007001, 1001144))
@@ -51,7 +51,7 @@ class XNotDescending(XPression):
 
     def construct(self):
         # create nodes
-        memory_node = XMemory(self.target, history_level=1)
+        memory_node = XMemory(self.target)
         compare_node = XCompare(self.target, mode=">=")
         constant_node = XConstant(self.target, value=1)
 
@@ -96,15 +96,50 @@ class XOverrideController(XPression):
         bool_node.obj.GetOutPort(0).Connect(self.bool_interface_out)
 
 
+class XInterpolator(XPression):
+    """xpression for interpolating between two values using completion slider"""
+
+    def construct(self):
+        # create nodes
+        memory_node = XMemory(self.target, history_level=1)
+        override_controller = XOverrideController(self.target, )
+        compare_node = XCompare(self.target, mode="<")
+        freeze_node = XFreeze(self.target, )
+        formula_node = XFormula(self.target, variables=["t","ini","fin"], formula="ini+t*(fin-ini)")
+
+        # group nodes
+        self.xgroup = XGroup(memory_node, override_controller, compare_node, freeze_node, formula_node, name="Interpolator")
+        self.obj = self.xgroup.obj
+
+        # create ports
+        self.ini_interface_in = self.obj.AddPort(c4d.GV_PORT_INPUT, REAL_DESCID_IN)
+        self.fin_interface_in = self.obj.AddPort(c4d.GV_PORT_INPUT, REAL_DESCID_IN)
+        self.completion_interface_in = self.obj.AddPort(c4d.GV_PORT_INPUT, REAL_DESCID_IN)
+        self.output_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
+
+        # connect ports
+        self.ini_interface_in.Connect(freeze_node.obj.GetInPort(1))
+        self.fin_interface_in.Connect(formula_node.obj.GetInPort(2))
+        self.completion_interface_in.Connect(override_controller.obj.GetInPort(0))
+        self.completion_interface_in.Connect(formula_node.obj.GetInPort(0))
+        override_controller.obj.GetOutPort(0).Connect(memory_node.obj.GetInPort(1))
+        override_controller.obj.GetOutPort(0).Connect(compare_node.obj.GetInPort(0))
+        memory_node.obj.GetOutPort(0).Connect(compare_node.obj.GetInPort(1))
+        compare_node.obj.GetOutPort(0).Connect(freeze_node.obj.GetInPort(0))
+        freeze_node.obj.GetOutPort(0).Connect(formula_node.obj.GetInPort(1))
+        formula_node.obj.GetOutPort(0).Connect(self.output_interface_out)
+
+
 class XAnimator(XPression):
     """template for generic animator that drives single parameter using a given formula"""
 
-    def __init__(self, target, formula=None, name=None, params=[]):
+    def __init__(self, target, formula=None, name=None, params=[], interpolate=False):
         self.target = target
         self.obj_target = target.obj
         self.formula = formula
         self.name = name
         self.params = params
+        self.interpolate = interpolate
         self.access_control = None
         super().__init__(target)
         self.create_mapping()  # creates the mapping
@@ -114,7 +149,11 @@ class XAnimator(XPression):
         self.completion_slider = UCompletion()
         for i, udata in enumerate(self.params):
             self.params[i] = udata()
-        u_group = UGroup(self.completion_slider, *self.params, target=self.obj_target, name=self.name)
+        if self.interpolate:
+            self.strength = UStrength()
+            u_group = UGroup(self.completion_slider, self.strength, *self.params, target=self.obj_target, name=self.name)
+        else:
+            u_group = UGroup(self.completion_slider, *self.params, target=self.obj_target, name=self.name)
 
         # create nodes
         self.object_node = XObject(self.target)
@@ -126,11 +165,17 @@ class XAnimator(XPression):
 
         # create ports
         self.active_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, BOOL_DESCID_OUT)
-        self.completion_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, self.completion_slider.descId)
+        self.completion_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, self.completion_slider.desc_id)
+        if self.interpolate:
+            self.final_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
+            strength_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, self.strength.desc_id)
 
         # connect ports
         self.completion_port_out.Connect(override_controller.real_interface_in)
         override_controller.bool_interface_out.Connect(self.active_interface_out)
+        if self.interpolate:
+            strength_port_out.Connect(self.final_interface_out)
+
 
     def create_mapping(self):
         """creates a mapping using the formula node"""
@@ -148,7 +193,7 @@ class XAnimator(XPression):
         t_port.SetName("t")
         driver_port_out = formula_node.obj.GetOutPort(0)
         for i, param in enumerate(self.params):
-            param_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, param.descId)
+            param_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, param.desc_id)
             param_ports_out.append(param_port_out)
             param_port_in = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
             param_port_in.SetName("var"+str(i+1))
@@ -164,14 +209,14 @@ class XAnimator(XPression):
 class XComposer(XAnimator):
     """special kind of animator used for compositions, uses multiple range mappers instead of formula"""
 
-    def __init__(self, target, input_range=(0,1), name=None):
-        self.input_range = input_range
-        super().__init__(target, name=name)
-
     def create_mapping(self):
-        """creates a mapping using range mapper nodes"""
+        """not used for composer"""
+        pass
+        
+    def add_range_mapping(self, input_range):
+        """adds a range mapper node and an out port to the xpression"""
         # create nodes
-        range_mapper_node = XRangeMapper(self.target, input_range=self.input_range, easing="OUT")
+        range_mapper_node = XRangeMapper(self.target, input_range=input_range)
 
         # group nodes
         self.xgroup.add(range_mapper_node)
@@ -193,13 +238,16 @@ class XAccessControl(XPression):
         # specify link target
         self.link_target = link_target
         # check for animator
-        if type(parameter) is XAnimator:
+        if type(parameter) in (XAnimator, XComposer):
             animator = parameter  # is animator
             self.parameter = animator.completion_slider
             self.name = animator.name
-        else:
+        elif type(parameter) is UParameter:
             self.parameter = parameter
             self.name = parameter.name
+            target = parameter.target
+        else:
+            raise TypeError("parameter must be of type XAnimator, XComposer or UParameter!")
         super().__init__(target)
 
     def construct(self):
@@ -216,13 +264,13 @@ class XAccessControl(XPression):
         # create ports
         self.active_interfaces_in = []
         self.driver_interfaces_in = []
-        parameter_port_out = object_node_out.obj.AddPort(c4d.GV_PORT_OUTPUT, self.parameter.descId)
-        parameter_port_in = object_node_in.obj.AddPort(c4d.GV_PORT_INPUT, self.parameter.descId)
+        self.parameter_port_out = object_node_out.obj.AddPort(c4d.GV_PORT_OUTPUT, self.parameter.desc_id)
+        self.parameter_port_in = object_node_in.obj.AddPort(c4d.GV_PORT_INPUT, self.parameter.desc_id)
 
         # connect ports
         self.condition_switch_node.obj.GetOutPort(0).Connect(self.condition_node.obj.GetInPort(0))
-        parameter_port_out.Connect(self.condition_node.obj.GetInPort(1))
-        self.condition_node.obj.GetOutPort(0).Connect(parameter_port_in)
+        self.parameter_port_out.Connect(self.condition_node.obj.GetInPort(1))
+        self.condition_node.obj.GetOutPort(0).Connect(self.parameter_port_in)
 
         # remove unused ports
         self.condition_switch_node.obj.RemoveUnusedPorts()
@@ -231,8 +279,7 @@ class XAccessControl(XPression):
         # name ports
         self.condition_node.obj.GetInPort(1).SetName("Idle")
 
-
-    def add_input_source(self, source):
+    def add_input_source(self, source, interpolate=False):
         """adds and connects a bool input and a real input to a given input source"""
         # update input count
         self.input_count += 1
@@ -255,29 +302,70 @@ class XAccessControl(XPression):
         new_condition_switch_port_in.SetName("Input" + str(self.input_count))
         new_condition_port_in.SetName("Input" + str(self.input_count))
 
+        # optionally interpose interpolator
+        if interpolate:
+            self.interpose_interpolator(source, self.parameter_port_out, self.driver_interfaces_in[-1], new_condition_port_in)
+
+    def interpose_interpolator(self, source, initial_source, completion_source, output_target):
+        """interposes an interpolator for linear interpolation between initial and final value of target parameter"""
+        # create nodes
+        interpolator = XInterpolator(self.target)
+
+        # group nodes
+        self.xgroup.add(interpolator)
+
+        # create ports
+        final_source = self.obj.AddPort(c4d.GV_PORT_INPUT, REAL_DESCID_IN)
+
+        # connect ports
+        initial_source.Connect(interpolator.ini_interface_in)
+        final_source.Connect(interpolator.fin_interface_in)
+        source.final_interface_out.Connect(final_source)
+        completion_source.Connect(interpolator.completion_interface_in)
+        interpolator.output_interface_out.Connect(output_target)
+
 
 class XComposition(XPression):
     """template for generic composed animator"""
 
-    def __init__(self, *sub_animators, target=None, name=None):
-        self.sub_animators = sub_animators
+    def __init__(self, *animator_tuples, target=None, name=None):
+        self.animator_tuples = animator_tuples
         self.target = target
         self.obj_target = target.obj
         self.name = name
         super().__init__(target)
 
     def construct(self):
-        # create nodes
-        self.composer = XComposer(self.target, name=self.name)
-        self.access_controls = []
-        for sub_animator in self.sub_animators:
-            access_control = XAccessControl(self.target, parameter=sub_animator.completion_slider)
-            access_control.add_input_source(self.composer)
-            self.access_controls.append(access_control)
-            if sub_animator.access_control is None:  # add access control if needed
-                sub_animator.access_control = XAccessControl(self.target, parameter=sub_animator)
-            sub_animator.access_control.add_input_source(self.composition_animator)
-            self.access_controls.append(sub_animator.access_control)
+        # unpack tuples
+        animators = [animator_tuple[0] for animator_tuple in self.animator_tuples]
+        input_ranges = [animator_tuple[1] for animator_tuple in self.animator_tuples]
+        # create composer
+        composer = XComposer(self.target, name=self.name)
+        # create access controls
+        for animator, input_range in zip(animators, input_ranges):
+            if animator.access_control is None:  # add access control if needed
+                animator.access_control = XAccessControl(self.target, parameter=animator)
+            composer.add_range_mapping(input_range)
+            animator.access_control.add_input_source(composer)
+
+
+class XAnimation(XPression):
+    """connects animators to layer zero parameter"""
+
+    def __init__(self, *animators, target=None, parameter=None, name=None):
+        self.target = target
+        self.animators = animators
+        self.parameter = parameter
+        self.obj_target = target.obj
+        self.name = name
+        super().__init__(target)
+
+    def construct(self):
+        # create access controls if needed
+        for animator in self.animators:
+            if self.parameter.access_control is None:
+                self.parameter.access_control = XAccessControl(self.target, parameter=self.parameter, link_target=self.parameter.link_target)
+            self.parameter.access_control.add_input_source(animator, interpolate=animator.interpolate)
 
 
 class XMaterialControl(XPression):
@@ -301,15 +389,15 @@ class XMaterialControl(XPression):
             sketch_target_node_out, condition_node, name="MaterialControl")
         self.obj = self.xgroup.obj
         
-        # gather descIds
-        sketch_completion_descId = c4d.DescID(c4d.DescLevel(
+        # gather desc_ids
+        sketch_completion_desc_id = c4d.DescID(c4d.DescLevel(
             c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_COMPLETE, c4d.DTYPE_REAL, 0))
         
         # create ports
         sketch_completion_port_in = sketch_target_node_in.obj.AddPort(
-            c4d.GV_PORT_INPUT, sketch_completion_descId)
+            c4d.GV_PORT_INPUT, sketch_completion_desc_id)
         sketch_completion_port_out = sketch_target_node_out.obj.AddPort(
-            c4d.GV_PORT_OUTPUT, sketch_completion_descId)
+            c4d.GV_PORT_OUTPUT, sketch_completion_desc_id)
         
         # connect ports
         sketch_completion_port_out.Connect(condition_node.obj.GetInPort(1))

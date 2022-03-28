@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import c4d
 
+# missing desc_ids
+VALUE_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001133))
 
 class XNode:
     """creates a node inside a the xpresso tag of a given target"""
@@ -64,7 +66,7 @@ class XObject(XNode):
 
     def set_params(self):
         if self.link_target is not None:
-            self.obj[c4d.GV_OBJECT_OBJECT_ID] = self.link_target
+            self.obj[c4d.GV_OBJECT_OBJECT_ID] = self.link_target.obj
 
 
 class XCondition(XNode):
@@ -156,14 +158,21 @@ class XConditionSwitch(XPython):
 class XFormula(XNode):
     """creates a formula node"""
 
-    def __init__(self, target, formula=None):
+    def __init__(self, target, variables=[], formula=None):
+        self.variables = variables
         self.formula = formula
         super().__init__(target, "formula")
 
     def set_params(self):
+        # add variables
+        for variable in self.variables:
+            variable_port = self.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
+            variable_port.SetName(variable)
+        # set formula
         if self.formula is None:
             self.formula = "t"
         self.obj[c4d.GV_FORMULA_STRING] = self.formula
+        # set options
         self.obj[c4d.GV_FORMULA_USE_PORTNAMES] = True  # use portnames
         self.obj[c4d.GV_FORMULA_ANGLE] = 1  # use radians
 
@@ -171,7 +180,7 @@ class XFormula(XNode):
 class XRangeMapper(XNode):
     """creates a range mapper node"""
 
-    def __init__(self, target, input_range=(0,1), easing=True, reverse=False):
+    def __init__(self, target, input_range=(0,1), easing=False, reverse=False):
         self.input_range = input_range
         self.easing = easing
         self.reverse = reverse
@@ -202,13 +211,18 @@ class XRangeMapper(XNode):
         self.obj[c4d.GV_RANGEMAPPER_RANGE12] = self.input_range[1]
 
 
+class XFreeze(XNode):
+    """creates a freeze node"""
+
+    def __init__(self, target):
+        super().__init__(target, "freeze")
+
+
 class XPression(ABC):
     """creates xpressions for a given xpresso tag"""
 
     def __init__(self, target):
         self.target = target
-        self.xtag = target.xtag.obj  # xpresso tag
-        self.master = self.xtag.GetNodeMaster()
         self.construct()
 
     @abstractmethod

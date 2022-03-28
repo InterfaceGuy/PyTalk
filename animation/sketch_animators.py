@@ -1,4 +1,6 @@
 from pydeation.animation.abstract_animators import SketchAnimator
+from pydeation.xpresso.userdata import UParameter
+from pydeation.xpresso.xpressions import XAnimation, XAnimator
 import c4d
 
 class Draw(SketchAnimator):
@@ -23,6 +25,14 @@ class Draw(SketchAnimator):
             obj.sketch_material.obj[c4d.OUTLINEMAT_ANIMATE_AUTODRAW] = True
             obj.sketch_material.obj[c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_TYPE] = 2
             obj.sketch_material.obj[c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_COMPLETE] = 0
+
+    @classmethod
+    def create_xpression(cls):
+        for obj in cls.objs:
+            for desc_id in cls.desc_ids.values():
+                parameter = UParameter(obj, desc_id, link_target=obj.sketch_material, name="SketchCompletion")
+                xanimator = XAnimator(obj, interpolate=True, name="Draw")
+                xanimation = XAnimation(xanimator, target=obj, parameter=parameter)
 
 
 class UnDraw(SketchAnimator):
