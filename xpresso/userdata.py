@@ -5,13 +5,15 @@ import c4d
 class UData(ABC):
     """creates userdata for xpresso setups"""
 
-    def __init__(self, name=None):
+    def __init__(self, name=None, default_value=None):
         # create default container for the specified data type
         self.specify_data_type()
         # set constraints
         self.specify_constraints()
         # set the display name of the element
         self.specify_name(name)
+        # set the initial value
+        self.specify_default_value(default_value)
         # add attribute for desc_id
         self.desc_id = None
 
@@ -23,6 +25,10 @@ class UData(ABC):
         # sets the display name of the element
         self.name = name  # write as attribute
         self.bc[c4d.DESC_NAME] = self.name
+
+    def specify_default_value(self, default_value):
+        if default_value is not None:
+            self.bc[c4d.DESC_DEFAULT] = default_value
 
 
 ### data type classes ###

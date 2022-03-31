@@ -211,7 +211,7 @@ class StateAnimation(Animation):
         if self.name is None:
             return f"StateAnimation: {self.target}, {self.value}"
         else:
-            return f"StateAnimation: {self.name},{self.target}, {self.value}"
+            return f"StateAnimation: {self.name}, {self.target}, {self.value}"
 
     def execute(self):
         """sets the actual keyframes of the animation"""
@@ -246,41 +246,6 @@ class StateAnimation(Animation):
         rel_start_rescaled_translated = rel_start_rescaled + super_rel_start_point
         # write to animation
         self.rel_start = rel_start_rescaled_translated
-
-
-class CompletionAnimation(VectorAnimation):
-    """a special case of vector animation used for driving the completion sliders of xanimators"""
-
-    def __init__(self, target, desc_id, completion_slider=None, **kwargs):
-        self.completion_slider = completion_slider
-        super().__init__(target, desc_id, value_ini=0, value_fin=1, **kwargs)
-
-    def execute(self):
-        """sets the actual keyframes of the animation"""
-        desc_id = self.completion_slider
-        self.scale_relative_run_time(
-            self.abs_run_time)  # translates the relative to absolute run time
-        self.key_ini = KeyFrame(
-            self.target, desc_id, value=self.value_ini, time=self.global_time(self.abs_start))  # create initial keyframe
-        self.key_fin = KeyFrame(
-            self.target, desc_id, value=self.value_fin, time=self.global_time(self.abs_stop))  # create final keyframe
-
-    def get_current_value(self):
-        """returns the value of the objects parameter"""
-        param_id = self.get_param_id()
-        current_value = self.target.obj[param_id]
-        return current_value
-
-    def get_param_id(self):
-        """returns the parameter id from the description id to use for setting parameter values of objects"""
-        if self.completion_slider.GetDepth() == 1:
-            param_id = (self.completion_slider[0].id)
-        elif self.completion_slider.GetDepth() == 2:
-            param_id = (self.completion_slider[0].id, self.completion_slider[1].id)
-        elif self.completion_slider.GetDepth() == 3:
-            param_id = (self.completion_slider[0].id,
-                        self.completion_slider[1].id, self.completion_slider[2].id)
-        return param_id
 
 
 class AnimationGroup:

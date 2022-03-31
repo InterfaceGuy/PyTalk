@@ -47,7 +47,7 @@ class Move(ObjectAnimator):
 
     def __new__(cls, *objs, x=None, y=None, z=None, relative=True, **kwargs):
         cls.set_values(x, y, z)
-        return super().__new__(cls, *objs, relative=relative, **kwargs)
+        return super().__new__(cls, *objs, relative=relative, animation_type="vector", **kwargs)
 
     @classmethod
     def specify_desc_ids(cls):
@@ -70,7 +70,7 @@ class Rotate(ObjectAnimator):
 
     def __new__(cls, *objs, h=None, p=None, b=None, relative=True, **kwargs):
         cls.set_values(h, p, b)
-        return super().__new__(cls, *objs, relative=relative, **kwargs)
+        return super().__new__(cls, *objs, relative=relative, animation_type="vector", **kwargs)
 
     @classmethod
     def specify_desc_ids(cls):
@@ -93,7 +93,7 @@ class Scale(ObjectAnimator):
 
     def __new__(cls, *objs, x=None, y=None, z=None, relative=True, multiplicative=True, **kwargs):
         cls.set_values(x, y, z)
-        return super().__new__(cls, *objs, relative=relative, multiplicative=multiplicative, **kwargs)
+        return super().__new__(cls, *objs, relative=relative, multiplicative=multiplicative, animation_type="vector", **kwargs)
 
     @classmethod
     def specify_desc_ids(cls):

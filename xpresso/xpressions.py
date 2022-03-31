@@ -138,7 +138,8 @@ class XAnimator(XPression):
         self.obj_target = target.obj
         self.formula = formula
         self.name = name
-        self.params = params
+        self.udatas = [param[0] for param in params]  # get udata of parameters
+        self.param_names = [param[1] for param in params]  # get udata of parameters
         self.interpolate = interpolate
         self.access_control = None
         super().__init__(target)
@@ -147,13 +148,13 @@ class XAnimator(XPression):
     def construct(self):
         # create userdata
         self.completion_slider = UCompletion()
-        for i, udata in enumerate(self.params):
-            self.params[i] = udata()
+        for i, udata in enumerate(self.udatas):
+            self.udatas[i] = udata(name=self.param_names[i])
         if self.interpolate:
             self.strength = UStrength()
-            u_group = UGroup(self.completion_slider, self.strength, *self.params, target=self.obj_target, name=self.name)
+            u_group = UGroup(self.completion_slider, self.strength, *self.udatas, target=self.obj_target, name=self.name)
         else:
-            u_group = UGroup(self.completion_slider, *self.params, target=self.obj_target, name=self.name)
+            u_group = UGroup(self.completion_slider, *self.udatas, target=self.obj_target, name=self.name)
 
         # create nodes
         self.object_node = XObject(self.target)
@@ -192,11 +193,11 @@ class XAnimator(XPression):
         t_port = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
         t_port.SetName("t")
         driver_port_out = formula_node.obj.GetOutPort(0)
-        for i, param in enumerate(self.params):
-            param_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, param.desc_id)
+        for udata, param_name in zip(self.udatas, self.param_names):
+            param_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, udata.desc_id)
             param_ports_out.append(param_port_out)
             param_port_in = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
-            param_port_in.SetName("var"+str(i+1))
+            param_port_in.SetName(param_name)
             param_ports_in.append(param_port_in)
         
         # connect ports
