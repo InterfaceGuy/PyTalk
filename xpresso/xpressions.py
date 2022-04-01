@@ -77,11 +77,13 @@ class XOverrideController(XPression):
     def construct(self):
         # create nodes
         active_range_node = XActiveRange(self.target)
+        memory_node = XMemory(self.target)
+        constant_node = XConstant(self.target, value=1)
         not_descending_node = XNotDescending(self.target)
         bool_node = XBool(self.target, mode="AND")
 
         # group nodes
-        self.xgroup = XGroup(active_range_node, not_descending_node, bool_node, name="OverrideController")
+        self.xgroup = XGroup(active_range_node, memory_node, constant_node, not_descending_node, bool_node, name="OverrideController")
         self.obj = self.xgroup.obj
 
         # create ports
@@ -91,7 +93,9 @@ class XOverrideController(XPression):
         # connect ports
         self.real_interface_in.Connect(active_range_node.real_interface_in)
         self.real_interface_in.Connect(not_descending_node.real_interface_in)
-        active_range_node.bool_interface_out.Connect(bool_node.obj.GetInPort(0))
+        active_range_node.bool_interface_out.Connect(memory_node.obj.GetInPort(1))
+        memory_node.obj.GetOutPort(0).Connect(bool_node.obj.GetInPort(0))
+        constant_node.obj.GetOutPort(0).Connect(memory_node.obj.GetInPort(0))
         not_descending_node.bool_interface_out.Connect(bool_node.obj.GetInPort(1))
         bool_node.obj.GetOutPort(0).Connect(self.bool_interface_out)
 
@@ -102,9 +106,9 @@ class XInterpolator(XPression):
     def construct(self):
         # create nodes
         memory_node = XMemory(self.target, history_level=1)
-        override_controller = XOverrideController(self.target, )
+        override_controller = XOverrideController(self.target)
         compare_node = XCompare(self.target, mode="<")
-        freeze_node = XFreeze(self.target, )
+        freeze_node = XFreeze(self.target)
         formula_node = XFormula(self.target, variables=["t","ini","fin"], formula="ini+t*(fin-ini)")
 
         # group nodes

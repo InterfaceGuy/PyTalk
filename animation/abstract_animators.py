@@ -52,19 +52,25 @@ class ProtoAnimator(ABC):
             # set ideosynchratic specifications
             cls.specify_xpression()
             for obj in cls.objs:
+                # check if object already has animator
                 if cls.__name__ in obj.xanimators:
                     xanimator = obj.xanimators[cls.__name__]
                 else:
                     link_target = cls.specify_target(obj)  # get link target
                     target_parameter_desc_id = list(cls.desc_ids.values())[0]  # only one descId in dict anyway, might be different for other animators
-                    parameter = UParameter(obj, target_parameter_desc_id, link_target=link_target, name=cls.parameter_name)
+                    # check if object already has accessed given parameter
+                    if str(target_parameter_desc_id) in obj.accessed_parameters:
+                        parameter = obj.accessed_parameters[str(target_parameter_desc_id)]
+                    else:
+                        parameter = UParameter(obj, target_parameter_desc_id, link_target=link_target, name=cls.parameter_name)
+                        obj.accessed_parameters[str(target_parameter_desc_id)] = parameter  # remember parameter
                     xanimator = XAnimator(obj, interpolate=cls.interpolate, formula=cls.formula, params=cls.udatas, name=cls.__name__)
+                    obj.xanimators[cls.__name__] = xanimator  # remember xanimator
                     xanimation = XAnimation(xanimator, target=obj, parameter=parameter, reverse_parameter_range=cls.reverse_parameter_range)
-                    obj.xanimators[cls.__name__] = xanimator
-
-
-                cls.completion_sliders[obj] = xanimator.completion_slider.desc_id  # save descId of completion slider
-                cls.xdesc_ids[obj] = [udata.desc_id for udata in xanimator.udatas]  # save descIds of udata elements
+                # save descId of completion slider
+                cls.completion_sliders[obj] = xanimator.completion_slider.desc_id
+                # save descIds of udata elements
+                cls.xdesc_ids[obj] = [udata.desc_id for udata in xanimator.udatas]
                 # add strength descId in case of interpolation
                 if cls.interpolate:
                     cls.xdesc_ids[obj].append(xanimator.strength.desc_id)

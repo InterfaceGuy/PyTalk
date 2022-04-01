@@ -17,6 +17,7 @@ class ProtoObject(ABC):
         self.set_rotation(h=h, p=p, b=b)
         self.set_scale(uniform_scale=scale, x=scale_x, y=scale_y, z=scale_z)
         self.xanimators = {}
+        self.accessed_parameters = {}
 
     def __repr__(self):
         """sets the string representation for printing"""
