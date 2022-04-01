@@ -130,8 +130,11 @@ class Text(LineObject):
 class Letters(Text):
     """converts a text object into a group of separate letters"""
 
-    def __init__(self, text, height=50, anchor="middle", **kwargs):
+    def __init__(self, text, height=50, anchor="middle", visible=False, **kwargs):
         super().__init__(text=text, height=height, anchor=anchor, **kwargs)
+        # specify visibility
+        self.visible = visible
+        # seperate letters and group them
         self.seperate_letters(kwargs)
 
     def seperate_letters(self, kwargs):
@@ -161,7 +164,7 @@ class Letters(Text):
             if "z" not in kwargs:
                 kwargs["z"] = 0
             pydeation_letter = Spline(letter, x=x - kwargs["x"], y=y, z=z - kwargs["z"], h=h, p=p, b=b, scale_x=scale_x, scale_y=scale_y,
-                                      scale_z=scale_z)
+                                      scale_z=scale_z, visible=self.visible)
             pydeation_letters.append(pydeation_letter)
         # create text from letters
         self = Group(*pydeation_letters, name=self.text, **kwargs)

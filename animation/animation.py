@@ -144,18 +144,17 @@ class VectorAnimation(Animation):
         # translate relative to absolute run time
         self.scale_relative_run_time(self.abs_run_time)
         # calculate offset frame for initial keyframe
-        offset_frame = 1 / self.document.GetFps()
+        offset = 1 / 1000
         # set keyframes
         self.key_ini = KeyFrame(
             self.target, self.desc_id, value=self.value_ini, time=self.global_time(self.abs_start))  # create initial keyframe
         self.key_fin = KeyFrame(
-            self.target, self.desc_id, value=self.value_fin, time=self.global_time(self.abs_stop - offset_frame))  # create final keyframe
+            self.target, self.desc_id, value=self.value_fin, time=self.global_time(self.abs_stop - offset))  # create final keyframe
 
     def scale_relative_run_time(self, abs_run_time):
         """scales the relative run time by the absolute run time"""
-        fps = self.document.GetFps()
-        self.abs_start = self.rel_start * (abs_run_time - 1 / fps)
-        self.abs_stop = self.rel_stop * (abs_run_time - 1 / fps)
+        self.abs_start = self.rel_start * abs_run_time
+        self.abs_stop = self.rel_stop * abs_run_time
 
     def rescale_relative_run_time(self, super_rel_run_time):
         """rescales the current relative run time using the superordinate relative run time"""
@@ -246,8 +245,7 @@ class StateAnimation(Animation):
 
     def scale_relative_run_time(self, abs_run_time):
         """scales the relative run time by the absolute run time"""
-        fps = self.document.GetFps()
-        self.abs_start = self.rel_start * (abs_run_time - 1 / fps)
+        self.abs_start = self.rel_start * abs_run_time
 
     def rescale_relative_run_time(self, super_rel_run_time):
         """rescales the current relative run time using the superordinate relative run time

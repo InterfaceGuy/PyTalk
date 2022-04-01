@@ -65,6 +65,9 @@ class ProtoAnimator(ABC):
 
                 cls.completion_sliders[obj] = xanimator.completion_slider.desc_id  # save descId of completion slider
                 cls.xdesc_ids[obj] = [udata.desc_id for udata in xanimator.udatas]  # save descIds of udata elements
+                # add strength descId in case of interpolation
+                if cls.interpolate:
+                    cls.xdesc_ids[obj].append(xanimator.strength.desc_id)
 
     @classmethod
     def specify_xpression(cls):

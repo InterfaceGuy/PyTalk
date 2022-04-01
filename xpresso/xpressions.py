@@ -261,9 +261,9 @@ class XAccessControl(XPression):
         object_node_in = XObject(self.target, link_target=self.link_target)
         nodes = [self.condition_switch_node, self.condition_node, object_node_out, object_node_in]
         if self.reverse_parameter_range:
-            range_mapper_node_in = XRangeMapper(self.target, reverse=True)
-            range_mapper_node_out = XRangeMapper(self.target, reverse=True)
-            optional_nodes = [range_mapper_node_in, range_mapper_node_out]
+            self.range_mapper_node_in = XRangeMapper(self.target, reverse=True)
+            self.range_mapper_node_out = XRangeMapper(self.target, reverse=True)
+            optional_nodes = [self.range_mapper_node_in, self.range_mapper_node_out]
             nodes += optional_nodes
 
         # group nodes
@@ -281,10 +281,10 @@ class XAccessControl(XPression):
         self.parameter_port_out.Connect(self.condition_node.obj.GetInPort(1))
         self.condition_node.obj.GetOutPort(0).Connect(self.parameter_port_in)
         if self.reverse_parameter_range:
-            range_mapper_node_in.obj.GetOutPort(0).Connect(self.condition_node.obj.GetInPort(1))
-            range_mapper_node_out.obj.GetOutPort(0).Connect(self.parameter_port_in)
-            self.parameter_port_out.Connect(range_mapper_node_in.obj.GetInPort(0))
-            self.condition_node.obj.GetOutPort(0).Connect(range_mapper_node_out.obj.GetInPort(0))
+            self.range_mapper_node_in.obj.GetOutPort(0).Connect(self.condition_node.obj.GetInPort(1))
+            self.range_mapper_node_out.obj.GetOutPort(0).Connect(self.parameter_port_in)
+            self.parameter_port_out.Connect(self.range_mapper_node_in.obj.GetInPort(0))
+            self.condition_node.obj.GetOutPort(0).Connect(self.range_mapper_node_out.obj.GetInPort(0))
 
         # remove unused ports
         self.condition_switch_node.obj.RemoveUnusedPorts()
@@ -318,7 +318,11 @@ class XAccessControl(XPression):
 
         # optionally interpose interpolator
         if interpolate:
-            self.interpose_interpolator(source, self.parameter_port_out, self.driver_interfaces_in[-1], new_condition_port_in)
+            if self.reverse_parameter_range:
+                initial_source = self.range_mapper_node_in.obj.GetOutPort(0)
+            else:
+                initial_source = self.parameter_port_out
+            self.interpose_interpolator(source, initial_source, self.driver_interfaces_in[-1], new_condition_port_in)
 
     def interpose_interpolator(self, source, initial_source, completion_source, output_target):
         """interposes an interpolator for linear interpolation between initial and final value of target parameter"""
@@ -382,6 +386,7 @@ class XAnimation(XPression):
                 self.parameter.access_control = XAccessControl(self.target, parameter=self.parameter, link_target=self.parameter.link_target, reverse_parameter_range=self.reverse_parameter_range)
             self.parameter.access_control.add_input_source(animator, interpolate=animator.interpolate)
 
+## OBSOLETE ##
 
 class XMaterialControl(XPression):
 
