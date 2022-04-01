@@ -124,9 +124,9 @@ class VectorAnimation(Animation):
     def __repr__(self):
         """sets the string representation for printing"""
         if self.name is None:
-            return f"Animation: {self.target}, {self.value_ini}, {self.value_fin}"
+            return f"VectorAnimation: {self.target}, {self.value_ini}, {self.value_fin}"
         else:
-            return f"Animation: {self.name},{self.target}, {self.value_ini}, {self.value_fin}"
+            return f"VectorAnimation: {self.name}, {self.target}, {self.value_ini}, {self.value_fin}"
 
     def __iadd__(self, other):
         """adds a given value to both initial and final value of the animation simultaneously
@@ -141,12 +141,15 @@ class VectorAnimation(Animation):
 
     def execute(self):
         """sets the actual keyframes of the animation"""
-        self.scale_relative_run_time(
-            self.abs_run_time)  # translates the relative to absolute run time
+        # translate relative to absolute run time
+        self.scale_relative_run_time(self.abs_run_time)
+        # calculate offset frame for initial keyframe
+        offset_frame = 1 / self.document.GetFps()
+        # set keyframes
         self.key_ini = KeyFrame(
             self.target, self.desc_id, value=self.value_ini, time=self.global_time(self.abs_start))  # create initial keyframe
         self.key_fin = KeyFrame(
-            self.target, self.desc_id, value=self.value_fin, time=self.global_time(self.abs_stop))  # create final keyframe
+            self.target, self.desc_id, value=self.value_fin, time=self.global_time(self.abs_stop - offset_frame))  # create final keyframe
 
     def scale_relative_run_time(self, abs_run_time):
         """scales the relative run time by the absolute run time"""
@@ -195,6 +198,20 @@ class VectorAnimation(Animation):
         """returns the vector i.e. the the difference between final and initial value"""
         vector = self.value_fin - self.value_ini
         return vector
+
+
+class CompletionAnimation(VectorAnimation):
+    """subclass used for differentiating completion animations when linking animation chains"""
+
+    def __init__(self, target, desc_id, **kwargs):
+        super().__init__(target, desc_id, **kwargs)
+
+    def __repr__(self):
+        """sets the string representation for printing"""
+        if self.name is None:
+            return f"CompletionAnimation: {self.target}, {self.value_ini}, {self.value_fin}"
+        else:
+            return f"CompletionAnimation: {self.name}, {self.target}, {self.value_ini}, {self.value_fin}"
 
 
 class StateAnimation(Animation):

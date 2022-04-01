@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pydeation.animation.animation import StateAnimation, VectorAnimation, AnimationGroup
+from pydeation.animation.animation import StateAnimation, VectorAnimation, CompletionAnimation, AnimationGroup
 from pydeation.xpresso.userdata import UParameter
 from pydeation.xpresso.xpressions import XAnimation, XAnimator
 from iteration_utilities import deepflatten  # used to flatten groups
@@ -48,6 +48,7 @@ class ProtoAnimator(ABC):
             cls.udatas = []
             cls.formula = None
             cls.interpolate = False
+            cls.reverse_parameter_range = False
             # set ideosynchratic specifications
             cls.specify_xpression()
             for obj in cls.objs:
@@ -58,7 +59,7 @@ class ProtoAnimator(ABC):
                     target_parameter_desc_id = list(cls.desc_ids.values())[0]  # only one descId in dict anyway, might be different for other animators
                     parameter = UParameter(obj, target_parameter_desc_id, link_target=link_target, name=cls.parameter_name)
                     xanimator = XAnimator(obj, interpolate=cls.interpolate, formula=cls.formula, params=cls.udatas, name=cls.__name__)
-                    xanimation = XAnimation(xanimator, target=obj, parameter=parameter)
+                    xanimation = XAnimation(xanimator, target=obj, parameter=parameter, reverse_parameter_range=cls.reverse_parameter_range)
                     obj.xanimators[cls.__name__] = xanimator
 
 
@@ -94,7 +95,7 @@ class ProtoAnimator(ABC):
         animations = []
         if cls.animation_type == "xvector":
             # seperately add completion animation
-            completion_animation = VectorAnimation(obj, cls.completion_sliders[obj], value_ini=0, value_fin=1)
+            completion_animation = CompletionAnimation(obj, cls.completion_sliders[obj], value_ini=0, value_fin=1)
             animations.append(completion_animation)
         for i, value in enumerate(cls.values):
             if value is not None:

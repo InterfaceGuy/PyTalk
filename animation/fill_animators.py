@@ -16,12 +16,13 @@ class Fill(FillAnimator):
 
     @classmethod
     def set_values(cls, filling):
-        cls.values = [1 - filling]
+        cls.values = [filling]
 
     @classmethod
     def specify_xpression(cls):
             cls.parameter_name = "Transparency"
             cls.interpolate = True
+            cls.reverse_parameter_range = True
 
 
 class Pulse(Fill):
@@ -39,3 +40,4 @@ class Pulse(Fill):
             cls.parameter_name = "Transparency"
             cls.udatas = [(UCount, "n"), (UStrength, "filling_lower"), (UStrength, "filling_upper")]
             cls.formula = "filling_lower + sin(n*Pi*t) * sin(n*Pi*t) * (filling_upper - filling_lower)"
+            cls.reverse_parameter_range = True

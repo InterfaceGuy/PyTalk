@@ -233,11 +233,13 @@ class XComposer(XAnimator):
 class XAccessControl(XPression):
     """xgroup for handling which input should override given parameter"""
 
-    def __init__(self, target, parameter=None, link_target=None):
+    def __init__(self, target, parameter=None, link_target=None, reverse_parameter_range=False):
         # input counter for adding input sources
         self.input_count = 0
         # specify link target
         self.link_target = link_target
+        # specify if range mapper should be inserted before parameter
+        self.reverse_parameter_range = reverse_parameter_range
         # check for animator
         if type(parameter) in (XAnimator, XComposer):
             animator = parameter  # is animator
@@ -257,9 +259,15 @@ class XAccessControl(XPression):
         self.condition_node = XCondition(self.target)
         object_node_out = XObject(self.target, link_target=self.link_target)
         object_node_in = XObject(self.target, link_target=self.link_target)
+        nodes = [self.condition_switch_node, self.condition_node, object_node_out, object_node_in]
+        if self.reverse_parameter_range:
+            range_mapper_node_in = XRangeMapper(self.target, reverse=True)
+            range_mapper_node_out = XRangeMapper(self.target, reverse=True)
+            optional_nodes = [range_mapper_node_in, range_mapper_node_out]
+            nodes += optional_nodes
 
         # group nodes
-        self.xgroup = XGroup(self.condition_switch_node, self.condition_node, object_node_out, object_node_in, name=self.name+"AccessControl")
+        self.xgroup = XGroup(*nodes, name=self.name+"AccessControl")
         self.obj = self.xgroup.obj
 
         # create ports
@@ -272,6 +280,11 @@ class XAccessControl(XPression):
         self.condition_switch_node.obj.GetOutPort(0).Connect(self.condition_node.obj.GetInPort(0))
         self.parameter_port_out.Connect(self.condition_node.obj.GetInPort(1))
         self.condition_node.obj.GetOutPort(0).Connect(self.parameter_port_in)
+        if self.reverse_parameter_range:
+            range_mapper_node_in.obj.GetOutPort(0).Connect(self.condition_node.obj.GetInPort(1))
+            range_mapper_node_out.obj.GetOutPort(0).Connect(self.parameter_port_in)
+            self.parameter_port_out.Connect(range_mapper_node_in.obj.GetInPort(0))
+            self.condition_node.obj.GetOutPort(0).Connect(range_mapper_node_out.obj.GetInPort(0))
 
         # remove unused ports
         self.condition_switch_node.obj.RemoveUnusedPorts()
@@ -353,19 +366,20 @@ class XComposition(XPression):
 class XAnimation(XPression):
     """connects animators to layer zero parameter"""
 
-    def __init__(self, *animators, target=None, parameter=None, name=None):
+    def __init__(self, *animators, target=None, parameter=None, name=None, reverse_parameter_range=False):
         self.target = target
         self.animators = animators
         self.parameter = parameter
         self.obj_target = target.obj
         self.name = name
+        self.reverse_parameter_range = reverse_parameter_range
         super().__init__(target)
 
     def construct(self):
         # create access controls if needed
         for animator in self.animators:
             if self.parameter.access_control is None:
-                self.parameter.access_control = XAccessControl(self.target, parameter=self.parameter, link_target=self.parameter.link_target)
+                self.parameter.access_control = XAccessControl(self.target, parameter=self.parameter, link_target=self.parameter.link_target, reverse_parameter_range=self.reverse_parameter_range)
             self.parameter.access_control.add_input_source(animator, interpolate=animator.interpolate)
 
 

@@ -1,5 +1,5 @@
 from pydeation.document import Document
-from pydeation.animation.animation import StateAnimation, AnimationGroup
+from pydeation.animation.animation import VectorAnimation, AnimationGroup
 from pydeation.animation.object_animators import Show, Hide
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -79,25 +79,24 @@ class Scene(ABC):
                 desc_id_animations_chronological = self.sort_desc_id_animations_chronologically(
                     desc_id_animations)  # sort animations chronologically
                 for i, desc_id_animation in enumerate(desc_id_animations_chronological):
-                    # skip state animations
-                    if type(desc_id_animation) is StateAnimation:
-                        continue
-                    # link chain according to type relative/absolute
-                    previous_animations = desc_id_animations_chronological[:i]
-                    # shift vector by all previous vectors
-                    if desc_id_animation.relative:
-                        for previous_animation in previous_animations:
-                            desc_id_animation += previous_animation
-                    # shift initial value by all previous vectors
-                    else:
-                        vectors = []
-                        for previous_animation in previous_animations:
-                            vector = previous_animation.get_vector()  # get vector
-                            vectors.append(vector)  # collect vector
-                        value_ini = sum(vectors) + \
-                            desc_id_animation.value_ini
-                        desc_id_animation.set_value_ini(
-                            value_ini)  # set new value
+                    # only link vector animaitons
+                    if type(desc_id_animation) is VectorAnimation:
+                        # link chain according to type relative/absolute
+                        previous_animations = desc_id_animations_chronological[:i]
+                        # shift vector by all previous vectors
+                        if desc_id_animation.relative:
+                            for previous_animation in previous_animations:
+                                desc_id_animation += previous_animation
+                        # shift initial value by all previous vectors
+                        else:
+                            vectors = []
+                            for previous_animation in previous_animations:
+                                vector = previous_animation.get_vector()  # get vector
+                                vectors.append(vector)  # collect vector
+                            value_ini = sum(vectors) + \
+                                desc_id_animation.value_ini
+                            desc_id_animation.set_value_ini(
+                                value_ini)  # set new value
 
                 linked_animations += desc_id_animations_chronological
 
