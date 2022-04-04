@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pydeation.constants import *
 import c4d
 
 
@@ -14,7 +15,7 @@ class UData(ABC):
         self.specify_name(name)
         # set the initial value
         self.specify_default_value(default_value)
-        # add attribute for desc_id
+        # add attribute for descId
         self.desc_id = None
 
     @abstractmethod
@@ -62,6 +63,8 @@ class UReal(UData):
     def specify_data_type(self):
         # create base container
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_REAL)
+        self.port_desc_id_in = REAL_DESCID_IN
+        self.port_desc_id_out = REAL_DESCID_OUT
 
     @abstractmethod
     def specify_constraints():
@@ -74,6 +77,8 @@ class UInt(UData):
     def specify_data_type(self):
         # create base container
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_LONG)
+        self.port_desc_id_in = INTEGER_DESCID_IN
+        self.port_desc_id_out = INTEGER_DESCID_OUT
 
     @abstractmethod
     def specify_constraints():
@@ -86,6 +91,8 @@ class UBool(UData):
     def specify_data_type(self):
         # create base container
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_BOOL)
+        self.port_desc_id_in = BOOL_DESCID_IN
+        self.port_desc_id_out = BOOL_DESCID_OUT
 
     @abstractmethod
     def specify_constraints():
@@ -93,6 +100,26 @@ class UBool(UData):
 
 
 ### concrete classes ###
+
+class UColor(UData):
+    """creates a color field"""
+
+    def specify_data_type(self):
+        # create base container
+        self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_COLOR)
+        self.port_desc_id_in = COLOR_DESCID_IN
+        self.port_desc_id_out = COLOR_DESCID_OUT
+
+    def specify_name(self, name):
+        # sets the display name of the element
+        if name is None:
+            name = "color"
+        super().specify_name(name)
+
+    def specify_constraints(self):
+        # no constraints needed for color field
+        pass
+
 
 class UCompletion(UReal):
     """creates a completion field: t -> [0,1]"""
@@ -172,9 +199,10 @@ class UCheckBox(UBool):
 class UParameter():
     """represents an existing parameter to be targeted by an xpression"""
 
-    def __init__(self, target, desc_id, name="Parameter", link_target=None):
+    def __init__(self, target, desc_id, name="Parameter", link_target=None, dtype=None):
         self.target = target
         self.desc_id = desc_id
         self.access_control = None
         self.name = name
         self.link_target = link_target
+        self.dtype = dtype

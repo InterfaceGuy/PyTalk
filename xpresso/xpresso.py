@@ -21,7 +21,9 @@ class XNode:
             "memory": c4d.ID_OPERATOR_MEMORY,
             "object": c4d.ID_OPERATOR_OBJECT,
             "python": 1022471,
-            "rangemapper": c4d.ID_OPERATOR_RANGEMAPPER
+            "rangemapper": c4d.ID_OPERATOR_RANGEMAPPER,
+            "reals2vec": c4d.ID_OPERATOR_REAL2VECT,
+            "vec2reals": c4d.ID_OPERATOR_VECT2REAL
         }
 
         self.target = target
@@ -35,6 +37,9 @@ class XNode:
         if name is not None:
             self.obj.SetName(name)  # set name
         self.set_params()  # set optional additional parameters
+
+    def __repr__(self):
+        return self.__class__.__name__
 
     def set_params(self):
         """used for setting optional additional parameters"""
@@ -54,7 +59,6 @@ class XGroup(XNode):
         for node in nodes:
             # insert node under group
             self.master.InsertFirst(self.obj, node.obj)
-
 
 
 class XObject(XNode):
@@ -216,6 +220,20 @@ class XFreeze(XNode):
 
     def __init__(self, target):
         super().__init__(target, "freeze")
+
+
+class XVec2Reals(XNode):
+    """creates a vec2reals node"""
+
+    def __init__(self, target):
+        super().__init__(target, "vec2reals")
+
+
+class XReals2Vec(XNode):
+    """creates a reals2vec node"""
+
+    def __init__(self, target):
+        super().__init__(target, "reals2vec")
 
 
 class XPression(ABC):

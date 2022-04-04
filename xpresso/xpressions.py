@@ -1,17 +1,7 @@
 from pydeation.xpresso.xpresso import *
 from pydeation.xpresso.userdata import *
+from pydeation.constants import *
 import c4d
-
-# missing desc_ids
-REAL_DESCID_IN = c4d.DescID(c4d.DescLevel(1000019, 400007003, 1001144))
-REAL_DESCID_OUT = c4d.DescID(c4d.DescLevel(536870931, 400007003, 1001144))
-BOOL_DESCID_IN = c4d.DescID(c4d.DescLevel(401006001, 400007001, 1001144))
-BOOL_DESCID_OUT = c4d.DescID(c4d.DescLevel(936876913, 400007001, 1001144))
-INTEGER_DESCID_IN = c4d.DescID(c4d.DescLevel(1000015, 400007002, 1001144))
-INTEGER_DESCID_OUT = c4d.DescID(c4d.DescLevel(536870927, 400007002, 1001144))
-VALUE_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001133))
-CONDITION_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001117))
-CONDITION_SWITCH_DESCID_IN = c4d.DescID(c4d.DescLevel(4005, 400007003, 1022471))
 
 
 class XActiveRange(XPression):
@@ -151,14 +141,19 @@ class XAnimator(XPression):
 
     def construct(self):
         # create userdata
+        uparams = []
+        # completion slider
         self.completion_slider = UCompletion()
+        uparams.append(self.completion_slider)
+        # parameters
         for i, udata in enumerate(self.udatas):
             self.udatas[i] = udata(name=self.param_names[i])
+        uparams += self.udatas
+        # interpolate
         if self.interpolate:
             self.strength = UStrength()
-            u_group = UGroup(self.completion_slider, self.strength, *self.udatas, target=self.obj_target, name=self.name)
-        else:
-            u_group = UGroup(self.completion_slider, *self.udatas, target=self.obj_target, name=self.name)
+            uparams.append(self.strength)
+        u_group = UGroup(*uparams, target=self.obj_target, name=self.name)
 
         # create nodes
         self.object_node = XObject(self.target)

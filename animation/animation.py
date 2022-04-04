@@ -44,7 +44,7 @@ class KeyFrame:
 
     def set_value(self, value):
         """sets the value of the key"""
-        if type(value) in (bool, int):  # used for state changing keyframes like visibility
+        if type(value) in (bool, int, c4d.Vector):  # used for state changing keyframes like visibility
             self.key.SetGeData(self.curve, value)
         else:  # general case
             self.key.SetValue(self.curve, value)

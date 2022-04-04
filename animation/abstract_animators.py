@@ -13,6 +13,7 @@ class ProtoAnimator(ABC):
         cls.animation_type = animation_type
         cls.objs = cls.flatten_input(*objs, unpack_groups=unpack_groups)
         cls.specify_desc_ids()
+        cls.specify_value_type()  # specify value type for vector animations
         cls.create_xpression()
         cls.build_animation_group(
             relative=relative, multiplicative=multiplicative)
@@ -37,6 +38,11 @@ class ProtoAnimator(ABC):
     def specify_target(cls):
         """specifies the target to animate on"""
         pass
+
+    @classmethod
+    def specify_value_type(cls):
+        """specifies the value type for vector animations"""
+        cls.value_type = float  # float as default
 
     @classmethod
     def create_xpression(cls):
@@ -102,10 +108,11 @@ class ProtoAnimator(ABC):
     def build_animation_group_per_object(cls, obj, relative=False, multiplicative=False):
         """intelligently builds animation group from only necessary animations given by value inputs for single object"""
         animations = []
+        # seperately add completion animation for xanimators
         if cls.animation_type == "xvector":
-            # seperately add completion animation
             completion_animation = CompletionAnimation(obj, cls.completion_sliders[obj], value_ini=0, value_fin=1)
             animations.append(completion_animation)
+        # create animation for each value
         for i, value in enumerate(cls.values):
             if value is not None:
                 # specify the target to animate on
@@ -113,10 +120,10 @@ class ProtoAnimator(ABC):
                 # create animation on target
                 if cls.animation_type == "vector":
                     animation = VectorAnimation(
-                        target, list(cls.desc_ids.values())[i], value_fin=value, relative=relative, multiplicative=multiplicative)
+                        target, list(cls.desc_ids.values())[i], value_fin=value, relative=relative, multiplicative=multiplicative, value_type=cls.value_type)
                 elif cls.animation_type == "xvector":
                     if cls.xdesc_ids[obj]:  # check if list is not empty
-                        animation = VectorAnimation(obj, cls.xdesc_ids[obj][i], value_ini=value, value_fin=value)
+                        animation = VectorAnimation(obj, cls.xdesc_ids[obj][i], value_ini=value, value_fin=value, value_type=cls.value_type)
                     else:
                         continue
                 elif cls.animation_type == "state":
