@@ -16,8 +16,8 @@ class ProtoObject(ABC):
         self.set_position(x=x, y=y, z=z)
         self.set_rotation(h=h, p=p, b=b)
         self.set_scale(uniform_scale=scale, x=scale_x, y=scale_y, z=scale_z)
-        self.xanimators = {}
-        self.accessed_parameters = {}
+        self.xpressions = {}  # keeps track of animators, composers etc.
+        self.accessed_parameters = {}  # keeps track which parameters have AccessControl
 
     def __repr__(self):
         """sets the string representation for printing"""
@@ -93,7 +93,7 @@ class VisibleObject(ProtoObject):  # visible objects
     def __init__(self, visible=False, **kwargs):
         super().__init__(**kwargs)
         self.set_visibility(visible=visible)
-        self.set_xpresso_tag()
+        self.set_xpresso_tags()
 
     def set_visibility(self, visible=False):
         if visible:
@@ -127,10 +127,16 @@ class VisibleObject(ProtoObject):  # visible objects
         self.fill_tag.set_tag_properties()
         self.fill_tag.apply_to_object(self)
 
-    def set_xpresso_tag(self):
+    def set_xpresso_tags(self):
         """adds an xpresso tag to the object"""
+        # main tag
         self.xtag = XPressoTag()
+        self.xtag.set_priority(10)  # set priority to be executed last
         self.xtag.apply_to_object(self)
+        # seperate freezing xpression for interpolator in freeze tag to use priority function
+        self.freeze_xtag = XPressoTag()
+        self.freeze_xtag.set_name("FreezeXTag")
+        self.freeze_xtag.apply_to_object(self)
 
 
 class LineObject(VisibleObject):  # line objects only require sketch material

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from pydeation.animation.animation import StateAnimation, VectorAnimation, CompletionAnimation, AnimationGroup
 from pydeation.xpresso.userdata import UParameter
-from pydeation.xpresso.xpressions import XAnimation, XAnimator
+from pydeation.xpresso.xpressions import XAnimation, XAnimator, XComposition
 from iteration_utilities import deepflatten  # used to flatten groups
 
 
@@ -9,12 +9,15 @@ class ProtoAnimator(ABC):
     """an animator mainly stores the information of which parameters will be animated and performs logic on the input values.
     it outputs only the necessary animations as an animation group and rescales them by the relative run time"""
 
-    def __new__(cls, *objs, rel_start=0, rel_stop=1, relative=False, multiplicative=False, unpack_groups=True, animation_type="xvector", category=None):
+    def __new__(cls, *objs, rel_start=0, rel_stop=1, relative=False, multiplicative=False, unpack_groups=True, animation_type="xvector", category=None, xcomposition=False):
         cls.animation_type = animation_type
+        cls.xcomposition = xcomposition  # changes return values so it works with xcompositions
         cls.objs = cls.flatten_input(*objs, unpack_groups=unpack_groups)
         cls.specify_desc_ids()
         cls.specify_value_type()  # specify value type for vector animations
         cls.create_xpression()
+        if cls.xcomposition:
+            return cls.xanimators
         cls.build_animation_group(
             relative=relative, multiplicative=multiplicative)
         animation_group_rescaled = cls.rescale_animation_group(
@@ -49,7 +52,9 @@ class ProtoAnimator(ABC):
         """creates the xpresso setup for the animation if needed"""
         if cls.animation_type == "xvector":
             cls.completion_sliders = {}
-            cls.xdesc_ids = {}
+            cls.animation_parameters = {}
+            if cls.xcomposition:
+                cls.xanimators = {}
             # set default specifications for xpression
             cls.udatas = []
             cls.formula = None
@@ -59,8 +64,8 @@ class ProtoAnimator(ABC):
             cls.specify_xpression()
             for obj in cls.objs:
                 # check if object already has animator
-                if cls.__name__ in obj.xanimators:
-                    xanimator = obj.xanimators[cls.__name__]
+                if cls.__name__ in obj.xpressions:
+                    xanimator = obj.xpressions[cls.__name__]
                 else:
                     link_target = cls.specify_target(obj)  # get link target
                     target_parameter_desc_id = list(cls.desc_ids.values())[0]  # only one descId in dict anyway, might be different for other animators
@@ -71,15 +76,14 @@ class ProtoAnimator(ABC):
                         parameter = UParameter(obj, target_parameter_desc_id, link_target=link_target, name=cls.parameter_name)
                         obj.accessed_parameters[str(target_parameter_desc_id)] = parameter  # remember parameter
                     xanimator = XAnimator(obj, interpolate=cls.interpolate, formula=cls.formula, params=cls.udatas, name=cls.__name__)
-                    obj.xanimators[cls.__name__] = xanimator  # remember xanimator
+                    obj.xpressions[cls.__name__] = xanimator  # remember xanimator
                     xanimation = XAnimation(xanimator, target=obj, parameter=parameter, reverse_parameter_range=cls.reverse_parameter_range)
-                # save descId of completion slider
-                cls.completion_sliders[obj] = xanimator.completion_slider.desc_id
-                # save descIds of udata elements
-                cls.xdesc_ids[obj] = [udata.desc_id for udata in xanimator.udatas]
-                # add strength descId in case of interpolation
-                if cls.interpolate:
-                    cls.xdesc_ids[obj].append(xanimator.strength.desc_id)
+                if cls.xcomposition:
+                    cls.xanimators[obj] = xanimator
+                # save completion slider by obj
+                cls.completion_sliders[obj] = xanimator.completion_slider
+                # save parameters for animation by obj
+                cls.animation_parameters[obj] = xanimator.animation_parameters
 
     @classmethod
     def specify_xpression(cls):
@@ -110,7 +114,7 @@ class ProtoAnimator(ABC):
         animations = []
         # seperately add completion animation for xanimators
         if cls.animation_type == "xvector":
-            completion_animation = CompletionAnimation(obj, cls.completion_sliders[obj], value_ini=0, value_fin=1)
+            completion_animation = CompletionAnimation(obj, cls.completion_sliders[obj].desc_id, value_ini=0, value_fin=1)
             animations.append(completion_animation)
         # create animation for each value
         for i, value in enumerate(cls.values):
@@ -120,10 +124,10 @@ class ProtoAnimator(ABC):
                 # create animation on target
                 if cls.animation_type == "vector":
                     animation = VectorAnimation(
-                        target, list(cls.desc_ids.values())[i], value_fin=value, relative=relative, multiplicative=multiplicative, value_type=cls.value_type)
+                        target, list(cls.desc_ids.values())[i], value_fin=value, relative=relative, multiplicative=multiplicative, value_type=cls.animation_parameters[obj][i].value_type)
                 elif cls.animation_type == "xvector":
-                    if cls.xdesc_ids[obj]:  # check if list is not empty
-                        animation = VectorAnimation(obj, cls.xdesc_ids[obj][i], value_ini=value, value_fin=value, value_type=cls.value_type)
+                    if cls.animation_parameters[obj]:  # check if list is not empty
+                        animation = VectorAnimation(obj, cls.animation_parameters[obj][i].desc_id, value_ini=value, value_fin=value, value_type=cls.animation_parameters[obj][i].value_type)
                     else:
                         continue
                 elif cls.animation_type == "state":
@@ -233,3 +237,80 @@ class ComposedAnimator(ProtoAnimator):
     def compose_animators(cls, *animators):
         """composes the animators into one animation group"""
         cls.animation_group = AnimationGroup(*animators)
+
+
+class ComposedXAnimator(ProtoAnimator):
+    """this class serves as a blueprint for XCompositions
+        - values and xanimators must have the same order"""
+
+    def __new__(cls, rel_start=0, rel_stop=1, category=None):
+        cls.create_xpression()
+        cls.build_animation_group()
+        animation_group_rescaled = cls.rescale_animation_group(
+            rel_start, rel_stop)
+        # add category for visibility handling
+        animation_group_rescaled.category = category
+        return animation_group_rescaled
+
+    @abstractmethod
+    def set_values(cls):
+        """sets values given by input and optionally performs logic on them"""
+        pass
+
+    @classmethod
+    def create_xpression(cls):
+        """creates the xpresso setup for the animation if needed"""
+        cls.completion_sliders = {}
+        cls.animation_parameters = {}
+        # set ideosynchratic specifications
+        for obj in cls.objs:
+            # check if object already has xcomposition
+            if cls.__name__ in obj.xpressions:
+                xcomposition = obj.xpressions[cls.__name__]
+            else:
+                xcomposition = XComposition(*cls.xanimator_tuples[obj], target=obj, name=cls.__name__)
+                obj.xpressions[cls.__name__] = xcomposition  # remember xcomposition
+            # save descId of completion slider
+            cls.completion_sliders[obj] = xcomposition.completion_slider
+            # save descIds of udata elements
+            cls.animation_parameters[obj] = []
+            for xanimator in xcomposition.xanimators:
+                cls.animation_parameters[obj] += xanimator.animation_parameters
+
+
+
+    @classmethod
+    def build_animation_group_per_object(cls, obj):
+        """intelligently builds animation group from only necessary animations given by value inputs for single object"""
+        animations = []
+        # seperately add completion animation for xcomposition
+        completion_animation = CompletionAnimation(obj, cls.completion_sliders[obj].desc_id, value_ini=0, value_fin=1)
+        animations.append(completion_animation)
+        # create animation for each value
+        for i, value in enumerate(cls.values):
+            if value is not None:
+                value_animation = VectorAnimation(obj, cls.animation_parameters[obj][i].desc_id, value_ini=value, value_fin=value, value_type=cls.animation_parameters[obj][i].value_type)
+                animations.append(value_animation)
+        return AnimationGroup(*animations)
+
+    @classmethod
+    def build_animation_group(cls, relative=False, multiplicative=False):
+        """loops over all objects and builds animation groups"""
+        animation_groups = []
+        for obj in cls.objs:
+            animation_group = cls.build_animation_group_per_object(obj)
+            animation_groups.append(animation_group)
+        cls.animation_group = AnimationGroup(*animation_groups)
+
+    @classmethod
+    def compose_xanimators(cls, *xanimator_tuples):
+        """reformats the xanimator tuples into readable format for xcomposition"""
+        cls.xanimator_tuples = {}
+        xanimators = [xanimator_tuple[0] for xanimator_tuple in xanimator_tuples]
+        input_ranges = [xanimator_tuple[1] for xanimator_tuple in xanimator_tuples]
+        for obj in cls.objs:
+            cls.xanimator_tuples[obj] = []
+            for xanimator, input_range in zip(xanimators, input_ranges):
+                cls.xanimator_tuples[obj].append((xanimator[obj], input_range))
+
+

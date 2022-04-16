@@ -65,6 +65,7 @@ class UReal(UData):
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_REAL)
         self.port_desc_id_in = REAL_DESCID_IN
         self.port_desc_id_out = REAL_DESCID_OUT
+        self.value_type = float
 
     @abstractmethod
     def specify_constraints():
@@ -79,6 +80,7 @@ class UInt(UData):
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_LONG)
         self.port_desc_id_in = INTEGER_DESCID_IN
         self.port_desc_id_out = INTEGER_DESCID_OUT
+        self.value_type = int
 
     @abstractmethod
     def specify_constraints():
@@ -93,6 +95,7 @@ class UBool(UData):
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_BOOL)
         self.port_desc_id_in = BOOL_DESCID_IN
         self.port_desc_id_out = BOOL_DESCID_OUT
+        self.value_type = bool
 
     @abstractmethod
     def specify_constraints():
@@ -109,6 +112,7 @@ class UColor(UData):
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_COLOR)
         self.port_desc_id_in = COLOR_DESCID_IN
         self.port_desc_id_out = COLOR_DESCID_OUT
+        self.value_type = c4d.Vector
 
     def specify_name(self, name):
         # sets the display name of the element

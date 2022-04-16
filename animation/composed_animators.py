@@ -1,4 +1,4 @@
-from pydeation.animation.abstract_animators import ComposedAnimator
+from pydeation.animation.abstract_animators import ComposedAnimator, ComposedXAnimator
 from pydeation.animation.object_animators import *
 from pydeation.animation.sketch_animators import *
 from pydeation.animation.fill_animators import *
@@ -29,3 +29,20 @@ class DrawThenFill(ComposedAnimator):
             Draw(*objs, drawing=drawing),
             Fill(*objs, filling=filling))
         return super().__new__(cls, category="constructive", **kwargs)
+
+
+class ChangeFillColor(ComposedXAnimator):
+
+    def __new__(cls, *objs, color=WHITE, **kwargs):
+        cls.set_values(color)
+        cls.objs = objs
+        cls.compose_xanimators(
+            (ChangeFillColorR(*objs, xcomposition=True), (0,1)),
+            (ChangeFillColorG(*objs, xcomposition=True), (0,1)),
+            (ChangeFillColorB(*objs, xcomposition=True), (0,1)))
+        return super().__new__(cls, **kwargs)
+
+    @classmethod
+    def set_values(cls, color):
+        color_r, color_g, color_b = color.x, color.y, color.z
+        cls.values = [color_r, color_g, color_b]

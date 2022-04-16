@@ -1,13 +1,11 @@
-from abc import ABC, abstractmethod
+from pydeation.constants import *
 import c4d
 
-# missing desc_ids
-VALUE_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001133))
 
 class XNode:
     """creates a node inside a the xpresso tag of a given target"""
 
-    def __init__(self, target, node_type, parent=None, name=None):
+    def __init__(self, target, node_type, parent=None, name=None, freeze_xtag=False):
         node_types = {
             "group": c4d.ID_GV_OPERATOR_GROUP,
             "bool": c4d.ID_OPERATOR_BOOL,
@@ -25,18 +23,25 @@ class XNode:
             "reals2vec": c4d.ID_OPERATOR_REAL2VECT,
             "vec2reals": c4d.ID_OPERATOR_VECT2REAL
         }
-
+        # set attributes
         self.target = target
-        self.xtag = target.xtag.obj
+        if freeze_xtag:
+            self.xtag = target.freeze_xtag.obj
+        else:
+            self.xtag = target.xtag.obj
         self.master = self.xtag.GetNodeMaster()
+        # get parent xgroup/root
         if parent is None:
             parent = self.master.GetRoot()
+        # create node as child of parent
         self.obj = self.master.CreateNode(
-            parent, id=node_types[node_type])  # create node
+            parent, id=node_types[node_type])
         self.name = name
+        # set name
         if name is not None:
-            self.obj.SetName(name)  # set name
-        self.set_params()  # set optional additional parameters
+            self.obj.SetName(name)
+        # set optional additional parameters
+        self.set_params()
 
     def __repr__(self):
         return self.__class__.__name__
@@ -49,9 +54,10 @@ class XNode:
 class XGroup(XNode):
     """creates an xgroup containing specified nodes"""
 
-    def __init__(self, *nodes, name=None):
+    def __init__(self, *nodes, name=None, inputs_first=False, **kwargs):
         target = nodes[0].target  # rip target from first group member
-        super().__init__(target, "group", name=name)  # create group node
+        self.inputs_first = inputs_first
+        super().__init__(target, "group", name=name, **kwargs)  # create group node
         self.add(*nodes)
 
     def add(self, *nodes):
@@ -60,13 +66,18 @@ class XGroup(XNode):
             # insert node under group
             self.master.InsertFirst(self.obj, node.obj)
 
+    def set_params(self):
+        # makes sure inputs are updated before being fed into xgroup
+        self.obj[c4d.GV_GROUP_INPUTS_FIRST] = self.inputs_first
+        self.obj[c4d.GV_GROUP_ACTIVE] = True
+
 
 class XObject(XNode):
     """creates an object node"""
 
-    def __init__(self, target, link_target=None):
+    def __init__(self, target, link_target=None, **kwargs):
         self.link_target = link_target
-        super().__init__(target, "object")
+        super().__init__(target, "object", **kwargs)
 
     def set_params(self):
         if self.link_target is not None:
@@ -76,16 +87,16 @@ class XObject(XNode):
 class XCondition(XNode):
     """creates a condition node"""
 
-    def __init__(self, target):
-        super().__init__(target, "condition")
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "condition", **kwargs)
 
 
 class XConstant(XNode):
     """creates a constant node"""
 
-    def __init__(self, target, value=0):
+    def __init__(self, target, value=0, **kwargs):
         self.value = value
-        super().__init__(target, "constant")
+        super().__init__(target, "constant", **kwargs)
 
     def set_params(self):
         self.obj[c4d.GV_CONST_VALUE] = self.value  # set value
@@ -94,10 +105,10 @@ class XConstant(XNode):
 class XCompare(XNode):
     """creates a compare node"""
 
-    def __init__(self, target, mode="==", comparison_value=0):
+    def __init__(self, target, mode="==", comparison_value=0, **kwargs):
         self.mode = mode
         self.comparison_value = comparison_value
-        super().__init__(target, "compare")
+        super().__init__(target, "compare", **kwargs)
 
     def set_params(self):
         modes = {
@@ -114,9 +125,9 @@ class XCompare(XNode):
 class XBool(XNode):
     """creates a bool node"""
 
-    def __init__(self, target, mode="AND"):
+    def __init__(self, target, mode="AND", **kwargs):
         self.mode = mode
-        super().__init__(target, "bool")
+        super().__init__(target, "bool", **kwargs)
 
     def set_params(self):
         modes = {
@@ -133,10 +144,10 @@ class XBool(XNode):
 class XMemory(XNode):
     """creates a memory node"""
 
-    def __init__(self, target, history_level=1, history_depth=3):
+    def __init__(self, target, history_level=1, history_depth=3, **kwargs):
         self.history_level = history_level
         self.history_depth = history_depth
-        super().__init__(target, "memory")
+        super().__init__(target, "memory", **kwargs)
 
     def set_params(self):
         self.obj[c4d.GV_MEMORY_HISTORY_SWITCH] = self.history_level  # set history level
@@ -146,14 +157,14 @@ class XMemory(XNode):
 class XPython(XNode):
     """creates a python node"""
 
-    def __init__(self, target, name=None):
-        super().__init__(target, "python", name=name)
+    def __init__(self, target, name=None, **kwargs):
+        super().__init__(target, "python", name=name, **kwargs)
 
 
 class XConditionSwitch(XPython):
 
-    def __init__(self, target, name="ConditionSwitch"):
-        super().__init__(target, name=name)
+    def __init__(self, target, name="ConditionSwitch", **kwargs):
+        super().__init__(target, name=name, **kwargs)
 
     def set_params(self):
         self.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 0\n    for i in range(op.GetInPortCount()):\n        port = op.GetInPort(i)\n        value = globals()[port.GetName(op)]\n        if value == 1:\n            Output1 = i+1\n            return'
@@ -162,10 +173,10 @@ class XConditionSwitch(XPython):
 class XFormula(XNode):
     """creates a formula node"""
 
-    def __init__(self, target, variables=[], formula=None):
+    def __init__(self, target, variables=[], formula=None, **kwargs):
         self.variables = variables
         self.formula = formula
-        super().__init__(target, "formula")
+        super().__init__(target, "formula", **kwargs)
 
     def set_params(self):
         # add variables
@@ -184,11 +195,11 @@ class XFormula(XNode):
 class XRangeMapper(XNode):
     """creates a range mapper node"""
 
-    def __init__(self, target, input_range=(0,1), easing=False, reverse=False):
+    def __init__(self, target, input_range=(0,1), easing=False, reverse=False, **kwargs):
         self.input_range = input_range
         self.easing = easing
         self.reverse = reverse
-        super().__init__(target, "rangemapper")
+        super().__init__(target, "rangemapper", **kwargs)
 
     def set_params(self):
         # create spline
@@ -218,32 +229,19 @@ class XRangeMapper(XNode):
 class XFreeze(XNode):
     """creates a freeze node"""
 
-    def __init__(self, target):
-        super().__init__(target, "freeze")
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "freeze", **kwargs)
 
 
 class XVec2Reals(XNode):
     """creates a vec2reals node"""
 
-    def __init__(self, target):
-        super().__init__(target, "vec2reals")
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "vec2reals", **kwargs)
 
 
 class XReals2Vec(XNode):
     """creates a reals2vec node"""
 
-    def __init__(self, target):
-        super().__init__(target, "reals2vec")
-
-
-class XPression(ABC):
-    """creates xpressions for a given xpresso tag"""
-
-    def __init__(self, target):
-        self.target = target
-        self.construct()
-
-    @abstractmethod
-    def construct():
-        """analogous to scene class this function constructs the xpression"""
-        pass
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "reals2vec", **kwargs)

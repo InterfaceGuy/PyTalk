@@ -93,7 +93,7 @@ class ChangeFillColorG(FillAnimator):
 
     @classmethod
     def specify_xpression(cls):
-            cls.parameter_name = "FillColorR"
+            cls.parameter_name = "FillColorG"
             cls.interpolate = True
 
 
@@ -116,5 +116,5 @@ class ChangeFillColorB(FillAnimator):
 
     @classmethod
     def specify_xpression(cls):
-            cls.parameter_name = "FillColorR"
+            cls.parameter_name = "FillColorB"
             cls.interpolate = True

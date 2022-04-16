@@ -144,7 +144,7 @@ class VectorAnimation(Animation):
         # translate relative to absolute run time
         self.scale_relative_run_time(self.abs_run_time)
         # calculate offset frame for initial keyframe
-        offset = 1 / 1000
+        offset = 1 / self.document.GetFps()
         # set keyframes
         self.key_ini = KeyFrame(
             self.target, self.desc_id, value=self.value_ini, time=self.global_time(self.abs_start))  # create initial keyframe
