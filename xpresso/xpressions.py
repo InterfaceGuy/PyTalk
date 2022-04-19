@@ -8,9 +8,9 @@ import c4d
 class XPression(ABC):
     """creates xpressions for a given xpresso tag"""
 
-    def __init__(self, target, freeze_xtag=False):
+    def __init__(self, target, freeze_tag=False):
         self.target = target
-        self.freeze_xtag = freeze_xtag
+        self.freeze_tag = freeze_tag
         self.construct()
 
     @abstractmethod
@@ -26,12 +26,10 @@ class XActiveRange(XPression):
         # create nodes
         compare_node_0 = XCompare(self.target, mode="!=", comparison_value=0)
         compare_node_1 = XCompare(self.target, mode="!=", comparison_value=1)
-        memory_node = XMemory(self.target)
-        constant_node = XConstant(self.target, value=1)
         bool_node = XBool(self.target, mode="AND")
         
         # group nodes
-        self.xgroup = XGroup(compare_node_0, compare_node_1, memory_node, constant_node, bool_node, name=self.__class__.__name__[1:])
+        self.xgroup = XGroup(compare_node_0, compare_node_1, bool_node, name=self.__class__.__name__[1:])
         self.obj = self.xgroup.obj
         
         # create ports
@@ -44,7 +42,6 @@ class XActiveRange(XPression):
         compare_node_0.obj.GetOutPort(0).Connect(bool_node.obj.GetInPort(0))
         compare_node_1.obj.GetOutPort(0).Connect(bool_node.obj.GetInPort(1))
         bool_node.obj.GetOutPort(0).Connect(self.bool_interface_out)
-        constant_node.obj.GetOutPort(0).Connect(memory_node.obj.GetInPort(0))
 
 
 class XNotDescending(XPression):
@@ -138,14 +135,14 @@ class XFreezer(XPression):
 
     def construct(self):
         # create nodes
-        memory_node = XMemory(self.target, freeze_xtag=self.freeze_xtag)
-        constant_node = XConstant(self.target, value=1, freeze_xtag=self.freeze_xtag)
-        self.override_controller = XOverrideController(self.target, freeze_xtag=self.freeze_xtag)
-        compare_node = XCompare(self.target, mode="<=", freeze_xtag=self.freeze_xtag)
-        self.freeze_node = XFreeze(self.target, freeze_xtag=self.freeze_xtag)
+        memory_node = XMemory(self.target, freeze_tag=self.freeze_tag)
+        constant_node = XConstant(self.target, value=1, freeze_tag=self.freeze_tag)
+        self.override_controller = XOverrideController(self.target, freeze_tag=self.freeze_tag)
+        compare_node = XCompare(self.target, mode="<=", freeze_tag=self.freeze_tag)
+        self.freeze_node = XFreeze(self.target, freeze_tag=self.freeze_tag)
 
         # group nodes
-        self.xgroup = XGroup(memory_node, constant_node, self.override_controller, compare_node, self.freeze_node, name=self.__class__.__name__[1:], freeze_xtag=self.freeze_xtag)
+        self.xgroup = XGroup(memory_node, constant_node, self.override_controller, compare_node, self.freeze_node, name=self.__class__.__name__[1:], freeze_tag=self.freeze_tag)
         self.obj = self.xgroup.obj
 
         # connect ports
@@ -158,9 +155,9 @@ class XFreezer(XPression):
     def add_input_source(self, source=None, accessed_parameter=None, reverse_parameter_range=False):
         """adds the completion slider and the initial value udata to the freezer"""
         # create nodes
-        object_node_out = XObject(self.target, freeze_xtag=self.freeze_xtag)
-        object_node_in = XObject(self.target, freeze_xtag=self.freeze_xtag)
-        accessed_parameter_node_out = XObject(self.target, link_target=accessed_parameter.link_target, freeze_xtag=self.freeze_xtag)
+        object_node_out = XObject(self.target, freeze_tag=self.freeze_tag)
+        object_node_in = XObject(self.target, freeze_tag=self.freeze_tag)
+        accessed_parameter_node_out = XObject(self.target, link_target=accessed_parameter.link_target, freeze_tag=self.freeze_tag)
         if reverse_parameter_range:
             range_mapper_node = XRangeMapper(self.target, reverse=True)
             self.xgroup.add(range_mapper_node)
@@ -187,10 +184,11 @@ class XFreezer(XPression):
 class XAnimator(XPression):
     """template for generic xanimator that drives single parameter using a given formula"""
 
-    def __init__(self, target, formula=None, name=None, params=[], interpolate=False):
+    def __init__(self, target, formula=None, variables=["t"], name=None, params=[], interpolate=False):
         self.target = target
         self.obj_target = target.obj
         self.formula = formula
+        self.variables = variables
         self.name = name
         self.udatas = [param[0] for param in params]  # get udata of parameters
         self.param_names = [param[1] for param in params]  # get names of parameters
@@ -248,25 +246,22 @@ class XAnimator(XPression):
         # create nodes
         if self.interpolate:
             # this formula ensures that the output value is 1 at frame = frame_fin - 1
-            self.formula = "ceil(t*round(1/(t-t_lag))*(1+t-t_lag))/round(1/(t-t_lag))"
+            self.formula = "ceil(t*round(1/(delta_t))*(1+delta_t))/round(1/(delta_t))"
+            self.variables = ["t", "delta_t"]
             memory_node = XMemory(self.target)
             constant_node = XConstant(self.target, value=1)
-        formula_node = XFormula(self.target, formula=self.formula)
+            delta_node = XDelta(self.target)
+        formula_node = XFormula(self.target, variables=self.variables, formula=self.formula)
 
         # group nodes
         if self.interpolate:
-            self.xgroup.add(memory_node, constant_node)
+            self.xgroup.add(memory_node, constant_node, delta_node)
         self.xgroup.add(formula_node)
         
         # create ports
-        if self.interpolate:
-            t_lag_port = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
-            t_lag_port.SetName("t_lag")
         self.driver_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
         param_ports_out = []
         param_ports_in = []
-        t_port = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
-        t_port.SetName("t")
         driver_port_out = formula_node.obj.GetOutPort(0)
         for udata, param_name in zip(self.udatas, self.param_names):
             param_port_out = self.object_node.obj.AddPort(c4d.GV_PORT_OUTPUT, udata.desc_id)
@@ -279,8 +274,10 @@ class XAnimator(XPression):
         if self.interpolate:
             self.completion_port_out.Connect(memory_node.obj.GetInPort(1))
             constant_node.obj.GetOutPort(0).Connect(memory_node.obj.GetInPort(0))
-            memory_node.obj.GetOutPort(0).Connect(t_lag_port)
-        self.completion_port_out.Connect(t_port)
+            memory_node.obj.GetOutPort(0).Connect(delta_node.obj.GetInPort(1))
+            self.completion_port_out.Connect(delta_node.obj.GetInPort(0))
+            delta_node.obj.GetOutPort(0).Connect(formula_node.variable_ports["delta_t"])
+        self.completion_port_out.Connect(formula_node.variable_ports["t"])
         driver_port_out.Connect(self.driver_interface_out)
         for param_port_in, param_port_out in zip(param_ports_in, param_ports_out):
             param_port_out.Connect(param_port_in)
@@ -297,29 +294,28 @@ class XComposer(XAnimator):
         """adds a range mapper node and an out port to the xpression"""
         # create nodes
         # this formula ensures that the output value is 1 at frame = frame_fin - 1
-        formula = "ceil(t*round(1/(t-t_lag))*(1+t-t_lag))/round(1/(t-t_lag))"
-        formula_node = XFormula(self.target, formula=formula)
+        formula = "ceil(t*round(1/(delta_t))*(1+delta_t))/round(1/(delta_t))"
+        formula_node = XFormula(self.target, variables=["t", "delta_t"], formula=formula)
         constant_node = XConstant(self.target, value=1)
         memory_node = XMemory(self.target)
         range_mapper_node = XRangeMapper(self.target, input_range=input_range)
+        delta_node = XDelta(self.target)
 
         # group nodes
-        self.xgroup.add(formula_node, constant_node, memory_node, range_mapper_node)
+        self.xgroup.add(formula_node, constant_node, memory_node, range_mapper_node, delta_node)
 
         # create ports
         self.driver_interface_out = self.obj.AddPort(c4d.GV_PORT_OUTPUT, REAL_DESCID_OUT)
-        t_port = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
-        t_lag_port = formula_node.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
-        t_port.SetName("t")
-        t_lag_port.SetName("t_lag")
 
         # connect ports
-        self.completion_port_out.Connect(t_port)
+        self.completion_port_out.Connect(formula_node.variable_ports["t"])
+        self.completion_port_out.Connect(delta_node.obj.GetInPort(0))
         self.completion_port_out.Connect(memory_node.obj.GetInPort(1))
         constant_node.obj.GetOutPort(0).Connect(memory_node.obj.GetInPort(0))
-        memory_node.obj.GetOutPort(0).Connect(t_lag_port)
+        memory_node.obj.GetOutPort(0).Connect(delta_node.obj.GetInPort(1))
         formula_node.obj.GetOutPort(0).Connect(range_mapper_node.obj.GetInPort(0))
         range_mapper_node.obj.GetOutPort(0).Connect(self.driver_interface_out)
+        delta_node.obj.GetOutPort(0).Connect(formula_node.variable_ports["delta_t"])
 
 
 class XAccessControl(XPression):
@@ -417,7 +413,7 @@ class XAccessControl(XPression):
         # create nodes
         interpolator = XInterpolator(self.target)
         interpolator.add_input_source(source=source)
-        freezer = XFreezer(self.target, freeze_xtag=True)
+        freezer = XFreezer(self.target, freeze_tag=True)
         freezer.add_input_source(source=source, accessed_parameter=self.parameter, reverse_parameter_range=self.reverse_parameter_range)
 
         # group nodes

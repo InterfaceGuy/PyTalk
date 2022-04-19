@@ -5,7 +5,7 @@ import c4d
 class XNode:
     """creates a node inside a the xpresso tag of a given target"""
 
-    def __init__(self, target, node_type, parent=None, name=None, freeze_xtag=False):
+    def __init__(self, target, node_type, parent=None, name=None, freeze_tag=False):
         node_types = {
             "group": c4d.ID_GV_OPERATOR_GROUP,
             "bool": c4d.ID_OPERATOR_BOOL,
@@ -25,11 +25,11 @@ class XNode:
         }
         # set attributes
         self.target = target
-        if freeze_xtag:
-            self.xtag = target.freeze_xtag.obj
+        if freeze_tag:
+            self.animator_tag = target.freeze_tag.obj
         else:
-            self.xtag = target.xtag.obj
-        self.master = self.xtag.GetNodeMaster()
+            self.animator_tag = target.animator_tag.obj
+        self.master = self.animator_tag.GetNodeMaster()
         # get parent xgroup/root
         if parent is None:
             parent = self.master.GetRoot()
@@ -170,22 +170,32 @@ class XConditionSwitch(XPython):
         self.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 0\n    for i in range(op.GetInPortCount()):\n        port = op.GetInPort(i)\n        value = globals()[port.GetName(op)]\n        if value == 1:\n            Output1 = i+1\n            return'
 
 
+class XDelta(XPython):
+    """outputs delta of input values if delta != 0 else outputs 1"""
+
+    def __init__(self, target, name="Delta", **kwargs):
+        super().__init__(target, name=name, **kwargs)
+
+    def set_params(self):
+        self.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 1\n    delta_t = Input1 - Input2\n    if delta_t:\n        Output1 = delta_t'
+
+
 class XFormula(XNode):
     """creates a formula node"""
 
-    def __init__(self, target, variables=[], formula=None, **kwargs):
+    def __init__(self, target, variables=["t"], formula="t", **kwargs):
         self.variables = variables
         self.formula = formula
         super().__init__(target, "formula", **kwargs)
 
     def set_params(self):
         # add variables
-        for variable in self.variables:
+        self.variable_ports = {}
+        for variable_name in self.variables:
             variable_port = self.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
-            variable_port.SetName(variable)
+            variable_port.SetName(variable_name)
+            self.variable_ports[variable_name] = variable_port
         # set formula
-        if self.formula is None:
-            self.formula = "t"
         self.obj[c4d.GV_FORMULA_STRING] = self.formula
         # set options
         self.obj[c4d.GV_FORMULA_USE_PORTNAMES] = True  # use portnames
@@ -245,3 +255,23 @@ class XReals2Vec(XNode):
 
     def __init__(self, target, **kwargs):
         super().__init__(target, "reals2vec", **kwargs)
+
+class XMath(XNode):
+    """creates a math node"""
+
+    def __init__(self, target, mode="+", **kwargs):
+        self.mode = mode
+        super().__init__(target, "math", **kwargs)
+
+    def set_params(self):
+        # define modes
+        modes = {
+            "+": 0,
+            "-": 1,
+            "*": 2,
+            "/": 3,
+            "%": 4
+        }
+        # specify mode
+        self.obj[c4d.GV_MATH_FUNCTION_ID] = modes[self.mode]
+        

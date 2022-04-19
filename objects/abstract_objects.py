@@ -128,15 +128,19 @@ class VisibleObject(ProtoObject):  # visible objects
         self.fill_tag.apply_to_object(self)
 
     def set_xpresso_tags(self):
-        """adds an xpresso tag to the object"""
-        # main tag
-        self.xtag = XPressoTag()
-        self.xtag.set_priority(10)  # set priority to be executed last
-        self.xtag.apply_to_object(self)
-        # seperate freezing xpression for interpolator in freeze tag to use priority function
-        self.freeze_xtag = XPressoTag()
-        self.freeze_xtag.set_name("FreezeXTag")
-        self.freeze_xtag.apply_to_object(self)
+        """initializes the necessary xpresso tags on the object"""
+        # the composer tags hold the hierarchy of compositions and ensure execution from highest to lowest
+        self.composer_tags = []
+        # the animator tag holds the acting of the animators on the actual parameters
+        self.animator_tag = XPressoTag()
+        self.animator_tag.set_name("AnimatorTag")
+        self.animator_tag.set_priority(1)  # set priority to be executed last
+        self.animator_tag.apply_to_object(self)
+        # the freeze tag holds the freezing xpressions that are executed before the animators
+        self.freeze_tag = XPressoTag()
+        self.freeze_tag.set_name("FreezeTag")
+        self.freeze_tag.set_priority(0)  # set priority to be executed after compositions and before animators
+        self.freeze_tag.apply_to_object(self)
 
 
 class LineObject(VisibleObject):  # line objects only require sketch material

@@ -46,3 +46,19 @@ class ChangeFillColor(ComposedXAnimator):
     def set_values(cls, color):
         color_r, color_g, color_b = color.x, color.y, color.z
         cls.values = [color_r, color_g, color_b]
+
+
+class ChangeFillColorGB(ComposedXAnimator):
+
+    def __new__(cls, *objs, color=WHITE, **kwargs):
+        cls.set_values(color)
+        cls.objs = objs
+        cls.compose_xanimators(
+            (ChangeFillColorG(*objs, xcomposition=True), (0,1)),
+            (ChangeFillColorB(*objs, xcomposition=True), (0,1)))
+        return super().__new__(cls, **kwargs)
+
+    @classmethod
+    def set_values(cls, color):
+        color_g, color_b = color.y, color.z
+        cls.values = [color_g, color_b]
