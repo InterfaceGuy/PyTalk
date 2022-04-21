@@ -8,9 +8,10 @@ import c4d
 class XPression(ABC):
     """creates xpressions for a given xpresso tag"""
 
-    def __init__(self, target, freeze_tag=False):
+    def __init__(self, target, freeze_tag=False, composition_level=None):
         self.target = target
         self.freeze_tag = freeze_tag
+        self.composition_level = composition_level
         self.construct()
 
     @abstractmethod
@@ -184,7 +185,7 @@ class XFreezer(XPression):
 class XAnimator(XPression):
     """template for generic xanimator that drives single parameter using a given formula"""
 
-    def __init__(self, target, formula=None, variables=["t"], name=None, params=[], interpolate=False):
+    def __init__(self, target, formula=None, variables=["t"], name=None, params=[], interpolate=False, composition_level=None):
         self.target = target
         self.obj_target = target.obj
         self.formula = formula
@@ -192,11 +193,13 @@ class XAnimator(XPression):
         self.name = name
         self.udatas = [param[0] for param in params]  # get udata of parameters
         self.param_names = [param[1] for param in params]  # get names of parameters
-        self.animation_parameters = None  # stores udatas and interpolation_target for animation
+        self.animation_parameters = []  # stores udatas and interpolation_target for animation
         self.interpolate = interpolate
         self.access_control = None
-        super().__init__(target)
+        self.composition_level = composition_level
+        super().__init__(target, composition_level=self.composition_level)
         self.create_mapping()  # creates the mapping
+        print(3, composition_level)
 
     def construct(self):
         # create userdata
@@ -220,11 +223,11 @@ class XAnimator(XPression):
         u_group = UGroup(*uparams, target=self.obj_target, name=self.name)
 
         # create nodes
-        self.object_node = XObject(self.target)
-        override_controller = XOverrideController(self.target)
+        self.object_node = XObject(self.target, composition_level=self.composition_level)
+        override_controller = XOverrideController(self.target, composition_level=self.composition_level)
         
         # group nodes
-        self.xgroup = XGroup(self.object_node, override_controller, name=self.name+self.__class__.__name__[1:])  # rip name from class name
+        self.xgroup = XGroup(self.object_node, override_controller, name=self.name+self.__class__.__name__[1:], composition_level=self.composition_level)  # rip name from class name
         self.obj = self.xgroup.obj
 
         # create ports
@@ -295,11 +298,11 @@ class XComposer(XAnimator):
         # create nodes
         # this formula ensures that the output value is 1 at frame = frame_fin - 1
         formula = "ceil(t*round(1/(delta_t))*(1+delta_t))/round(1/(delta_t))"
-        formula_node = XFormula(self.target, variables=["t", "delta_t"], formula=formula)
-        constant_node = XConstant(self.target, value=1)
-        memory_node = XMemory(self.target)
-        range_mapper_node = XRangeMapper(self.target, input_range=input_range)
-        delta_node = XDelta(self.target)
+        formula_node = XFormula(self.target, variables=["t", "delta_t"], formula=formula, composition_level=self.composition_level)
+        constant_node = XConstant(self.target, value=1, composition_level=self.composition_level)
+        memory_node = XMemory(self.target, composition_level=self.composition_level)
+        range_mapper_node = XRangeMapper(self.target, input_range=input_range, composition_level=self.composition_level)
+        delta_node = XDelta(self.target, composition_level=self.composition_level)
 
         # group nodes
         self.xgroup.add(formula_node, constant_node, memory_node, range_mapper_node, delta_node)
@@ -321,13 +324,15 @@ class XComposer(XAnimator):
 class XAccessControl(XPression):
     """xgroup for handling which input should override given parameter"""
 
-    def __init__(self, target, parameter=None, link_target=None, reverse_parameter_range=False):
+    def __init__(self, target, parameter=None, link_target=None, reverse_parameter_range=False, composition_level=None):
         # input counter for adding input sources
         self.input_count = 0
         # specify link target
         self.link_target = link_target
         # specify if range mapper should be inserted before parameter
         self.reverse_parameter_range = reverse_parameter_range
+        # specify to which xtag of the composition hierarchy the xpression should be applied
+        self.composition_level = composition_level
         # check for xanimator
         if type(parameter) in (XAnimator, XComposer):
             xanimator = parameter  # is xanimator
@@ -339,23 +344,23 @@ class XAccessControl(XPression):
             target = parameter.target
         else:
             raise TypeError("parameter must be of type XAnimator, XComposer or UParameter!")
-        super().__init__(target)
+        super().__init__(target, composition_level=self.composition_level)
 
     def construct(self):
         # create nodes
-        self.condition_switch_node = XConditionSwitch(self.target)
-        self.condition_node = XCondition(self.target)
-        object_node_out = XObject(self.target, link_target=self.link_target)
-        object_node_in = XObject(self.target, link_target=self.link_target)
+        self.condition_switch_node = XConditionSwitch(self.target, composition_level=self.composition_level)
+        self.condition_node = XCondition(self.target, composition_level=self.composition_level)
+        object_node_out = XObject(self.target, link_target=self.link_target, composition_level=self.composition_level)
+        object_node_in = XObject(self.target, link_target=self.link_target, composition_level=self.composition_level)
         nodes = [self.condition_switch_node, self.condition_node, object_node_out, object_node_in]
         if self.reverse_parameter_range:
-            self.range_mapper_node_in = XRangeMapper(self.target, reverse=True)
-            self.range_mapper_node_out = XRangeMapper(self.target, reverse=True)
+            self.range_mapper_node_in = XRangeMapper(self.target, reverse=True, composition_level=self.composition_level)
+            self.range_mapper_node_out = XRangeMapper(self.target, reverse=True, composition_level=self.composition_level)
             optional_nodes = [self.range_mapper_node_in, self.range_mapper_node_out]
             nodes += optional_nodes
 
         # group nodes
-        self.xgroup = XGroup(*nodes, name=self.name+"AccessControl")
+        self.xgroup = XGroup(*nodes, name=self.name+"AccessControl", composition_level=self.composition_level)
         self.obj = self.xgroup.obj
 
         # create ports
@@ -411,7 +416,7 @@ class XAccessControl(XPression):
     def interpose_interpolator(self, source, completion_source, output_target):
         """interposes an interpolator for linear interpolation between initial and final value of target parameter"""
         # create nodes
-        interpolator = XInterpolator(self.target)
+        interpolator = XInterpolator(self.target, composition_level=self.composition_level)
         interpolator.add_input_source(source=source)
         freezer = XFreezer(self.target, freeze_tag=True)
         freezer.add_input_source(source=source, accessed_parameter=self.parameter, reverse_parameter_range=self.reverse_parameter_range)
@@ -432,26 +437,32 @@ class XAccessControl(XPression):
 class XComposition(XPression):
     """template for generic composed xanimator"""
 
-    def __init__(self, *xanimator_tuples, target=None, name=None):
+    def __init__(self, *xanimator_tuples, target=None, name=None, composition_mode=False, composition_level=1):
         self.xanimator_tuples = xanimator_tuples
         self.target = target
         self.obj_target = target.obj
         self.name = name
-        super().__init__(target)
+        self.composition_mode = composition_mode
+        self.composition_level = composition_level
+        super().__init__(target, composition_level=self.composition_level)
 
     def construct(self):
         # unpack tuples
         self.xanimators = [xanimator_tuple[0] for xanimator_tuple in self.xanimator_tuples]
         input_ranges = [xanimator_tuple[1] for xanimator_tuple in self.xanimator_tuples]
         # create xcomposer
-        xcomposer = XComposer(self.target, name=self.name)
-        self.completion_slider = xcomposer.completion_slider
+        self.xcomposer = XComposer(self.target, name=self.name, composition_level=self.composition_level)
+        print(self.composition_level)
+        self.completion_slider = self.xcomposer.completion_slider
         # create access controls
         for xanimator, input_range in zip(self.xanimators, input_ranges):
             if xanimator.access_control is None:  # add access control if needed
-                xanimator.access_control = XAccessControl(self.target, parameter=xanimator)
-            xcomposer.add_range_mapping(input_range)
-            xanimator.access_control.add_input_source(xcomposer)
+                xanimator.access_control = XAccessControl(self.target, parameter=xanimator, composition_level=self.composition_level)
+            self.xcomposer.add_range_mapping(input_range)
+            xanimator.access_control.add_input_source(self.xcomposer)
+            # remember animation parameters of xanimators in case of composition mode
+            if self.composition_mode:
+                self.xcomposer.animation_parameters += xanimator.animation_parameters
 
 
 class XAnimation(XPression):

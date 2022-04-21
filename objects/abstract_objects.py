@@ -129,8 +129,8 @@ class VisibleObject(ProtoObject):  # visible objects
 
     def set_xpresso_tags(self):
         """initializes the necessary xpresso tags on the object"""
-        # the composer tags hold the hierarchy of compositions and ensure execution from highest to lowest
-        self.composer_tags = []
+        # the composition tags hold the hierarchy of compositions and ensure execution from highest to lowest
+        self.composition_tags = []
         # the animator tag holds the acting of the animators on the actual parameters
         self.animator_tag = XPressoTag()
         self.animator_tag.set_name("AnimatorTag")
@@ -141,6 +141,16 @@ class VisibleObject(ProtoObject):  # visible objects
         self.freeze_tag.set_name("FreezeTag")
         self.freeze_tag.set_priority(0)  # set priority to be executed after compositions and before animators
         self.freeze_tag.apply_to_object(self)
+
+    def add_composition_tag(self):
+        """adds another layer to the composition hierarchy"""
+        composition_tag = XPressoTag()
+        self.composition_tags.append(composition_tag)
+        composition_tag.set_name("CompositionTag"+str(len(self.composition_tags)))
+        # set priority according to position in composition hierarchy
+        composition_tag.set_priority(-len(self.composition_tags))
+        composition_tag.apply_to_object(self)
+        return composition_tag.obj
 
 
 class LineObject(VisibleObject):  # line objects only require sketch material

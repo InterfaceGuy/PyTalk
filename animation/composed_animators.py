@@ -37,9 +37,9 @@ class ChangeFillColor(ComposedXAnimator):
         cls.set_values(color)
         cls.objs = objs
         cls.compose_xanimators(
-            (ChangeFillColorR(*objs, xcomposition=True), (0,1)),
-            (ChangeFillColorG(*objs, xcomposition=True), (0,1)),
-            (ChangeFillColorB(*objs, xcomposition=True), (0,1)))
+            (ChangeFillColorR(*objs, composition_mode=True), (0,1)),
+            (ChangeFillColorG(*objs, composition_mode=True), (0,1)),
+            (ChangeFillColorB(*objs, composition_mode=True), (0,1)))
         return super().__new__(cls, **kwargs)
 
     @classmethod
@@ -48,15 +48,45 @@ class ChangeFillColor(ComposedXAnimator):
         cls.values = [color_r, color_g, color_b]
 
 
+class SuperChangeFillColorG(ComposedXAnimator):
+
+    def __new__(cls, *objs, color=WHITE, **kwargs):
+        cls.set_values(color)
+        cls.objs = objs
+        cls.compose_xanimators(
+            (ChangeFillColorG(*objs, composition_mode=True), (0,1)))
+        return super().__new__(cls, **kwargs)
+
+    @classmethod
+    def set_values(cls, color):
+        color_g = color.y
+        cls.values = [color_g]
+
+
+class SuperChangeFillColorB(ComposedXAnimator):
+
+    def __new__(cls, *objs, color=WHITE, **kwargs):
+        cls.set_values(color)
+        cls.objs = objs
+        cls.compose_xanimators(
+            (ChangeFillColorB(*objs, composition_mode=True), (0,1)))
+        return super().__new__(cls, **kwargs)
+
+    @classmethod
+    def set_values(cls, color):
+        color_b = color.z
+        cls.values = [color_b]
+
+
 class ChangeFillColorGB(ComposedXAnimator):
 
     def __new__(cls, *objs, color=WHITE, **kwargs):
         cls.set_values(color)
         cls.objs = objs
         cls.compose_xanimators(
-            (ChangeFillColorG(*objs, xcomposition=True), (0,1)),
-            (ChangeFillColorB(*objs, xcomposition=True), (0,1)))
-        return super().__new__(cls, **kwargs)
+            (SuperChangeFillColorG(*objs, composition_mode=True), (0,1)),
+            (SuperChangeFillColorB(*objs, composition_mode=True), (0,1)))
+        return super().__new__(cls, composition_level=2, **kwargs)
 
     @classmethod
     def set_values(cls, color):

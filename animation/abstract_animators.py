@@ -9,14 +9,14 @@ class ProtoAnimator(ABC):
     """an animator mainly stores the information of which parameters will be animated and performs logic on the input values.
     it outputs only the necessary animations as an animation group and rescales them by the relative run time"""
 
-    def __new__(cls, *objs, rel_start=0, rel_stop=1, relative=False, multiplicative=False, unpack_groups=True, animation_type="xvector", category=None, xcomposition=False):
+    def __new__(cls, *objs, rel_start=0, rel_stop=1, relative=False, multiplicative=False, unpack_groups=True, animation_type="xvector", category=None, composition_mode=False):
         cls.animation_type = animation_type
-        cls.xcomposition = xcomposition  # changes return values so it works with xcompositions
+        cls.composition_mode = composition_mode  # changes return values so it works with xcompositions
         cls.objs = cls.flatten_input(*objs, unpack_groups=unpack_groups)
         cls.specify_desc_ids()
         cls.specify_value_type()  # specify value type for vector animations
         cls.create_xpression()
-        if cls.xcomposition:
+        if cls.composition_mode:
             return cls.xanimators
         cls.build_animation_group(
             relative=relative, multiplicative=multiplicative)
@@ -53,7 +53,7 @@ class ProtoAnimator(ABC):
         if cls.animation_type == "xvector":
             cls.completion_sliders = {}
             cls.animation_parameters = {}
-            if cls.xcomposition:
+            if cls.composition_mode:
                 cls.xanimators = {}
             # set default specifications for xpression
             cls.udatas = []
@@ -78,7 +78,7 @@ class ProtoAnimator(ABC):
                     xanimator = XAnimator(obj, interpolate=cls.interpolate, formula=cls.formula, params=cls.udatas, name=cls.__name__)
                     obj.xpressions[cls.__name__] = xanimator  # remember xanimator
                     xanimation = XAnimation(xanimator, target=obj, parameter=parameter, reverse_parameter_range=cls.reverse_parameter_range)
-                if cls.xcomposition:
+                if cls.composition_mode:
                     cls.xanimators[obj] = xanimator
                 # save completion slider by obj
                 cls.completion_sliders[obj] = xanimator.completion_slider
@@ -241,10 +241,15 @@ class ComposedAnimator(ProtoAnimator):
 
 class ComposedXAnimator(ProtoAnimator):
     """this class serves as a blueprint for XCompositions
-        - values and xanimators must have the same order"""
+        - values and xanimators must have the same order
+        - the composition level specifies which xtag in the composition hierarchy the xpression is assigned to"""
 
-    def __new__(cls, rel_start=0, rel_stop=1, category=None):
+    def __new__(cls, rel_start=0, rel_stop=1, category=None, composition_mode=False, composition_level=1):
+        cls.composition_mode = composition_mode
+        cls.composition_level = composition_level
         cls.create_xpression()
+        if cls.composition_mode:
+            return cls.xcomposers
         cls.build_animation_group()
         animation_group_rescaled = cls.rescale_animation_group(
             rel_start, rel_stop)
@@ -262,20 +267,30 @@ class ComposedXAnimator(ProtoAnimator):
         """creates the xpresso setup for the animation if needed"""
         cls.completion_sliders = {}
         cls.animation_parameters = {}
+        if cls.composition_mode:
+            cls.xcomposers = {}
         # set ideosynchratic specifications
         for obj in cls.objs:
             # check if object already has xcomposition
             if cls.__name__ in obj.xpressions:
                 xcomposition = obj.xpressions[cls.__name__]
             else:
-                xcomposition = XComposition(*cls.xanimator_tuples[obj], target=obj, name=cls.__name__)
+                print(1, cls.composition_level)
+                xcomposition = XComposition(*cls.xanimator_tuples[obj], target=obj, name=cls.__name__, composition_mode=cls.composition_mode, composition_level=cls.composition_level)
                 obj.xpressions[cls.__name__] = xcomposition  # remember xcomposition
             # save descId of completion slider
             cls.completion_sliders[obj] = xcomposition.completion_slider
             # save descIds of udata elements
             cls.animation_parameters[obj] = []
-            for xanimator in xcomposition.xanimators:
-                cls.animation_parameters[obj] += xanimator.animation_parameters
+            if cls.composition_mode:
+                xcomposer = xcomposition.xcomposer
+                # remember xcomposers
+                cls.xcomposers[obj] = xcomposer
+                # get ordered list of animation parameters of composed animators
+                cls.animation_parameters[obj] = xcomposer.animation_parameters
+            else:
+                for xanimator in xcomposition.xanimators:
+                    cls.animation_parameters[obj] += xanimator.animation_parameters
 
 
 

@@ -5,7 +5,7 @@ import c4d
 class XNode:
     """creates a node inside a the xpresso tag of a given target"""
 
-    def __init__(self, target, node_type, parent=None, name=None, freeze_tag=False):
+    def __init__(self, target, node_type, parent=None, name=None, freeze_tag=False, composition_level=None):
         node_types = {
             "group": c4d.ID_GV_OPERATOR_GROUP,
             "bool": c4d.ID_OPERATOR_BOOL,
@@ -25,11 +25,17 @@ class XNode:
         }
         # set attributes
         self.target = target
+        # set xtag to animator tag as default
+        self.xtag = target.animator_tag.obj
         if freeze_tag:
-            self.animator_tag = target.freeze_tag.obj
-        else:
-            self.animator_tag = target.animator_tag.obj
-        self.master = self.animator_tag.GetNodeMaster()
+            self.xtag = target.freeze_tag.obj
+        if composition_level:
+            if len(target.composition_tags) < composition_level:
+                print(len(target.composition_tags), composition_level)
+                self.xtag = target.add_composition_tag()
+            else:
+                self.xtag = target.composition_tags[composition_level-1].obj
+        self.master = self.xtag.GetNodeMaster()
         # get parent xgroup/root
         if parent is None:
             parent = self.master.GetRoot()
