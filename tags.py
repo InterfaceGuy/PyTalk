@@ -69,8 +69,17 @@ class XPressoTag(Tag):
     def specify_tag_type(self):
         self.obj = c4d.BaseTag(c4d.Texpresso)
 
-    def set_priority(self, value):
+    def set_priority(self, value, mode="animation"):
+        # define priority modes
+        modes = {
+            "initial": c4d.CYCLE_INITIAL,
+            "animation": c4d.CYCLE_ANIMATION,
+            "expression":c4d.CYCLE_EXPRESSION
+        }
         # set execution priority
         priority_data = self.obj[c4d.EXPRESSION_PRIORITY]
+        # set priority value
         priority_data.SetPriorityValue(c4d.PRIORITYVALUE_PRIORITY, value)
+        # set mode to initial
+        priority_data.SetPriorityValue(c4d.PRIORITYVALUE_MODE, modes[mode])
         self.obj[c4d.EXPRESSION_PRIORITY] = priority_data

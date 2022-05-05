@@ -134,12 +134,12 @@ class VisibleObject(ProtoObject):  # visible objects
         # the animator tag holds the acting of the animators on the actual parameters
         self.animator_tag = XPressoTag()
         self.animator_tag.set_name("AnimatorTag")
-        self.animator_tag.set_priority(1)  # set priority to be executed last
+        self.animator_tag.set_priority(1, mode="expression")  # set priority to be executed last
         self.animator_tag.apply_to_object(self)
         # the freeze tag holds the freezing xpressions that are executed before the animators
         self.freeze_tag = XPressoTag()
         self.freeze_tag.set_name("FreezeTag")
-        self.freeze_tag.set_priority(0)  # set priority to be executed after compositions and before animators
+        self.freeze_tag.set_priority(0, mode="animation")  # set priority to be executed after compositions and before animators
         self.freeze_tag.apply_to_object(self)
 
     def add_composition_tag(self):
@@ -148,7 +148,7 @@ class VisibleObject(ProtoObject):  # visible objects
         self.composition_tags.append(composition_tag)
         composition_tag.set_name("CompositionTag"+str(len(self.composition_tags)))
         # set priority according to position in composition hierarchy
-        composition_tag.set_priority(-len(self.composition_tags))
+        composition_tag.set_priority(-len(self.composition_tags), mode="initial")
         composition_tag.apply_to_object(self)
         return composition_tag.obj
 
