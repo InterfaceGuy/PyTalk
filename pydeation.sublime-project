@@ -11,6 +11,7 @@
 	"build_systems":
 	[
 		{
+			"path": "/Users/davidrug/.virtualenvs/c4d/bin/python3.9",
 			"file_regex": "^[ ]*File \"(...*?)\", line ([0-9]*)",
 			"name": "Anaconda Python Builder",
 			"selector": "source.python",
