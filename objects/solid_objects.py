@@ -1,6 +1,7 @@
 from pydeation.objects.abstract_objects import SolidObject
 import c4d
 
+
 class Sphere(SolidObject):
 
     def __init__(self, radius=100, **kwargs):

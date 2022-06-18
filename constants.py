@@ -43,7 +43,7 @@ SPLINE_THICKNESS = 3
 PI = np.pi
 
 # paths
-SVG_PATH = "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R25_EBA43BEE/python39/libs/pydeationlib/assets/svg"
+SVG_PATH = "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/python39/libs/pydeation/assets/svg"
 
 # missing descIds xpresso ports
 REAL_DESCID_IN = c4d.DescID(c4d.DescLevel(1000019, 400007003, 1001144))
@@ -56,4 +56,5 @@ COLOR_DESCID_IN = c4d.DescID(c4d.DescLevel(1000003, 400007004, 1001144))
 COLOR_DESCID_OUT = c4d.DescID(c4d.DescLevel(536870915, 400007004, 1001144))
 VALUE_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001133))
 CONDITION_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001117))
-CONDITION_SWITCH_DESCID_IN = c4d.DescID(c4d.DescLevel(4005, 400007003, 1022471))
+CONDITION_SWITCH_DESCID_IN = c4d.DescID(
+    c4d.DescLevel(4005, 400007003, 1022471))

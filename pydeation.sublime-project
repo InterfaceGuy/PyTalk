@@ -5,7 +5,10 @@
 			"path": ".",
 		},
 		{
-			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R25_EBA43BEE/library/scripts/pydeation-testing",
+			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/library/scripts/pydeation-testing",
+		},
+		{
+			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/library/scripts/pydeation-PL-pitch"
 		},
 	],
 	"build_systems":
@@ -13,9 +16,15 @@
 		{
 			"path": "/Users/davidrug/.virtualenvs/c4d/bin/python3.9",
 			"file_regex": "^[ ]*File \"(...*?)\", line ([0-9]*)",
+			"name": "c4d",
+			"selector": "source.python",
+			"shell_cmd": "\"python\" -u \"$file\"",
+		},
+		{
+			"file_regex": "^[ ]*File \"(...*?)\", line ([0-9]*)",
 			"name": "Anaconda Python Builder",
 			"selector": "source.python",
 			"shell_cmd": "\"python\" -u \"$file\"",
-		}
+		},
 	],
 }

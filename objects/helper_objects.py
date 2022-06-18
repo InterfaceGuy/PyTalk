@@ -1,5 +1,7 @@
 from pydeation.objects.abstract_objects import HelperObject
+from c4d.modules.mograph import FieldLayer
 import c4d
+
 
 class Null(HelperObject):
 
@@ -15,6 +17,7 @@ class Null(HelperObject):
         shapes = {"dot": 0, "cross": 1, "circle": 2, None: 14}
         # set properties
         self.obj[c4d.NULLOBJECT_DISPLAY] = shapes[display]
+
 
 class Group(Null):
 
@@ -46,3 +49,112 @@ class Group(Null):
         for child in children:
             self.children.append(child)
             child.obj.InsertUnder(self.obj)
+
+
+class CustomObject(Group):
+    """this class is used to create custom objects that are basically
+    groups with coupling of the childrens parameters through xpresso
+    GOALS:
+        - recursively combine custom objects --> chain xpresso animators somehow
+        - specify animation behaviour for Create/UnCreate animator"""
+
+    def __init__(self):
+        self.children = []
+
+    def create_xpression():
+        pass
+
+
+class MoSpline(HelperObject):
+
+    def __init__(self, mode="spline", generation_mode="even", point_count=100, source_spline=None, effectors=[], **kwargs):
+        super().__init__(**kwargs)
+        self.set_object_properties(
+            mode=mode, generation_mode=generation_mode, point_count=point_count, source_spline=source_spline, effectors=effectors)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(440000054)
+
+    def set_object_properties(self, mode="spline", generation_mode="even", point_count=100, source_spline=None, effectors=[]):
+        # implicit properties
+        modes = {"simple": 0, "spline": 1, "turtle": 2}
+        generation_modes = {"vertex": 0, "count": 1, "even": 2, "step": 3}
+        # set properties
+        self.obj[c4d.MGMOSPLINEOBJECT_MODE] = modes[mode]
+        self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_MODE] = generation_modes[generation_mode]
+        self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_COUNT] = point_count
+        if source_spline:
+            self.obj[c4d.MGMOSPLINEOBJECT_SOURCE_SPLINE] = source_spline.obj
+        self.add_effectors(*effectors)
+
+    def add_effectors(self, *effectors):
+        effector_list = c4d.InExcludeData()
+        for effector in effectors:
+            effector_list.InsertObject(effector.obj, 1)
+        self.obj[c4d.MGMOSPLINEOBJECT_EFFECTORLIST] = effector_list
+
+
+class SplineEffector(HelperObject):
+
+    def __init__(self, spline=None, segment_mode="index", segment_index=0, transform_mode="absolute", fields=[], **kwargs):
+        super().__init__(**kwargs)
+        self.set_object_properties(spline=spline, segment_mode=segment_mode,
+                                   segment_index=segment_index, transform_mode=transform_mode, fields=fields)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(1018774)
+
+    def set_object_properties(self, spline=None, segment_mode="index", segment_index=0, transform_mode="absolute", fields=[]):
+        # yin properties
+        segment_modes = {"index": 0, "even_spacing": 1,
+                         "random": 2, "full_spacing": 3}
+        transform_modes = {"relative_to_node": 0,
+                           "absolute": 1, "relative_to_spline": 2}
+        field_list = c4d.FieldList()
+        for field in fields:
+            field_layer = FieldLayer(c4d.FLfield)
+            field_layer.SetLinkedObject(field.obj)
+            field_list.InsertLayer(field_layer)
+        # yang properties
+        if spline:
+            self.obj[c4d.MGSPLINEEFFECTOR_SPLINE] = spline.obj
+        self.obj[c4d.MGSPLINEEFFECTOR_SEGMENTMODE] = segment_modes[segment_mode]
+        self.obj[c4d.MGSPLINEEFFECTOR_SEGMENTINDEX] = segment_index
+        self.obj[c4d.MGSPLINEEFFECTOR_TRANSFORMMODE] = transform_modes[transform_mode]
+        self.obj[c4d.FIELDS] = field_list
+
+
+class LinearField(HelperObject):
+
+    def __init__(self, length=100, direction="x+", **kwargs):
+        super().__init__(**kwargs)
+        self.set_object_properties(length=length, direction=direction)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Flinear)
+
+    def set_object_properties(self, length=100, direction="x+"):
+        # yin properties
+        directions = {"x+": 0, "x-": 1, "y+": 2, "y-": 3, "z+": 4, "z-": 5}
+        contour_modes = {None: 0, "quadratic": 1,
+                         "step": 2, "quantize": 3, "curve": 4}
+        self.obj[c4d.FIELD_CONTOUR_MODE] = contour_modes["curve"]
+        # yang properties
+        self.obj[c4d.LINEAR_SIZE] = length
+        self.obj[c4d.LINEAR_DIRECTION] = directions[direction]
+
+
+class SphericalField(HelperObject):
+
+    def __init__(self, radius=100, **kwargs):
+        super().__init__(**kwargs)
+        self.set_object_properties(radius=radius)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Fspherical)
+
+    def set_object_properties(self, radius=100):
+        # yin properties
+        self.obj[c4d.FIELD_INNER_OFFSET] = 1  # results in constant function
+        # yang properties
+        self.obj[c4d.LINEAR_SIZE] = radius

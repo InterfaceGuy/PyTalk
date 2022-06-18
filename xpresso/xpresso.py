@@ -34,7 +34,7 @@ class XNode:
                 print(len(target.composition_tags), composition_level)
                 self.xtag = target.add_composition_tag()
             else:
-                self.xtag = target.composition_tags[composition_level-1].obj
+                self.xtag = target.composition_tags[composition_level - 1].obj
         self.master = self.xtag.GetNodeMaster()
         # get parent xgroup/root
         if parent is None:
@@ -126,7 +126,9 @@ class XCompare(XNode):
             "!=": 5,
         }
         self.obj[c4d.GV_CMP_FUNCTION] = modes[self.mode]  # set mode
-        self.obj[c4d.GV_CMP_INPUT2] = self.comparison_value  # set comparison value
+        # set comparison value
+        self.obj[c4d.GV_CMP_INPUT2] = self.comparison_value
+
 
 class XBool(XNode):
     """creates a bool node"""
@@ -156,8 +158,10 @@ class XMemory(XNode):
         super().__init__(target, "memory", **kwargs)
 
     def set_params(self):
-        self.obj[c4d.GV_MEMORY_HISTORY_SWITCH] = self.history_level  # set history level
-        self.obj[c4d.GV_MEMORY_HISTORY_DEPTH] = self.history_depth  # set history depth
+        # set history level
+        self.obj[c4d.GV_MEMORY_HISTORY_SWITCH] = self.history_level
+        # set history depth
+        self.obj[c4d.GV_MEMORY_HISTORY_DEPTH] = self.history_depth
 
 
 class XPython(XNode):
@@ -191,14 +195,17 @@ class XFormula(XNode):
 
     def __init__(self, target, variables=["t"], formula="t", **kwargs):
         self.variables = variables
-        self.formula = formula
+        self.formula = "t"
+        if formula:
+            self.formula = formula
         super().__init__(target, "formula", **kwargs)
 
     def set_params(self):
         # add variables
         self.variable_ports = {}
         for variable_name in self.variables:
-            variable_port = self.obj.AddPort(c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
+            variable_port = self.obj.AddPort(
+                c4d.GV_PORT_INPUT, VALUE_DESCID_IN)
             variable_port.SetName(variable_name)
             self.variable_ports[variable_name] = variable_port
         # set formula
@@ -211,7 +218,7 @@ class XFormula(XNode):
 class XRangeMapper(XNode):
     """creates a range mapper node"""
 
-    def __init__(self, target, input_range=(0,1), easing=False, reverse=False, **kwargs):
+    def __init__(self, target, input_range=(0, 1), easing=False, reverse=False, **kwargs):
         self.input_range = input_range
         self.easing = easing
         self.reverse = reverse
@@ -224,16 +231,21 @@ class XRangeMapper(XNode):
         # set easing
         knot_ini, knot_fin = spline.GetKnots()
         if self.easing is True:
-            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(0,0,0), vTangentRight=c4d.Vector(0.25,0,0))
-            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"], vTangentLeft=c4d.Vector(-0.25,0,0), vTangentRight=c4d.Vector(0,0,0))
+            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(
+                0, 0, 0), vTangentRight=c4d.Vector(0.25, 0, 0))
+            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
+                           vTangentLeft=c4d.Vector(-0.25, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
         elif self.easing == "IN":
-            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(0,0,0), vTangentRight=c4d.Vector(0.25,0,0))
+            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(
+                0, 0, 0), vTangentRight=c4d.Vector(0.25, 0, 0))
         elif self.easing == "OUT":
-            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"], vTangentLeft=c4d.Vector(-0.25,0,0), vTangentRight=c4d.Vector(0,0,0))
+            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
+                           vTangentLeft=c4d.Vector(-0.25, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
 
         self.obj[c4d.GV_RANGEMAPPER_SPLINE] = spline
         # set options
-        self.obj[c4d.GV_RANGEMAPPER_OUTPUT_DEFS] = 4  # set output range to zero to one
+        # set output range to zero to one
+        self.obj[c4d.GV_RANGEMAPPER_OUTPUT_DEFS] = 4
         self.obj[c4d.GV_RANGEMAPPER_CLAMP_LOWER] = True
         self.obj[c4d.GV_RANGEMAPPER_CLAMP_UPPER] = True
         self.obj[c4d.GV_RANGEMAPPER_REVERSE] = self.reverse
@@ -262,6 +274,7 @@ class XReals2Vec(XNode):
     def __init__(self, target, **kwargs):
         super().__init__(target, "reals2vec", **kwargs)
 
+
 class XMath(XNode):
     """creates a math node"""
 
@@ -280,4 +293,3 @@ class XMath(XNode):
         }
         # specify mode
         self.obj[c4d.GV_MATH_FUNCTION_ID] = modes[self.mode]
-        

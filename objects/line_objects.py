@@ -3,6 +3,7 @@ from pydeation.objects.helper_objects import Null, Group
 from pydeation.constants import *
 import c4d
 
+
 class Circle(LineObject):
 
     def __init__(self, radius=200, ellipse_ratio=1, ring_ratio=1, **kwargs):
@@ -34,6 +35,30 @@ class Circle(LineObject):
         self.obj[c4d.SPLINEOBJECT_SUB] = 32
 
 
+class Rectangle(LineObject):
+
+    def __init__(self, width=100, height=100, rounding=False, **kwargs):
+        super().__init__(**kwargs)
+        self.set_object_properties(
+            width=width, height=height, rounding=rounding)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Osplinerectangle)
+
+    def set_object_properties(self, width=100, height=100, rounding=False):
+        # check input values
+        if not 0 <= rounding <= 1:
+            raise ValueError("rounding must be between 0 and 1")
+        # yin properties
+        if rounding:
+            rounding_radius = rounding * min(width, height) / 2
+        # yang properties
+        self.obj[c4d.PRIM_RECTANGLE_WIDTH] = width
+        self.obj[c4d.PRIM_RECTANGLE_HEIGHT] = height
+        self.obj[c4d.PRIM_RECTANGLE_ROUNDING] = bool(rounding)
+        self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding
+
+
 class Tracer(LineObject):
 
     def __init__(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False, **kwargs):
@@ -62,6 +87,7 @@ class Tracer(LineObject):
         self.obj[c4d.SPLINEOBJECT_INTERPOLATION] = 1  # adaptive
         self.obj[c4d.MGTRACEROBJECT_USEPOINTS] = False  # no vertex tracing
         self.obj[c4d.MGTRACEROBJECT_SPACE] = False  # global space
+
 
 class Arrow(Tracer):
 
@@ -107,31 +133,32 @@ class Spline(LineObject):
 
 class Text(LineObject):
 
-    def __init__(self, text, height=50, anchor="middle", **kwargs):
-        super().__init__(**kwargs)
-        self.set_object_properties(text, height=height, anchor=anchor)
+    def __init__(self, text, height=50, anchor="middle", seperate_letters=False, **kwargs):
+        super().__init__(name=text, **kwargs)
+        self.set_object_properties(
+            text, height=height, anchor=anchor, seperate_letters=seperate_letters)
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Osplinetext)
 
-    def set_object_properties(self, text, height=50, anchor="middle"):
+    def set_object_properties(self, text, height=50, anchor="middle", seperate_letters=False):
         # write properties to self
         self.text = text
-        # implicit properties
+        # immanent properties
         anchors = {"left": 0, "middle": 1, "right": 0}
-        # set properties
+        # yang properties
         self.obj[c4d.PRIM_TEXT_TEXT] = text
         self.obj[c4d.PRIM_TEXT_HEIGHT] = height
-        # set constants
         self.obj[c4d.PRIM_TEXT_ALIGN] = anchors[anchor]
-        self.obj[c4d.PRIM_TEXT_SEPARATE] = True
+        self.obj[c4d.PRIM_TEXT_SEPARATE] = seperate_letters
 
 
 class Letters(Text):
     """converts a text object into a group of separate letters"""
 
     def __init__(self, text, height=50, anchor="middle", visible=False, **kwargs):
-        super().__init__(text=text, height=height, anchor=anchor, **kwargs)
+        super().__init__(text=text, height=height,
+                         anchor=anchor, seperate_letters=True, **kwargs)
         # specify visibility
         self.visible = visible
         # seperate letters and group them

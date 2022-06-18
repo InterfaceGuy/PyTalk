@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 import c4d
 import os
 
+
 class ProtoObject(ABC):
 
     def __init__(self, name=None, x=0, y=0, z=0, h=0, p=0, b=0, scale=1, scale_x=1, scale_y=1, scale_z=1):
@@ -18,6 +19,7 @@ class ProtoObject(ABC):
         self.set_scale(uniform_scale=scale, x=scale_x, y=scale_y, z=scale_z)
         self.xpressions = {}  # keeps track of animators, composers etc.
         self.accessed_parameters = {}  # keeps track which parameters have AccessControl
+        self.helper_objects = {}  # keeps track of helper objects created by Animators
 
     def __repr__(self):
         """sets the string representation for printing"""
@@ -134,29 +136,34 @@ class VisibleObject(ProtoObject):  # visible objects
         # the animator tag holds the acting of the animators on the actual parameters
         self.animator_tag = XPressoTag()
         self.animator_tag.set_name("AnimatorTag")
-        self.animator_tag.set_priority(1, mode="expression")  # set priority to be executed last
+        # set priority to be executed last
+        self.animator_tag.set_priority(1, mode="expression")
         self.animator_tag.apply_to_object(self)
         # the freeze tag holds the freezing xpressions that are executed before the animators
         self.freeze_tag = XPressoTag()
         self.freeze_tag.set_name("FreezeTag")
-        self.freeze_tag.set_priority(0, mode="animation")  # set priority to be executed after compositions and before animators
+        # set priority to be executed after compositions and before animators
+        self.freeze_tag.set_priority(0, mode="animation")
         self.freeze_tag.apply_to_object(self)
 
     def add_composition_tag(self):
         """adds another layer to the composition hierarchy"""
         composition_tag = XPressoTag()
         self.composition_tags.append(composition_tag)
-        composition_tag.set_name("CompositionTag"+str(len(self.composition_tags)))
+        composition_tag.set_name(
+            "CompositionTag" + str(len(self.composition_tags)))
         # set priority according to position in composition hierarchy
-        composition_tag.set_priority(-len(self.composition_tags), mode="initial")
+        composition_tag.set_priority(-len(self.composition_tags),
+                                     mode="initial")
         composition_tag.apply_to_object(self)
         return composition_tag.obj
 
 
 class LineObject(VisibleObject):  # line objects only require sketch material
 
-    def __init__(self, color=WHITE, fill_color=None, solid=False, arrow_start=False, arrow_end=False, **kwargs):
+    def __init__(self, color=WHITE, plane="xy", fill_color=None, solid=False, arrow_start=False, arrow_end=False, **kwargs):
         super().__init__(**kwargs)
+        self.set_general_properties(plane=plane)
         if solid or fill_color is not None:
             self.create_loft(color=color, fill_color=fill_color,
                              arrow_start=arrow_start, arrow_end=arrow_end)
@@ -164,6 +171,11 @@ class LineObject(VisibleObject):  # line objects only require sketch material
             self.set_sketch_material(
                 color=color, arrow_start=arrow_start, arrow_end=arrow_end)
             self.set_sketch_tag()
+
+    def set_general_properties(self, plane="xy"):
+        # set plane
+        planes = {"xy": 0, "zy": 1, "xz": 2}
+        self.obj[c4d.PRIM_PLANE] = planes[plane]
 
     @abstractmethod
     def set_object_properties(self):
