@@ -36,12 +36,14 @@ class ProtoObject(ABC):
             self.name = name
         self.obj.SetName(self.name)
 
-    def set_position(self, x=0, y=0, z=0):
-        position = c4d.Vector(x, y, z)
+    def set_position(self, x=0, y=0, z=0, position=None):
+        if position is None:
+            position = c4d.Vector(x, y, z)
         self.obj[c4d.ID_BASEOBJECT_POSITION] = position
 
-    def set_rotation(self, h=0, p=0, b=0):
-        rotation = c4d.Vector(h, p, b)
+    def set_rotation(self, h=0, p=0, b=0, rotation=None):
+        if rotation is None:
+            rotation = c4d.Vector(h, p, b)
         self.obj[c4d.ID_BASEOBJECT_ROTATION] = rotation
 
     def set_scale(self, uniform_scale=1, x=1, y=1, z=1):
@@ -157,6 +159,42 @@ class VisibleObject(ProtoObject):  # visible objects
                                      mode="initial")
         composition_tag.apply_to_object(self)
         return composition_tag.obj
+
+    def clone(self):
+        """clones an object and inserts it into the scene"""
+        clone = self.obj.GetClone()
+        self.document.InsertObject(clone)
+        return clone
+
+    def get_editable(self):
+        """returns an editable clone of the object"""
+        clone = self.clone()
+        editable_clone = c4d.utils.SendModelingCommand(command=c4d.MCOMMAND_MAKEEDITABLE, list=[
+            clone], mode=c4d.MODELINGCOMMANDMODE_ALL, doc=self.document)[0]
+        return editable_clone
+
+    def attach_to(self, target, direction="top"):
+        """places the object such that the bounding boxes touch along a given direction and makes object child of target"""
+        bounding_box = self.obj.GetRad()
+        bounding_box_position = self.obj.GetMp()
+        bounding_box_target = target.obj.GetRad()
+        bounding_box_position_target = target.obj.GetMp()
+        new_position = bounding_box_position_target - bounding_box_position
+        if direction == "top":
+            new_position.y += bounding_box_target.y + bounding_box.y
+        if direction == "bottom":
+            new_position.y -= bounding_box_target.y + bounding_box.y
+        if direction == "left":
+            new_position.x -= bounding_box_target.x + bounding_box.x
+        if direction == "right":
+            new_position.x += bounding_box_target.x + bounding_box.x
+        if direction == "front":
+            new_position.z -= bounding_box_target.z + bounding_box.z
+        if direction == "back":
+            new_position.z += bounding_box_target.z + bounding_box.z
+
+        self.obj.InsertUnder(target.obj)
+        self.set_position(position=new_position)
 
 
 class LineObject(VisibleObject):  # line objects only require sketch material

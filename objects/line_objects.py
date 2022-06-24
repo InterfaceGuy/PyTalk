@@ -56,7 +56,7 @@ class Rectangle(LineObject):
         self.obj[c4d.PRIM_RECTANGLE_WIDTH] = width
         self.obj[c4d.PRIM_RECTANGLE_HEIGHT] = height
         self.obj[c4d.PRIM_RECTANGLE_ROUNDING] = bool(rounding)
-        self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding
+        self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding_radius
 
 
 class Tracer(LineObject):

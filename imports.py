@@ -8,6 +8,7 @@ from pydeation.animation.animation import *
 from pydeation.animation.object_animators import *
 from pydeation.animation.sketch_animators import *
 from pydeation.animation.fill_animators import *
+from pydeation.animation.transition_animators import *
 from pydeation.animation.composed_animators import *
 from pydeation.objects.helper_objects import *
 from pydeation.objects.line_objects import *

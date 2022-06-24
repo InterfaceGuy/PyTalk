@@ -311,7 +311,6 @@ class ComposedXAnimator(ProtoAnimator):
             if cls.__name__ in obj.xpressions:
                 xcomposition = obj.xpressions[cls.__name__]
             else:
-                print(1, cls.composition_level)
                 xcomposition = XComposition(*cls.xanimator_tuples[obj], target=obj, name=cls.__name__,
                                             composition_mode=cls.composition_mode, composition_level=cls.composition_level)
                 # remember xcomposition

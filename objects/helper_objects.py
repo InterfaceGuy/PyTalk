@@ -1,5 +1,6 @@
 from pydeation.objects.abstract_objects import HelperObject
 from c4d.modules.mograph import FieldLayer
+import numpy as np
 import c4d
 
 
@@ -49,6 +50,41 @@ class Group(Null):
         for child in children:
             self.children.append(child)
             child.obj.InsertUnder(self.obj)
+
+    def position_on_spline(self, spline):
+        """positions the children the given spline"""
+        number_of_children = len(self.children)
+        editable_spline = spline.get_editable()
+        for i, child in enumerate(self.children):
+            child_position = editable_spline.GetSplinePoint(
+                i / number_of_children)
+            child.set_position(position=child_position)
+
+    def position_on_circle(self, radius=100, x=0, y=0, z=0, plane="xy"):
+        """positions the children on a circle"""
+        def position(radius, phi, plane):
+            if plane == "xy":
+                return c4d.Vector(radius * np.sin(phi), radius * np.cos(phi), 0)
+            if plane == "zy":
+                return c4d.Vector(0, radius * np.cos(phi), radius * np.sin(phi))
+            if plane == "xz":
+                return c4d.Vector(radius * np.sin(phi), 0, radius * np.cos(phi))
+
+        number_of_children = len(self.children)
+        child_positions = [position(radius, phi, plane) for phi in np.linspace(
+            0, 2 * np.pi, number_of_children + 1)]
+        for child, child_position in zip(self.children, child_positions[:-1]):
+            child.set_position(position=child_position)
+
+    def position_on_line(self, point_ini=(-100, 0, 0), point_fin=(100, 0, 0)):
+        """positions the children on a line"""
+        number_of_children = len(self.children)
+        vector_ini = c4d.Vector(*point_ini)
+        vector_fin = c4d.Vector(*point_fin)
+        child_positions = [t * (vector_fin - vector_ini) +
+                           vector_ini for t in np.linspace(0, 1, number_of_children)]
+        for child, child_position in zip(self.children, child_positions):
+            child.set_position(position=child_position)
 
 
 class CustomObject(Group):
