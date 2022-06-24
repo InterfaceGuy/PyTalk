@@ -51,12 +51,28 @@ class Rectangle(LineObject):
             raise ValueError("rounding must be between 0 and 1")
         # yin properties
         if rounding:
-            rounding_radius = rounding * min(width, height) / 2
+            rounding *= min(width, height) / 2
         # yang properties
         self.obj[c4d.PRIM_RECTANGLE_WIDTH] = width
         self.obj[c4d.PRIM_RECTANGLE_HEIGHT] = height
         self.obj[c4d.PRIM_RECTANGLE_ROUNDING] = bool(rounding)
-        self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding_radius
+        self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding
+
+
+class Arc(LineObject):
+
+    def __init__(self, radius=150, start_angle=0, end_angle=PI / 2, **kwargs):
+        super().__init__(**kwargs)
+        self.set_object_properties(
+            radius=radius, start_angle=start_angle, end_angle=end_angle)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Osplinearc)
+
+    def set_object_properties(self, radius=150, start_angle=0, end_angle=PI / 2):
+        self.obj[c4d.PRIM_ARC_RADIUS] = radius
+        self.obj[c4d.PRIM_ARC_START] = start_angle
+        self.obj[c4d.PRIM_ARC_END] = end_angle
 
 
 class Tracer(LineObject):
@@ -89,9 +105,9 @@ class Tracer(LineObject):
         self.obj[c4d.MGTRACEROBJECT_SPACE] = False  # global space
 
 
-class Arrow(Tracer):
+class Line(Tracer):
 
-    def __init__(self, start_point, stop_point, arrow_start=False, arrow_end=True, **kwargs):
+    def __init__(self, start_point, stop_point, arrow_start=False, arrow_end=False, **kwargs):
         self.create_nulls(start_point, stop_point)
         super().__init__(self.start_null, self.stop_null, arrow_start=arrow_start,
                          arrow_end=arrow_end, spline_type="linear", tracing_mode="objects", **kwargs)
@@ -106,6 +122,22 @@ class Arrow(Tracer):
     def make_nulls_children(self):
         self.start_null.obj.InsertUnder(self.obj)
         self.stop_null.obj.InsertUnder(self.obj)
+
+
+class Arrow(Line):
+
+    def __init__(self, start_point, stop_point, direction="positive", **kwargs):
+        if direction == "positive":
+            arrow_start = False
+            arrow_end = True
+        elif direction == "negative":
+            arrow_start = True
+            arrow_end = False
+        elif direction == "bidirectional":
+            arrow_start = True
+            arrow_end = True
+        super().__init__(start_point, stop_point,
+                         arrow_start=arrow_start, arrow_end=arrow_end, **kwargs)
 
 
 class Spline(LineObject):
