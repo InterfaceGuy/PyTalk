@@ -5,11 +5,12 @@ import c4d
 
 class Material(ABC):
 
-    def __init__(self):
+    def __init__(self, name=None):
         self.document = c4d.documents.GetActiveDocument()  # get document
         self.linked_tag = None  # define attribute for tag
         self.specify_material_type()
         self.insert_to_document()
+        self.set_name(name)
 
     def __repr__(self):
         """sets the string representation for printing"""
@@ -19,7 +20,8 @@ class Material(ABC):
         self.document.InsertMaterial(self.obj)
 
     def set_name(self, name):
-        self.obj.SetName(name)
+        if name:
+            self.obj.SetName(name)
 
     @abstractmethod
     def specify_material_type(self):
@@ -31,6 +33,11 @@ class Material(ABC):
 
 
 class SketchMaterial(Material):
+
+    def __init__(self, color=WHITE, arrow_start=False, arrow_end=False, **kwargs):
+        super().__init__(**kwargs)
+        self.set_material_properties(
+            color=color, arrow_start=arrow_start, arrow_end=arrow_end)
 
     def specify_material_type(self):
         self.obj = c4d.BaseMaterial(1011014)  # create sketch material
@@ -53,6 +60,10 @@ class SketchMaterial(Material):
 
 
 class FillMaterial(Material):
+
+    def __init__(self, filling=0, color=WHITE, **kwargs):
+        super().__init__(**kwargs)
+        self.set_material_properties(filling=filling, color=color)
 
     def specify_material_type(self):
         self.obj = c4d.BaseMaterial(c4d.Mmaterial)  # create fill material

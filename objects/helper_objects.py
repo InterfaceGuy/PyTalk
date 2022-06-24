@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from pydeation.objects.abstract_objects import HelperObject
 from c4d.modules.mograph import FieldLayer
 import numpy as np
@@ -85,20 +86,6 @@ class Group(Null):
                            vector_ini for t in np.linspace(0, 1, number_of_children)]
         for child, child_position in zip(self.children, child_positions):
             child.set_position(position=child_position)
-
-
-class CustomObject(Group):
-    """this class is used to create custom objects that are basically
-    groups with coupling of the childrens parameters through xpresso
-    GOALS:
-        - recursively combine custom objects --> chain xpresso animators somehow
-        - specify animation behaviour for Create/UnCreate animator"""
-
-    def __init__(self):
-        self.children = []
-
-    def create_xpression():
-        pass
 
 
 class MoSpline(HelperObject):

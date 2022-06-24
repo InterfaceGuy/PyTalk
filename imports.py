@@ -11,6 +11,7 @@ from pydeation.animation.fill_animators import *
 from pydeation.animation.transition_animators import *
 from pydeation.animation.composed_animators import *
 from pydeation.objects.helper_objects import *
+from pydeation.objects.custom_objects import *
 from pydeation.objects.line_objects import *
 from pydeation.objects.solid_objects import *
 from pydeation.objects.svg_objects import *

@@ -108,56 +108,42 @@ class VisibleObject(ProtoObject):  # visible objects
             hide_animation.execute()
 
     def set_sketch_material(self, color=WHITE, arrow_start=False, arrow_end=False):
-        self.sketch_material = SketchMaterial()
-        self.sketch_material.set_name(self.name)
-        self.sketch_material.set_material_properties(
-            color=color, arrow_start=arrow_start, arrow_end=arrow_end)
+        self.sketch_material = SketchMaterial(
+            name=self.name, color=color, arrow_start=arrow_start, arrow_end=arrow_end)
 
     def set_sketch_tag(self):
-        self.sketch_tag = SketchTag(self.sketch_material)
-        self.sketch_tag.set_tag_properties()
-        self.sketch_tag.apply_to_object(self)
+        self.sketch_tag = SketchTag(target=self, material=self.sketch_material)
 
     def set_fill_material(self, filling=0, fill_color=None):
         if fill_color is None:
             fill_color = self.sketch_material.color  # use sketch as fill
-        self.fill_material = FillMaterial()
-        self.fill_material.set_name(self.name)
-        self.fill_material.set_material_properties(
-            filling=filling, color=fill_color)
+        self.fill_material = FillMaterial(
+            name=self.name, filling=filling, color=fill_color)
 
     def set_fill_tag(self):
-        self.fill_tag = FillTag(self.fill_material)
-        self.fill_tag.set_tag_properties()
-        self.fill_tag.apply_to_object(self)
+        self.fill_tag = FillTag(target=self, material=self.fill_material)
 
     def set_xpresso_tags(self):
         """initializes the necessary xpresso tags on the object"""
         # the composition tags hold the hierarchy of compositions and ensure execution from highest to lowest
         self.composition_tags = []
         # the animator tag holds the acting of the animators on the actual parameters
-        self.animator_tag = XPressoTag()
-        self.animator_tag.set_name("AnimatorTag")
         # set priority to be executed last
-        self.animator_tag.set_priority(1, mode="expression")
-        self.animator_tag.apply_to_object(self)
+        self.animator_tag = XPressoTag(
+            target=self, name="AnimatorTag", priority=1, priority_mode="expression")
         # the freeze tag holds the freezing xpressions that are executed before the animators
-        self.freeze_tag = XPressoTag()
-        self.freeze_tag.set_name("FreezeTag")
         # set priority to be executed after compositions and before animators
-        self.freeze_tag.set_priority(0, mode="animation")
-        self.freeze_tag.apply_to_object(self)
+        self.freeze_tag = XPressoTag(
+            target=self, name="FreezeTag", priority=0, priority_mode="animation")
 
     def add_composition_tag(self):
         """adds another layer to the composition hierarchy"""
-        composition_tag = XPressoTag()
-        self.composition_tags.append(composition_tag)
-        composition_tag.set_name(
-            "CompositionTag" + str(len(self.composition_tags)))
         # set priority according to position in composition hierarchy
-        composition_tag.set_priority(-len(self.composition_tags),
-                                     mode="initial")
-        composition_tag.apply_to_object(self)
+        tag_name = "CompositionTag" + str(len(self.composition_tags))
+        tag_priority = -len(self.composition_tags)
+        composition_tag = XPressoTag(
+            target=self, name=tag_name, priority=tag_priority, priority_mode="initial")
+        self.composition_tags.append(composition_tag)
         return composition_tag.obj
 
     def clone(self):

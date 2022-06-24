@@ -2,14 +2,19 @@ from abc import ABC, abstractmethod
 from pydeation.constants import WHITE
 import c4d
 
+
 class Tag():
 
-    def __init__(self):
+    def __init__(self, target=None, name=None):
         self.document = c4d.documents.GetActiveDocument()  # get document
         self.specify_tag_type()
+        self.set_tag_properties()
+        self.set_name(name)
+        self.apply_to_object(target)
 
     def set_name(self, name):
-        self.obj.SetName(name)
+        if name:
+            self.obj.SetName(name)
 
     @abstractmethod
     def specify_tag_type(self):
@@ -19,10 +24,14 @@ class Tag():
         target.obj.InsertTag(self.obj)
         self.linked_object = target
 
+    def set_tag_properties(self):
+        pass
+
+
 class MaterialTag(Tag):
 
-    def __init__(self, material):
-        super().__init__()
+    def __init__(self, material=None, **kwargs):
+        super().__init__(**kwargs)
         self.link_to_material(material)
 
     @ abstractmethod
@@ -36,6 +45,7 @@ class MaterialTag(Tag):
     @ abstractmethod
     def set_tag_properties(self):
         pass
+
 
 class SketchTag(MaterialTag):
 
@@ -51,6 +61,7 @@ class SketchTag(MaterialTag):
     def set_tag_properties(self):
         self.obj[c4d.OUTLINEMAT_LINE_SPLINES] = True
 
+
 class FillTag(MaterialTag):
 
     def specify_tag_type(self):
@@ -64,7 +75,12 @@ class FillTag(MaterialTag):
     def set_tag_properties(self):
         pass
 
+
 class XPressoTag(Tag):
+
+    def __init__(self, priority=0, priority_mode="animation", **kwargs):
+        super().__init__(**kwargs)
+        self.set_priority(priority, mode=priority_mode)
 
     def specify_tag_type(self):
         self.obj = c4d.BaseTag(c4d.Texpresso)
@@ -74,7 +90,7 @@ class XPressoTag(Tag):
         modes = {
             "initial": c4d.CYCLE_INITIAL,
             "animation": c4d.CYCLE_ANIMATION,
-            "expression":c4d.CYCLE_EXPRESSION
+            "expression": c4d.CYCLE_EXPRESSION
         }
         # set execution priority
         priority_data = self.obj[c4d.EXPRESSION_PRIORITY]
