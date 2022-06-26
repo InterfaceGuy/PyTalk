@@ -1,6 +1,10 @@
 from abc import abstractmethod
 from pydeation.objects.abstract_objects import VisibleObject
+from pydeation.objects.line_objects import Line, Arc
+from pydeation.xpresso.userdata import UAngle, UGroup
+from pydeation.xpresso.xpressions import XRelation
 from pydeation.tags import XPressoTag
+from pydeation.constants import *
 import c4d
 
 
