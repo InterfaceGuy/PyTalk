@@ -153,6 +153,12 @@ class UAngle(UReal):
         # set range
         self.bc[c4d.DESC_MIN] = 0
         self.bc[c4d.DESC_MAX] = 2 * PI
+        # set unit to percent
+        self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_DEGREE
+        # set step size to one percent
+        self.bc[c4d.DESC_STEP] = 0.01
+        # set interface to slider
+        self.bc[c4d.DESC_CUSTOMGUI] = c4d.CUSTOMGUI_REALSLIDER
 
     def specify_name(self, name):
         # sets the display name of the element

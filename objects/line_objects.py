@@ -74,6 +74,13 @@ class Arc(LineObject):
         self.obj[c4d.PRIM_ARC_START] = start_angle
         self.obj[c4d.PRIM_ARC_END] = end_angle
 
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "radius": c4d.DescID(c4d.DescLevel(c4d.PRIM_ARC_RADIUS, c4d.DTYPE_REAL, 0)),
+            "start_angle": c4d.DescID(c4d.DescLevel(c4d.PRIM_ARC_START, c4d.DTYPE_REAL, 0)),
+            "end_angle": c4d.DescID(c4d.DescLevel(c4d.PRIM_ARC_END, c4d.DTYPE_REAL, 0))
+        }
+
 
 class Tracer(LineObject):
 

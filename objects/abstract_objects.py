@@ -12,6 +12,7 @@ class ProtoObject(ABC):
     def __init__(self, name=None, x=0, y=0, z=0, h=0, p=0, b=0, scale=1, scale_x=1, scale_y=1, scale_z=1):
         self.document = c4d.documents.GetActiveDocument()  # get document
         self.specify_object()
+        self.set_unique_desc_ids()
         self.insert_to_document()
         self.set_name(name=name)
         self.set_position(x=x, y=y, z=z)
@@ -28,6 +29,9 @@ class ProtoObject(ABC):
     @abstractmethod
     def specify_object(self):
         pass
+
+    def set_unique_desc_ids(self):
+        """optional method to make unique descIds easily accessible"""
 
     def set_name(self, name=None):
         if name is None:

@@ -37,3 +37,17 @@ VALUE_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001133))
 CONDITION_DESCID_IN = c4d.DescID(c4d.DescLevel(2000, 400007003, 400001117))
 CONDITION_SWITCH_DESCID_IN = c4d.DescID(
     c4d.DescLevel(4005, 400007003, 1022471))
+
+# common descIds
+POS_X = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_POSITION, c4d.DTYPE_VECTOR, 0),
+                   c4d.DescLevel(c4d.VECTOR_X, c4d.DTYPE_REAL, 0))
+POS_Y = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_POSITION, c4d.DTYPE_VECTOR, 0),
+                   c4d.DescLevel(c4d.VECTOR_Y, c4d.DTYPE_REAL, 0))
+POS_Z = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_POSITION, c4d.DTYPE_VECTOR, 0),
+                   c4d.DescLevel(c4d.VECTOR_Z, c4d.DTYPE_REAL, 0))
+ROT_H = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_ROTATION, c4d.DTYPE_VECTOR, 0),
+                   c4d.DescLevel(c4d.VECTOR_X, c4d.DTYPE_REAL, 0))
+ROT_P = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_ROTATION, c4d.DTYPE_VECTOR, 0),
+                   c4d.DescLevel(c4d.VECTOR_Y, c4d.DTYPE_REAL, 0))
+ROT_B = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_ROTATION, c4d.DTYPE_VECTOR, 0),
+                   c4d.DescLevel(c4d.VECTOR_Z, c4d.DTYPE_REAL, 0))
