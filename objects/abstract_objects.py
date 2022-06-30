@@ -1,7 +1,8 @@
 from pydeation.materials import FillMaterial, SketchMaterial
 from pydeation.tags import FillTag, SketchTag, XPressoTag
-from pydeation.constants import WHITE, SVG_PATH
+from pydeation.constants import WHITE, SVG_PATH, PI
 from pydeation.animation.object_animators import Show, Hide
+from pydeation.animation.sketch_animators import Draw
 from abc import ABC, abstractmethod
 import c4d
 import os
@@ -50,6 +51,11 @@ class ProtoObject(ABC):
             rotation = c4d.Vector(h, p, b)
         self.obj[c4d.ID_BASEOBJECT_ROTATION] = rotation
 
+    def set_frozen_rotation(self, h=0, p=0, b=0, rotation=None):
+        if rotation is None:
+            rotation = c4d.Vector(h, p, b)
+        self.obj[c4d.ID_BASEOBJECT_FROZEN_ROTATION] = rotation
+
     def set_scale(self, uniform_scale=1, x=1, y=1, z=1):
         if x != 1 or y != 1 or z != 1:
             scale = c4d.Vector(x, y, z)
@@ -87,6 +93,14 @@ class ProtoObject(ABC):
 
     def insert_to_document(self):
         self.document.InsertObject(self.obj)
+
+    def create(self):
+        """optionally holds a creation animation, Draw by default"""
+        return Draw(self)
+
+    def un_create(self):
+        """optionally holds a uncreation animation, UnDraw by default"""
+        return UnDraw(self)
 
 
 class HelperObject(ProtoObject):  # invisible helper objects
@@ -241,30 +255,42 @@ class Loft(SolidObject):
 
 class SVG(LineObject):  # takes care of importing svgs
 
-    def __init__(self, file_name, **kwargs):
-        self.load_svg_in_separate_document(file_name)
+    def __init__(self, file_name, x=0, y=0, z=0, plane="xy", **kwargs):
+        self.extract_spline_from_vector_import(file_name)
         super().__init__(**kwargs)
-        self.kill_separate_document()
-        self.fix_axes()
+        self.fix_axes(x=x, y=y, z=z)
+        self.set_plane(plane)
 
-    def load_svg_in_separate_document(self, file_name):
+    def extract_spline_from_vector_import(self, file_name):
         file_path = os.path.join(SVG_PATH, file_name + ".svg")
-        self.svg_doc = c4d.documents.LoadDocument(
-            file_path, c4d.SCENEFILTER_NONE)
-        if self.svg_doc is None:
-            raise RuntimeError("Failed to load svg file.")
+        vector_import = c4d.BaseObject(1057899)
+        self.document = c4d.documents.GetActiveDocument()
+        self.document.InsertObject(vector_import)
+        vector_import[c4d.ART_FILE] = file_path
+        self.document.ExecutePasses(
+            bt=None, animation=False, expressions=False, caches=True, flags=c4d.BUILDFLAGS_NONE)
+        vector_import.Remove()
+        cache = vector_import.GetCache()
+        cache = cache.GetDown()
+        cache = cache.GetDown()
+        cache = cache.GetDownLast()
+        self.spline = cache.GetClone()
 
-    def kill_separate_document(self):
-        c4d.documents.KillDocument(self.svg_doc)
-
-    def fix_axes(self):
+    def fix_axes(self, x=0, y=0, z=0):
         self.document.SetSelection(self.obj)  # select svg
         c4d.CallCommand(1011982)  # moves svg axes to center
         self.obj[c4d.ID_BASEOBJECT_REL_POSITION] = c4d.Vector(
             0, 0, 0)  # move svg to origin
+        # set specified position
+        self.set_position(x=x, y=y, z=z)
+
+    def set_plane(self, plane):
+        planes = {"xy": c4d.Vector(0, 0, 0), "zy": c4d.Vector(
+            PI / 2, 0, 0), "xz": c4d.Vector(0, -PI / 2, 0)}
+        self.set_frozen_rotation(planes[plane])
 
     def specify_object(self):
-        self.obj = self.svg_doc.GetFirstObject().GetDown()
+        self.obj = self.spline
 
     def set_object_properties(self, spline_type="bezier", closed=True):
         # implicit propertiesd

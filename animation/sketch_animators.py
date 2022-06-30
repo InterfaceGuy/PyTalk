@@ -7,9 +7,9 @@ import c4d
 
 class Draw(SketchAnimator):
 
-    def __new__(cls, *objs, drawing=1, **kwargs):
+    def __new__(cls, *objs, drawing=1, category="constructive", **kwargs):
         cls.set_values(drawing)
-        return super().__new__(cls, *objs, category="constructive", **kwargs)
+        return super().__new__(cls, *objs, category=category, **kwargs)
 
     @classmethod
     def specify_desc_ids(cls):
@@ -29,28 +29,12 @@ class Draw(SketchAnimator):
             obj.sketch_material.obj[c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_COMPLETE] = 0
 
     @classmethod
-    def create_xpression(cls):
-        for obj in cls.objs:
-            for desc_id in cls.desc_ids.values():
-                parameter = UParameter(
-                    obj, desc_id, link_target=obj.sketch_material, name="SketchCompletion")
-                xanimator = XAnimator(obj, interpolate=True, name="Draw")
-                xanimation = XAnimation(
-                    xanimator, target=obj, parameter=parameter)
+    def specify_xpression(cls):
+        cls.parameter_name = "DrawCompletion"
+        cls.interpolate = True
 
 
-class UnDraw(SketchAnimator):
+class UnDraw(Draw):
 
     def __new__(cls, *objs, drawing=0, **kwargs):
-        cls.set_values(drawing)
-        return super().__new__(cls, *objs, category="destructive", **kwargs)
-
-    @classmethod
-    def specify_desc_ids(cls):
-        cls.desc_ids = {
-            "drawing": c4d.DescID(c4d.DescLevel(c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_COMPLETE, c4d.DTYPE_REAL, 0))
-        }
-
-    @classmethod
-    def set_values(cls, drawing):
-        cls.values = [drawing]
+        return super().__new__(cls, *objs, drawing=drawing, category="destructive", **kwargs)

@@ -18,6 +18,7 @@ class ProtoAnimator(ABC):
         cls.objs = cls.flatten_input(*objs, unpack_groups=unpack_groups)
         cls.specify_desc_ids()
         cls.specify_value_type()  # specify value type for vector animations
+        cls.set_initial_values()
         cls.create_xpression()
         if cls.composition_mode:
             return cls.xanimators
@@ -29,6 +30,12 @@ class ProtoAnimator(ABC):
             # add category for visibility handling
             animation_group_rescaled.category = category
             return animation_group_rescaled
+
+    
+    @classmethod
+    def set_initial_values(cls):
+        """sets the initial values for an animation"""
+        pass
 
     @abstractmethod
     def insert_helper_objects(cls):
@@ -76,7 +83,6 @@ class ProtoAnimator(ABC):
                     xanimator = obj.xpressions[cls.__name__]
                 else:
                     link_target = cls.specify_target(obj)  # get link target
-                    print(cls.parameter_name, link_target)
                     # only one descId in dict anyway, might be different for other animators
                     target_parameter_desc_id = list(cls.desc_ids.values())[0]
                     # check if object already has accessed given parameter
