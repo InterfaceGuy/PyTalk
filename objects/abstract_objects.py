@@ -177,7 +177,7 @@ class VisibleObject(ProtoObject):  # visible objects
             clone], mode=c4d.MODELINGCOMMANDMODE_ALL, doc=self.document)[0]
         return editable_clone
 
-    def attach_to(self, target, direction="top"):
+    def attach_to(self, target, direction="front", offset=0):
         """places the object such that the bounding boxes touch along a given direction and makes object child of target"""
         bounding_box = self.obj.GetRad()
         bounding_box_position = self.obj.GetMp()
@@ -185,17 +185,17 @@ class VisibleObject(ProtoObject):  # visible objects
         bounding_box_position_target = target.obj.GetMp()
         new_position = bounding_box_position_target - bounding_box_position
         if direction == "top":
-            new_position.y += bounding_box_target.y + bounding_box.y
+            new_position.y += bounding_box_target.y + bounding_box.y + offset
         if direction == "bottom":
-            new_position.y -= bounding_box_target.y + bounding_box.y
+            new_position.y -= bounding_box_target.y + bounding_box.y + offset
         if direction == "left":
-            new_position.x -= bounding_box_target.x + bounding_box.x
+            new_position.x -= bounding_box_target.x + bounding_box.x + offset
         if direction == "right":
-            new_position.x += bounding_box_target.x + bounding_box.x
+            new_position.x += bounding_box_target.x + bounding_box.x + offset
         if direction == "front":
-            new_position.z -= bounding_box_target.z + bounding_box.z
+            new_position.z -= bounding_box_target.z + bounding_box.z + offset
         if direction == "back":
-            new_position.z += bounding_box_target.z + bounding_box.z
+            new_position.z += bounding_box_target.z + bounding_box.z + offset
 
         self.obj.InsertUnder(target.obj)
         self.set_position(position=new_position)

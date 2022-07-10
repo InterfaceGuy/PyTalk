@@ -573,12 +573,13 @@ class XAnimation(XPression):
 class XRelation(XPression):
     """creates a relation between a parameter of a part and the whole of a CustomObject"""
 
-    def __init__(self, part=None, whole=None, desc_id=None, parameter=None, formula=None):
+    def __init__(self, part=None, whole=None, desc_id=None, parameters=None, formula=None):
         self.formula = formula
         self.desc_id = desc_id
-        self.parameter = parameter
+        self.parameters = parameters
         self.part = part
         self.whole = whole
+        self.nodes = []
         super().__init__(self.whole)
 
     def construct(self):
@@ -591,22 +592,39 @@ class XRelation(XPression):
     def create_part_node(self):
         self.part_node = XObject(self.whole, link_target=self.part)
         self.part_node.obj.AddPort(c4d.GV_PORT_INPUT, self.desc_id)
+        self.nodes.append(self.part_node)
 
     def create_whole_node(self):
         self.whole_node = XObject(self.whole)
-        self.whole_node.obj.AddPort(c4d.GV_PORT_OUTPUT, self.parameter.desc_id)
+        for parameter in self.parameters:
+            self.whole_node.obj.AddPort(c4d.GV_PORT_OUTPUT, parameter.desc_id)
+        self.nodes.append(self.whole_node)
 
     def create_formula_node(self):
         self.formula_node = XFormula(
-            self.whole, variables=[self.parameter.name], formula=self.formula)
+            self.whole, variables=[parameter.name for parameter in self.parameters], formula=self.formula)
+        self.nodes.append(self.formula_node)
 
     def group_nodes(self):
-        self.xgroup = XGroup(
-            self.part_node, self.whole_node, self.formula_node, custom_tag=True)
+        self.xgroup = XGroup(*self.nodes, custom_tag=True)
         self.obj = self.xgroup.obj
 
     def connect_ports(self):
-        self.whole_node.obj.GetOutPort(0).Connect(
-            self.formula_node.obj.GetInPort(0))
+        for formula_in_port, parameter_port_out in zip(self.formula_node.obj.GetInPorts(), self.whole_node.obj.GetOutPorts()):
+            parameter_port_out.Connect(formula_in_port)
         self.formula_node.obj.GetOutPort(
             0).Connect(self.part_node.obj.GetInPort(0))
+
+
+class XConnection(XRelation):
+    """creates a relation between a parameter of a part and the whole of a CustomObject"""
+
+    def construct(self):
+        self.create_part_node()
+        self.create_whole_node()
+        self.group_nodes()
+        self.connect_ports()
+
+    def connect_ports(self):
+        self.whole_node.obj.GetOutPort(0).Connect(
+            self.part_node.obj.GetInPort(0))

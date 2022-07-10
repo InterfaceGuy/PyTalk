@@ -10,15 +10,20 @@ class Scene(ABC):
     """abstract class acting as blueprint for scenes"""
 
     def __init__(self, resolution="default"):
-        doc = Document()
-        self.document = doc.document
+        self.create_new_document()
         self.set_scene_name()
         self.insert_document()
+        self.set_interactive_render_region()
         self.construct()
 
         # render settings
         self.render_settings = RenderSettings()
         self.render_settings.set_resolution(resolution)
+
+    def create_new_document(self):
+        """creates a new project and gets the active document"""
+        c4d.CallCommand(12094)
+        self.document = c4d.documents.GetActiveDocument()
 
     @abstractmethod
     def construct(self):
@@ -43,6 +48,13 @@ class Scene(ABC):
     def insert_document(self):
         """inserts the document into cinema"""
         c4d.documents.InsertBaseDocument(self.document)
+
+    def set_interactive_render_region(self):
+        """creates an IRR window over the full size of the editor view"""
+        c4d.CallCommand(600000016)  # call IRR script by ID
+        # workaround because script needs to be executed from main thread not pydeation library
+        # ID changes depending on machine
+        # CHANGE THIS IN FUTURE TO MORE ROBUST SOLUTION
 
     def group_animations_by_obj(self, animations):
         """sorts the animations by their target"""

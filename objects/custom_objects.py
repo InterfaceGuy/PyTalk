@@ -1,10 +1,10 @@
 from abc import abstractmethod
 from pydeation.objects.abstract_objects import VisibleObject
-from pydeation.objects.line_objects import Line, Arc, Circle, Rectangle
+from pydeation.objects.line_objects import Line, Arc, Circle, Rectangle, Text
 from pydeation.objects.svg_objects import Human, Fire
 from pydeation.objects.helper_objects import Group
-from pydeation.xpresso.userdata import UAngle, UGroup
-from pydeation.xpresso.xpressions import XRelation
+from pydeation.xpresso.userdata import UAngle, UGroup, ULength, UDropDown, UCompletion, UText
+from pydeation.xpresso.xpressions import XRelation, XConnection
 from pydeation.animation.abstract_animators import AnimationGroup
 from pydeation.animation.sketch_animators import Draw, UnDraw
 from pydeation.tags import XPressoTag
@@ -57,7 +57,7 @@ class CustomObject(VisibleObject):
 
     def create(self):
         """specifies the creation animation"""
-        animations = AnimationGroup(*[part.create() for part in self.parts])
+        animations = [part.create() for part in self.parts]
         return animations
 
     def un_create(self):
@@ -89,13 +89,13 @@ class Eye(CustomObject):
 
     def specify_relations(self):
         upper_lid_relation = XRelation(part=self.upper_lid, whole=self, desc_id=ROT_B,
-                                       parameter=self.opening_angle, formula="-OpeningAngle/2")
+                                       parameters=[self.opening_angle], formula="-OpeningAngle/2")
         lower_lid_relation = XRelation(part=self.lower_lid, whole=self, desc_id=ROT_B,
-                                       parameter=self.opening_angle, formula="OpeningAngle/2")
+                                       parameters=[self.opening_angle], formula="OpeningAngle/2")
         eyeball_start_angle_relation = XRelation(
-            part=self.eyeball, whole=self, desc_id=self.eyeball.desc_ids["start_angle"], parameter=self.opening_angle, formula="-OpeningAngle/2")
+            part=self.eyeball, whole=self, desc_id=self.eyeball.desc_ids["start_angle"], parameters=[self.opening_angle], formula="-OpeningAngle/2")
         eyeball_end_angle_relation = XRelation(
-            part=self.eyeball, whole=self, desc_id=self.eyeball.desc_ids["end_angle"], parameter=self.opening_angle, formula="OpeningAngle/2")
+            part=self.eyeball, whole=self, desc_id=self.eyeball.desc_ids["end_angle"], parameters=[self.opening_angle], formula="OpeningAngle/2")
 
 
 class PhysicalCampfire(CustomObject):
@@ -121,3 +121,64 @@ class ProjectLiminality(CustomObject):
         self.right_line = Line((70, -50, 0), (0, 50, 0))
         self.lines = Group(self.left_line, self.right_line, name="Lines")
         self.parts = [self.big_circle, self.small_circle, self.lines]
+
+
+class Node(CustomObject):
+
+    def __init__(self, text=None, text_position=None, text_height=20, symbol=None, rounding=1 / 4, width=100, height=50, **kwargs):
+        self.rounding = rounding
+        self.width = width
+        self.height = height
+        self.text = text
+        self.text_position = text_position
+        self.text_height = text_height
+        self.symbol = symbol
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.border = Rectangle(
+            width=self.width, height=self.height, rounding=self.rounding, name="Border")
+        self.parts = [self.border]
+        if self.text:
+            self.label = Text(self.text, height=self.height / 4)
+            if self.text_position:
+                self.label.attach_to(
+                    self.border, direction=self.text_position, offset=self.height / 6)
+            else:
+                self.label.attach_to(
+                    self.border, direction="front")
+            self.parts.append(self.label)
+        if self.symbol:
+            self.symbol.attach_to(self.border)
+            self.parts.append(self.symbol)
+
+    def specify_parameters(self):
+        self.width_parameter = ULength(name="Width", default_value=self.width)
+        self.height_parameter = ULength(
+            name="Height", default_value=self.height)
+        self.rounding_parameter = UCompletion(
+            name="Rounding", default_value=self.rounding)
+        self.parameters = [self.width_parameter, self.height_parameter,
+                           self.rounding_parameter]
+        if self.text:
+            self.text_parameter = UText(name="Label", default_value=self.text)
+            self.text_position = UDropDown(name="TextPosition", options=[
+                                           "center", "top", "bottom", "left", "right"])
+            self.text_height = ULength(
+                name="TextSize", default_value=self.text_height)
+            self.parameters += [self.text_parameter,
+                                self.text_position, self.text_height]
+
+    def specify_relations(self):
+        width_relation = XRelation(
+            part=self.border, whole=self, desc_id=self.border.desc_ids["width"], parameters=[self.width_parameter], formula=f"{self.width_parameter.name}")
+        height_relation = XRelation(
+            part=self.border, whole=self, desc_id=self.border.desc_ids["height"], parameters=[self.height_parameter], formula=f"{self.height_parameter.name}")
+        rounding_relation = XRelation(part=self.border, whole=self, desc_id=self.border.desc_ids[
+                                      "rounding_radius"], parameters=[self.rounding_parameter, self.width_parameter, self.height_parameter], formula=f"min({self.width_parameter.name};{self.height_parameter.name})/2*Rounding")
+        text_connection = XConnection(
+            part=self.label, whole=self, desc_id=self.label.desc_ids["text"], parameters=[self.text_parameter])
+        text_position_relation = XRelation(part=self.label, whole=self, desc_id=POS, parameters=[
+            self.text_position, self.height_parameter], formula=f"{0,0,0}")
+        text_size_connection = XConnection(
+            part=self.label, whole=self, desc_id=self.label.desc_ids["text_height"], parameters=[self.text_height])

@@ -61,7 +61,7 @@ class Group(Null):
                 i / number_of_children)
             child.set_position(position=child_position)
 
-    def position_on_circle(self, radius=100, x=0, y=0, z=0, plane="xy"):
+    def position_on_circle(self, radius=100, x=0, y=0, z=0, plane="xy", at_bottom=None, at_top=None):
         """positions the children on a circle"""
         def position(radius, phi, plane):
             if plane == "xy":
@@ -72,9 +72,24 @@ class Group(Null):
                 return c4d.Vector(radius * np.sin(phi), 0, radius * np.cos(phi))
 
         number_of_children = len(self.children)
-        child_positions = [position(radius, phi, plane) for phi in np.linspace(
-            0, 2 * np.pi, number_of_children + 1)]
-        for child, child_position in zip(self.children, child_positions[:-1]):
+        phi_offset = 0  # angle offset if necessary
+        if at_bottom:
+            phi_offset = np.pi
+        phis = [
+            phi + phi_offset for phi in np.linspace(0, 2 * np.pi, number_of_children + 1)]
+
+        child_positions = [position(radius, phi, plane) for phi in phis]
+
+        children = self.children
+        index = None
+        if at_top:
+            index = self.children.index(at_top)
+        elif at_bottom:
+            index = self.children.index(at_bottom)
+        if index:
+            # reorder children using index
+            children = self.children[index:] + self.children[:index]
+        for child, child_position in zip(children, child_positions):
             child.set_position(position=child_position)
 
     def position_on_line(self, point_ini=(-100, 0, 0), point_fin=(100, 0, 0)):

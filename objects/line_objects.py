@@ -58,6 +58,13 @@ class Rectangle(LineObject):
         self.obj[c4d.PRIM_RECTANGLE_ROUNDING] = bool(rounding)
         self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding
 
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "width": c4d.DescID(c4d.DescLevel(c4d.PRIM_RECTANGLE_WIDTH, c4d.DTYPE_REAL, 0)),
+            "height": c4d.DescID(c4d.DescLevel(c4d.PRIM_RECTANGLE_HEIGHT, c4d.DTYPE_REAL, 0)),
+            "rounding_radius": c4d.DescID(c4d.DescLevel(c4d.PRIM_RECTANGLE_RADIUS, c4d.DTYPE_REAL, 0))
+        }
+
 
 class Arc(LineObject):
 
@@ -190,6 +197,12 @@ class Text(LineObject):
         self.obj[c4d.PRIM_TEXT_HEIGHT] = height
         self.obj[c4d.PRIM_TEXT_ALIGN] = anchors[anchor]
         self.obj[c4d.PRIM_TEXT_SEPARATE] = seperate_letters
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "text": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_TEXT, c4d.DTYPE_STRING, 0)),
+            "text_height": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_HEIGHT, c4d.DTYPE_REAL, 0))
+        }
 
 
 class Letters(Text):

@@ -39,6 +39,8 @@ CONDITION_SWITCH_DESCID_IN = c4d.DescID(
     c4d.DescLevel(4005, 400007003, 1022471))
 
 # common descIds
+POS = c4d.DescID(c4d.DescLevel(
+    c4d.ID_BASEOBJECT_POSITION, c4d.DTYPE_VECTOR, 0))
 POS_X = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_POSITION, c4d.DTYPE_VECTOR, 0),
                    c4d.DescLevel(c4d.VECTOR_X, c4d.DTYPE_REAL, 0))
 POS_Y = c4d.DescID(c4d.DescLevel(c4d.ID_BASEOBJECT_POSITION, c4d.DTYPE_VECTOR, 0),

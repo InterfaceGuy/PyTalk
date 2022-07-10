@@ -13,8 +13,8 @@ class UData(ABC):
         self.specify_constraints()
         # set the display name of the element
         self.specify_name(name)
-        # set the initial value
-        self.specify_default_value(default_value)
+        # specify the default value
+        self.default_value = default_value
         # add attribute for descId
         self.desc_id = None
 
@@ -27,10 +27,6 @@ class UData(ABC):
         self.name = name  # write as attribute
         self.bc[c4d.DESC_NAME] = self.name
 
-    def specify_default_value(self, default_value):
-        if default_value is not None:
-            self.bc[c4d.DESC_DEFAULT] = default_value
-
 
 ### data type classes ###
 
@@ -38,20 +34,29 @@ class UGroup(UData):
     """creates a user data group element"""
 
     def __init__(self, *children, target=None, **kwargs):
-
         super().__init__(**kwargs)
+        self.target = target
+        self.children = children
+        # insert group
+        self.desc_id = self.target.AddUserData(self.bc)
+        self.insert_children()
+        self.set_default_values()
 
-        self.desc_id = target.AddUserData(self.bc)
-
-        for child in children:
+    def insert_children(self):
+        for child in self.children:
             # add as child
             child.bc[c4d.DESC_PARENTGROUP] = self.desc_id
             # Add the user data element, retrieving its DescId.
-            child.desc_id = target.AddUserData(child.bc)
+            child.desc_id = self.target.AddUserData(child.bc)
 
     def specify_data_type(self):
         # create base container
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_GROUP)
+
+    def set_default_values(self):
+        for child in self.children:
+            if child.default_value:
+                self.target[child.desc_id] = child.default_value
 
     def specify_constraints(self):
         pass
@@ -66,6 +71,7 @@ class UReal(UData):
         self.port_desc_id_in = REAL_DESCID_IN
         self.port_desc_id_out = REAL_DESCID_OUT
         self.value_type = float
+        self.bc[c4d.DESC_DEFAULT] = 0
 
     @abstractmethod
     def specify_constraints():
@@ -97,8 +103,24 @@ class UBool(UData):
         self.port_desc_id_out = BOOL_DESCID_OUT
         self.value_type = bool
 
-    @abstractmethod
-    def specify_constraints():
+    def specify_constraints(self):
+        # no constraints needed for bool field
+        pass
+
+
+class UString(UData):
+    """creates a string field"""
+
+    def specify_data_type(self):
+        # create base container
+        self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_STRING)
+        # TODO: USE PORT RIPPER TO GET DESC IDS
+        self.port_desc_id_in = None
+        self.port_desc_id_out = None
+        self.value_type = str
+
+    def specify_constraints(self):
+        # no constraints needed for string field
         pass
 
 
@@ -153,7 +175,7 @@ class UAngle(UReal):
         # set range
         self.bc[c4d.DESC_MIN] = 0
         self.bc[c4d.DESC_MAX] = 2 * PI
-        # set unit to percent
+        # set unit to degree
         self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_DEGREE
         # set step size to one percent
         self.bc[c4d.DESC_STEP] = 0.01
@@ -164,6 +186,24 @@ class UAngle(UReal):
         # sets the display name of the element
         if name is None:
             name = "angle"
+        super().specify_name(name)
+
+
+class ULength(UReal):
+    """creates a length field: l -> [0,∞)"""
+
+    def specify_constraints(self):
+        # set lower bound
+        self.bc[c4d.DESC_MIN] = 0
+        # set step size
+        self.bc[c4d.DESC_STEP] = 0.01
+        # set unit to length
+        self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_LONG
+
+    def specify_name(self, name):
+        # sets the display name of the element
+        if name is None:
+            name = "length"
         super().specify_name(name)
 
 
@@ -203,6 +243,41 @@ class UCheckBox(UBool):
         # sets the display name of the element
         if name is None:
             name = "checkbox"
+        super().specify_name(name)
+
+
+class UText(UString):
+    """creates a text field: str"""
+
+    def specify_name(self, name):
+        # sets the display name of the element
+        if name is None:
+            name = "text"
+        super().specify_name(name)
+
+
+class UDropDown(UInt):
+    """creates a drop down menu: i -> {options}"""
+
+    def __init__(self, options=[], **kwargs):
+        super().__init__(**kwargs)
+        self.options = options
+        self.specify_options()
+
+    def specify_constraints(self):
+        # set interface to quicktab radio
+        self.bc[c4d.DESC_CUSTOMGUI] = 200000281
+
+    def specify_options(self):
+        dropdown_values = c4d.BaseContainer()
+        for i, option in enumerate(self.options):
+            dropdown_values[i] = option
+        self.bc[c4d.DESC_CYCLE] = dropdown_values
+
+    def specify_name(self, name):
+        # sets the display name of the element
+        if name is None:
+            name = "options"
         super().specify_name(name)
 
 
