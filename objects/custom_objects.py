@@ -1,78 +1,15 @@
 from abc import abstractmethod
-from pydeation.objects.abstract_objects import VisibleObject
-from pydeation.objects.line_objects import Line, Arc, Circle, Rectangle, Text
-from pydeation.objects.svg_objects import Human, Fire
-from pydeation.objects.helper_objects import Group
-from pydeation.xpresso.userdata import UAngle, UGroup, ULength, UDropDown, UCompletion, UText
-from pydeation.xpresso.xpressions import XRelation, XConnection
+from pydeation.objects.abstract_objects import CustomObject
+from pydeation.objects.line_objects import Line, Arc, Circle, Rectangle, Text, Tracer, Spline
+from pydeation.objects.sketch_objects import Human, Fire, Footprint
+from pydeation.objects.helper_objects import *
+from pydeation.xpresso.userdata import UAngle, UGroup, ULength, UOptions, UCompletion, UText
+from pydeation.xpresso.xpressions import XRelation, XIdentity, XClosestPointOnSpline, XScaleBetweenPoints
 from pydeation.animation.abstract_animators import AnimationGroup
 from pydeation.animation.sketch_animators import Draw, UnDraw
 from pydeation.tags import XPressoTag
 from pydeation.constants import *
 import c4d
-
-
-class CustomObject(VisibleObject):
-    """this class is used to create custom objects that are basically
-    groups with coupling of the childrens parameters through xpresso
-    GOALS:
-        - recursively combine custom objects --> chain xpresso animators somehow
-        - specify animation behaviour for Create/UnCreate animator"""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.specify_parts()
-        self.insert_parts()
-        self.set_xpresso_tag()
-        self.specify_parameters()
-        self.insert_parameters()
-        self.specify_relations()
-
-    def insert_parts(self):
-        """inserts the parts as children"""
-        for part in self.parts:
-            part.obj.InsertUnder(self.obj)
-
-    def specify_object(self):
-        self.obj = c4d.BaseObject(c4d.Onull)
-
-    def specify_parameters(self):
-        """specifies optional parameters for the custom object"""
-        self.parameters = None
-
-    def insert_parameters(self):
-        """inserts the specified parameters as userdata"""
-        if self.parameters:
-            self.u_group = UGroup(
-                *self.parameters, target=self.obj, name=self.name)
-
-    def specify_relations(self):
-        """specifies the relations between the part's parameters using xpresso"""
-        pass
-
-    @abstractmethod
-    def specify_parts(self):
-        """save parts as attributes and write them to self.parts"""
-        pass
-
-    def create(self):
-        """specifies the creation animation"""
-        animations = [part.create() for part in self.parts]
-        return animations
-
-    def un_create(self):
-        """specifies the uncreation animation"""
-        animations = []
-        for part in self.parts:
-            if part.un_create():
-                animations.append(part.un_create())
-            else:
-                animations.append(UnDraw(part))
-        return animations
-
-    def set_xpresso_tag(self):
-        """inserts an xpresso tag used for coordination of the parts"""
-        self.custom_tag = XPressoTag(target=self, name="CustomTag")
 
 
 class Eye(CustomObject):
@@ -124,32 +61,28 @@ class ProjectLiminality(CustomObject):
 
 
 class Node(CustomObject):
+    """creates a node object with an optional label and symbol"""
 
-    def __init__(self, text=None, text_position=None, text_height=20, symbol=None, rounding=1 / 4, width=100, height=50, **kwargs):
+    def __init__(self, text=None, text_position="center", text_height=20, symbol=None, rounding=1 / 4, width=100, height=50, **kwargs):
         self.rounding = rounding
         self.width = width
         self.height = height
         self.text = text
-        self.text_position = text_position
         self.text_height = text_height
         self.symbol = symbol
+        if self.symbol:
+            self.text_position = "bottom"
+        else:
+            self.text_position = text_position
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.border = Rectangle(
-            width=self.width, height=self.height, rounding=self.rounding, name="Border")
+        self.border = Rectangle(name="Border", rounding=1)
         self.parts = [self.border]
         if self.text:
-            self.label = Text(self.text, height=self.height / 4)
-            if self.text_position:
-                self.label.attach_to(
-                    self.border, direction=self.text_position, offset=self.height / 6)
-            else:
-                self.label.attach_to(
-                    self.border, direction="front")
+            self.label = Text(self.text)
             self.parts.append(self.label)
         if self.symbol:
-            self.symbol.attach_to(self.border)
             self.parts.append(self.symbol)
 
     def specify_parameters(self):
@@ -160,25 +93,158 @@ class Node(CustomObject):
             name="Rounding", default_value=self.rounding)
         self.parameters = [self.width_parameter, self.height_parameter,
                            self.rounding_parameter]
+        if self.symbol:
+            self.symbol_width_parameter = ULength(
+                name="SymbolWidth", default_value=self.symbol.width)
+            self.symbol_height_parameter = ULength(
+                name="SymbolHeight", default_value=self.symbol.height)
+            self.symbol_border_parameter = UCompletion(
+                name="SymbolBorder", default_value=1 / 4)
+            self.parameters += [self.symbol_width_parameter,
+                                self.symbol_height_parameter, self.symbol_border_parameter]
         if self.text:
             self.text_parameter = UText(name="Label", default_value=self.text)
-            self.text_position = UDropDown(name="TextPosition", options=[
-                                           "center", "top", "bottom", "left", "right"])
-            self.text_height = ULength(
+            self.text_position_parameter = UOptions(name="TextPosition", options=[
+                "center", "top", "bottom"], default_value=self.text_position)
+            self.text_height_parameter = ULength(
                 name="TextSize", default_value=self.text_height)
             self.parameters += [self.text_parameter,
-                                self.text_position, self.text_height]
+                                self.text_position_parameter, self.text_height_parameter]
 
     def specify_relations(self):
-        width_relation = XRelation(
-            part=self.border, whole=self, desc_id=self.border.desc_ids["width"], parameters=[self.width_parameter], formula=f"{self.width_parameter.name}")
-        height_relation = XRelation(
-            part=self.border, whole=self, desc_id=self.border.desc_ids["height"], parameters=[self.height_parameter], formula=f"{self.height_parameter.name}")
+        width_relation = XIdentity(
+            part=self.border, whole=self, desc_id=self.border.desc_ids["width"], parameter=self.width_parameter)
+        height_relation = XIdentity(
+            part=self.border, whole=self, desc_id=self.border.desc_ids["height"], parameter=self.height_parameter)
         rounding_relation = XRelation(part=self.border, whole=self, desc_id=self.border.desc_ids[
                                       "rounding_radius"], parameters=[self.rounding_parameter, self.width_parameter, self.height_parameter], formula=f"min({self.width_parameter.name};{self.height_parameter.name})/2*Rounding")
-        text_connection = XConnection(
-            part=self.label, whole=self, desc_id=self.label.desc_ids["text"], parameters=[self.text_parameter])
-        text_position_relation = XRelation(part=self.label, whole=self, desc_id=POS, parameters=[
-            self.text_position, self.height_parameter], formula=f"{0,0,0}")
-        text_size_connection = XConnection(
-            part=self.label, whole=self, desc_id=self.label.desc_ids["text_height"], parameters=[self.text_height])
+        if self.text:
+            text_relation = XIdentity(
+                part=self.label, whole=self, desc_id=self.label.desc_ids["text"], parameter=self.text_parameter)
+            text_position_relation = XRelation(part=self.label, whole=self, desc_id=POS_Y, parameters=[
+                self.text_position_parameter, self.height_parameter, self.text_height_parameter], formula=f"if({self.text_position_parameter.name}==0;-{self.text_height_parameter.name}/2;if({self.text_position_parameter.name}==1;{self.height_parameter.name}/2+5;-{self.height_parameter.name}/2-5-{self.text_height_parameter.name}))")
+            text_size_relation = XIdentity(
+                part=self.label, whole=self, desc_id=self.label.desc_ids["text_height"], parameter=self.text_height_parameter)
+        if self.symbol:
+            symbol_scale_x_relation = XRelation(part=self.symbol, whole=self, desc_id=SCALE_X, parameters=[self.symbol_width_parameter, self.symbol_height_parameter, self.width_parameter,
+                                                                                                           self.height_parameter, self.symbol_border_parameter], formula=f"(1-{self.symbol_border_parameter.name})*min({self.width_parameter.name}/{self.symbol_width_parameter.name};{self.height_parameter.name}/{self.symbol_height_parameter.name})")
+            symbol_scale_y_relation = XRelation(part=self.symbol, whole=self, desc_id=SCALE_Y, parameters=[self.symbol_width_parameter, self.symbol_height_parameter, self.width_parameter,
+                                                                                                           self.height_parameter, self.symbol_border_parameter], formula=f"(1-{self.symbol_border_parameter.name})*min({self.width_parameter.name}/{self.symbol_width_parameter.name};{self.height_parameter.name}/{self.symbol_height_parameter.name})")
+
+
+class MonoLogosNode(Node):
+
+    def __init__(self, text="MonoLogos", symbol=None, width=75, height=75, rounding=1, **kwargs):
+        self.symbol = symbol if symbol else ProjectLiminality()
+        super().__init__(text=text, width=width, height=height,
+                         rounding=rounding, symbol=self.symbol, **kwargs)
+
+
+class DiaLogosNode(Node):
+
+    def __init__(self, text="DiaLogos", **kwargs):
+        super().__init__(text=text, **kwargs)
+
+
+class Connection(CustomObject):
+    """creates a connection line between two given objects"""
+
+    def __init__(self, start_object, target_object, turbulence=False, turbulence_vector=(0, 40, 0), turbulence_frequency=8, **kwargs):
+        self.start_object = start_object
+        self.start_object_is_node = issubclass(
+            self.start_object.__class__, Node)
+        self.target_object = target_object
+        self.target_object_is_node = issubclass(
+            self.target_object.__class__, Node)
+        self.turbulence = turbulence
+        self.turbulence_vector = turbulence_vector
+        self.turbulence_frequency = turbulence_frequency
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.parts = []
+        trace_start = self.start_object
+        trace_target = self.target_object
+        if self.start_object_is_node:
+            self.spline_point_start = Null(name="SplinePointStart")
+            self.parts.append(self.spline_point_start)
+            trace_start = self.spline_point_start
+        if self.target_object_is_node:
+            self.spline_point_target = Null(name="SplinePointTarget")
+            self.parts.append(self.spline_point_target)
+            trace_target = self.spline_point_target
+        self.linear_path = Tracer(trace_start, trace_target,
+                                  tracing_mode="objects", name="LinearPath", visible=False)
+        self.parts.append(self.linear_path)
+        if self.turbulence:
+            # remove linear path sketch material
+            self.linear_path.sketch_material.obj.Remove()
+            self.spherical_field = SphericalField()
+            self.random_effector = RandomEffector(
+                position=self.turbulence_vector, fields=[self.spherical_field])
+            self.turbulent_path = Spline(name="TurbulentPath")
+            self.mospline = MoSpline(source_spline=self.linear_path, point_count=self.turbulence_frequency, destination_spline=self.turbulent_path, effectors=[
+                                     self.random_effector])
+            self.parts += [self.spherical_field, self.turbulent_path,
+                           self.random_effector, self.mospline]
+
+    def specify_relations(self):
+        point_a = self.start_object
+        point_b = self.target_object
+        if self.start_object_is_node:
+            start_point_on_spline_relation = XClosestPointOnSpline(
+                spline_point=self.spline_point_start, reference_point=self.target_object, target=self, spline=self.start_object.border)
+            point_a = self.spline_point_start
+        if self.target_object_is_node:
+            target_point_on_spline_relation = XClosestPointOnSpline(
+                spline_point=self.spline_point_target, reference_point=self.start_object, target=self, spline=self.target_object.border)
+            point_b = self.spline_point_target
+        if self.turbulence:
+            field_between_points_relation = XScaleBetweenPoints(
+                scaled_object=self.spherical_field, point_a=point_a, point_b=point_b, target=self)
+
+
+class FootPath(CustomObject):
+
+    def __init__(self, path=None, left_foot=None, right_foot=None, foot_size=10, step_length=10, step_width=20, scale_zone_length=10, floor_plane="xy", path_completion=1, **kwargs):
+        self.path = path
+        self.left_foot = left_foot if left_foot else Footprint(
+            side="left")
+        self.right_foot = right_foot if right_foot else Footprint(
+            side="right")
+        self.foot_size = foot_size
+        self.step_length = step_length
+        self.step_width = step_width
+        self.scale_zone_length = scale_zone_length
+        self.floor_plane = floor_plane
+        self.path_completion = path_completion
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.linear_field = LinearField(length=10)
+        self.plain_effector = PlainEffector(
+            fields=[self.linear_field], scale=-1)
+        self.left_foot_adjusted = Group(self.left_foot, name="LeftFoot")
+        self.right_foot_adjusted = Group(self.right_foot, name="RightFoot")
+        self.cloner = Cloner(target_object=self.path, clones=[self.left_foot_adjusted, self.right_foot_adjusted],
+                             effectors=[self.plain_effector], step_size=self.step_length)
+        self.parts = [self.linear_field, self.plain_effector, self.cloner]
+
+    def specify_parameters(self):
+        self.offset_start_parameter = UCompletion(name="OffsetStart")
+        self.offset_end_parameter = UCompletion(name="OffsetEnd")
+        self.foot_size_parameter = ULength(
+            name="FootSize", default_value=self.foot_size)
+        self.step_length_parameter = ULength(
+            name="StepLength", default_value=self.step_length)
+        self.step_width_parameter = ULength(
+            name="StepWidth", default_value=self.step_width)
+        self.floor_plane_parameter = UOptions(
+            name="FloorPlane", options=["xy", "zy", "xz"], default_value=self.floor_plane)
+        self.scale_zone_length_parameter = ULength(
+            name="ScaleZoneLength", default_value=self.scale_zone_length)
+        self.path_completion_parameter = UCompletion(
+            name="PathCompletion", default_value=self.path_completion)
+        self.parameters = [self.offset_start_parameter, self.offset_end_parameter, self.step_length_parameter,
+                           self.step_width_parameter, self.floor_plane_parameter, self.scale_zone_length_parameter,
+                           self.path_completion_parameter, self.foot_size_parameter]
