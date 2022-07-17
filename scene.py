@@ -1,4 +1,3 @@
-from pydeation.document import Document
 from pydeation.animation.animation import VectorAnimation, AnimationGroup
 from pydeation.animation.object_animators import Show, Hide
 from abc import ABC, abstractmethod
@@ -10,20 +9,22 @@ class Scene(ABC):
     """abstract class acting as blueprint for scenes"""
 
     def __init__(self, resolution="default"):
+        self.resolution = resolution
         self.create_new_document()
         self.set_scene_name()
         self.insert_document()
-        self.set_interactive_render_region()
         self.construct()
+        self.set_interactive_render_region()
+        self.set_render_settings()
 
-        # render settings
+    def set_render_settings(self):
         self.render_settings = RenderSettings()
-        self.render_settings.set_resolution(resolution)
+        self.render_settings.set_resolution(self.resolution)
 
     def create_new_document(self):
         """creates a new project and gets the active document"""
-        c4d.CallCommand(12094)
-        self.document = c4d.documents.GetActiveDocument()
+        self.document = c4d.documents.BaseDocument()
+        c4d.documents.InsertBaseDocument(self.document)
 
     @abstractmethod
     def construct(self):
@@ -52,6 +53,7 @@ class Scene(ABC):
     def set_interactive_render_region(self):
         """creates an IRR window over the full size of the editor view"""
         c4d.CallCommand(600000016)  # call IRR script by ID
+        c4d.EventAdd()
         # workaround because script needs to be executed from main thread not pydeation library
         # ID changes depending on machine
         # CHANGE THIS IN FUTURE TO MORE ROBUST SOLUTION
