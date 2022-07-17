@@ -24,7 +24,9 @@ class XNode:
             "vec2reals": c4d.ID_OPERATOR_VECT2REAL,
             "nearest_point_on_spline": c4d.ID_OPERATOR_NEARESTPOINTONSPLINE,
             "mix": c4d.ID_OPERATOR_MIX,
-            "distance": c4d.ID_OPERATOR_DISTANCE
+            "distance": c4d.ID_OPERATOR_DISTANCE,
+            "matrix_mul_vector": c4d.ID_OPERATOR_MATRIXMULVECTOR,
+            "invert": c4d.ID_OPERATOR_INV
         }
         # define data types
         self.data_types = {
@@ -342,3 +344,25 @@ class XDistance(XNode):
 
     def __init__(self, target, **kwargs):
         super().__init__(target, "distance", **kwargs)
+
+
+class XMatrixMulVector(XNode):
+    """creates a matrix mul vector node"""
+
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "matrix_mul_vector", **kwargs)
+
+
+class XInvert(XNode):
+    """creates an invert node"""
+
+    def __init__(self, target, data_type="matrix", **kwargs):
+        self.data_type = data_type
+        super().__init__(target, "invert", **kwargs)
+
+    def set_params(self):
+        data_types = {
+            "real": 19,
+            "matrix": 25
+        }
+        self.obj[c4d.GV_DYNAMIC_DATATYPE] = data_types[self.data_type]
