@@ -581,9 +581,9 @@ class CustomXPression(XPression):
 class XRelation(CustomXPression):
     """creates a relation between a parameter of a part and the whole of a CustomObject"""
 
-    def __init__(self, part=None, whole=None, desc_id=None, parameters=None, formula=None):
+    def __init__(self, part=None, whole=None, desc_ids=[], parameters=None, formula=None):
         self.formula = formula
-        self.desc_id = desc_id
+        self.desc_ids = desc_ids
         self.parameters = parameters
         self.part = part
         self.whole = whole
@@ -599,7 +599,8 @@ class XRelation(CustomXPression):
 
     def create_part_node(self):
         self.part_node = XObject(self.whole, link_target=self.part)
-        self.part_node.obj.AddPort(c4d.GV_PORT_INPUT, self.desc_id)
+        for desc_id in self.desc_ids:
+            self.part_node.obj.AddPort(c4d.GV_PORT_INPUT, desc_id)
         self.nodes.append(self.part_node)
 
     def create_whole_node(self):
@@ -616,8 +617,8 @@ class XRelation(CustomXPression):
     def connect_ports(self):
         for formula_in_port, parameter_port_out in zip(self.formula_node.obj.GetInPorts(), self.whole_node.obj.GetOutPorts()):
             parameter_port_out.Connect(formula_in_port)
-        self.formula_node.obj.GetOutPort(
-            0).Connect(self.part_node.obj.GetInPort(0))
+        for part_node_port in self.part_node.obj.GetInPorts():
+            self.formula_node.obj.GetOutPort(0).Connect(part_node_port)
 
 
 class XIdentity(XRelation):
@@ -651,15 +652,16 @@ class XClosestPointOnSpline(CustomXPression):
         self.create_reference_point_node()
         self.create_spline_point_node()
         self.create_nearest_point_on_spline_node()
-        self.create_math_nodes()
+        self.create_matrix_nodes()
         self.group_nodes()
         self.connect_ports()
 
     def create_spline_node(self):
         self.spline_node = XObject(self.target, link_target=self.spline)
-        self.spline_node.obj.AddPort(c4d.GV_PORT_OUTPUT, OBJECT_DESCID_OUT)
         self.spline_node.obj.AddPort(
-            c4d.GV_PORT_OUTPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_OBJECT_OUT)
+        self.spline_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_GLOBAL_OUT)
         self.nodes.append(self.spline_node)
 
     def create_reference_point_node(self):
@@ -680,25 +682,29 @@ class XClosestPointOnSpline(CustomXPression):
         self.nearest_point_on_spline_node = XNearestPointOnSpline(self.target)
         self.nodes.append(self.nearest_point_on_spline_node)
 
-    def create_math_nodes(self):
-        self.add_node = XMath(self.target, mode="+", data_type="vector")
-        self.substract_node = XMath(self.target, mode="-", data_type="vector")
-        self.nodes += [self.add_node, self.substract_node]
+    def create_matrix_nodes(self):
+        self.left_matrix_node = XMatrixMulVector(self.target)
+        self.right_matrix_node = XMatrixMulVector(self.target)
+        self.invert_matrix_node = XInvert(self.target, data_type="matrix")
+        self.nodes += [self.left_matrix_node,
+                       self.right_matrix_node, self.invert_matrix_node]
 
     def connect_ports(self):
         self.spline_node.obj.GetOutPort(0).Connect(
             self.nearest_point_on_spline_node.obj.GetInPort(0))
         self.spline_node.obj.GetOutPort(1).Connect(
-            self.substract_node.obj.GetInPort(1))
+            self.invert_matrix_node.obj.GetInPort(0))
+        self.invert_matrix_node.obj.GetOutPort(0).Connect(
+            self.left_matrix_node.obj.GetInPort(0))
         self.spline_node.obj.GetOutPort(1).Connect(
-            self.add_node.obj.GetInPort(0))
+            self.right_matrix_node.obj.GetInPort(0))
         self.reference_point_node.obj.GetOutPort(0).Connect(
-            self.substract_node.obj.GetInPort(0))
+            self.left_matrix_node.obj.GetInPort(1))
         self.nearest_point_on_spline_node.obj.GetOutPort(1).Connect(
-            self.add_node.obj.GetInPort(1))
-        self.substract_node.obj.GetOutPort(0).Connect(
+            self.right_matrix_node.obj.GetInPort(1))
+        self.left_matrix_node.obj.GetOutPort(0).Connect(
             self.nearest_point_on_spline_node.obj.GetInPort(1))
-        self.add_node.obj.GetOutPort(0).Connect(
+        self.right_matrix_node.obj.GetOutPort(0).Connect(
             self.spline_point_node.obj.GetInPort(0))
 
 
