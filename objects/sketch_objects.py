@@ -20,7 +20,7 @@ class Sketch(CustomObject):
 
     def specify_parts(self):
         self.svg = SVG(self.file_name)
-        self.parts = [self.svg]
+        self.parts.append(self.svg)
 
     def specify_parameters(self):
         self.plane_parameter = UOptions(
@@ -33,22 +33,22 @@ class Sketch(CustomObject):
             name="RelativeZ", default_value=self.rel_z)
         self.relative_rotation_parameter = UAngle(
             name="RelativeRotation", default_value=self.rel_rot)
-        self.parameters = [self.plane_parameter, self.relative_x_parameter,
-                           self.relative_y_parameter, self.relative_z_parameter, self.relative_rotation_parameter]
+        self.parameters += [self.plane_parameter, self.relative_x_parameter,
+                            self.relative_y_parameter, self.relative_z_parameter, self.relative_rotation_parameter]
 
     def specify_relations(self):
-        plane_relation_h = XRelation(part=self.svg, whole=self, desc_id=ROT_H, parameters=[self.plane_parameter],
+        plane_relation_h = XRelation(part=self.svg, whole=self, desc_ids=[ROT_H], parameters=[self.plane_parameter],
                                      formula=f"if({self.plane_parameter.name}==1;Pi/2;0)")
-        plane_relation_p = XRelation(part=self.svg, whole=self, desc_id=ROT_P, parameters=[self.plane_parameter],
+        plane_relation_p = XRelation(part=self.svg, whole=self, desc_ids=[ROT_P], parameters=[self.plane_parameter],
                                      formula=f"if({self.plane_parameter.name}==2;-Pi/2;0)")
         relative_x_relation = XIdentity(
-            part=self.svg, whole=self, desc_id=POS_X, parameter=self.relative_x_parameter)
+            part=self.svg, whole=self, desc_ids=[POS_X], parameter=self.relative_x_parameter)
         relative_y_relation = XIdentity(
-            part=self.svg, whole=self, desc_id=POS_Y, parameter=self.relative_y_parameter)
+            part=self.svg, whole=self, desc_ids=[POS_Y], parameter=self.relative_y_parameter)
         relative_z_relation = XIdentity(
-            part=self.svg, whole=self, desc_id=POS_Z, parameter=self.relative_z_parameter)
+            part=self.svg, whole=self, desc_ids=[POS_Z], parameter=self.relative_z_parameter)
         relative_rotation_relation = XIdentity(
-            part=self.svg, whole=self, desc_id=ROT_B, parameter=self.relative_rotation_parameter)
+            part=self.svg, whole=self, desc_ids=[ROT_B], parameter=self.relative_rotation_parameter)
 
 
 class David(Sketch):

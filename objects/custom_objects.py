@@ -18,21 +18,21 @@ class Eye(CustomObject):
         self.upper_lid = Line((0, 0, 0), (200, 0, 0), name="UpperLid")
         self.lower_lid = Line((0, 0, 0), (200, 0, 0), name="LowerLid")
         self.eyeball = Arc(name="Eyeball")
-        self.parts = [self.upper_lid, self.lower_lid, self.eyeball]
+        self.parts += [self.upper_lid, self.lower_lid, self.eyeball]
 
     def specify_parameters(self):
         self.opening_angle = UAngle(name="OpeningAngle")
-        self.parameters = [self.opening_angle]
+        self.parameters += [self.opening_angle]
 
     def specify_relations(self):
-        upper_lid_relation = XRelation(part=self.upper_lid, whole=self, desc_id=ROT_B,
+        upper_lid_relation = XRelation(part=self.upper_lid, whole=self, desc_ids=[ROT_B],
                                        parameters=[self.opening_angle], formula="-OpeningAngle/2")
-        lower_lid_relation = XRelation(part=self.lower_lid, whole=self, desc_id=ROT_B,
+        lower_lid_relation = XRelation(part=self.lower_lid, whole=self, desc_ids=[ROT_B],
                                        parameters=[self.opening_angle], formula="OpeningAngle/2")
         eyeball_start_angle_relation = XRelation(
-            part=self.eyeball, whole=self, desc_id=self.eyeball.desc_ids["start_angle"], parameters=[self.opening_angle], formula="-OpeningAngle/2")
+            part=self.eyeball, whole=self, desc_ids=[self.eyeball.desc_ids["start_angle"]], parameters=[self.opening_angle], formula="-OpeningAngle/2")
         eyeball_end_angle_relation = XRelation(
-            part=self.eyeball, whole=self, desc_id=self.eyeball.desc_ids["end_angle"], parameters=[self.opening_angle], formula="OpeningAngle/2")
+            part=self.eyeball, whole=self, desc_ids=[self.eyeball.desc_ids["end_angle"]], parameters=[self.opening_angle], formula="OpeningAngle/2")
 
 
 class PhysicalCampfire(CustomObject):
@@ -46,7 +46,7 @@ class PhysicalCampfire(CustomObject):
         self.humans = Group(self.left_human, self.right_human)
         self.fire = Fire()
         self.symbol = Rectangle()
-        self.parts = [self.circle, self.humans, self.fire, self.symbol]
+        self.parts += [self.circle, self.humans, self.fire, self.symbol]
 
 
 class ProjectLiminality(CustomObject):
@@ -57,7 +57,7 @@ class ProjectLiminality(CustomObject):
         self.left_line = Line((-70, -50, 0), (0, 50, 0))
         self.right_line = Line((70, -50, 0), (0, 50, 0))
         self.lines = Group(self.left_line, self.right_line, name="Lines")
-        self.parts = [self.big_circle, self.small_circle, self.lines]
+        self.parts += [self.big_circle, self.small_circle, self.lines]
 
 
 class Node(CustomObject):
@@ -78,7 +78,7 @@ class Node(CustomObject):
 
     def specify_parts(self):
         self.border = Rectangle(name="Border", rounding=1)
-        self.parts = [self.border]
+        self.parts.append(self.border)
         if self.text:
             self.label = Text(self.text)
             self.parts.append(self.label)
@@ -94,14 +94,9 @@ class Node(CustomObject):
         self.parameters = [self.width_parameter, self.height_parameter,
                            self.rounding_parameter]
         if self.symbol:
-            self.symbol_width_parameter = ULength(
-                name="SymbolWidth", default_value=self.symbol.width)
-            self.symbol_height_parameter = ULength(
-                name="SymbolHeight", default_value=self.symbol.height)
             self.symbol_border_parameter = UCompletion(
                 name="SymbolBorder", default_value=1 / 4)
-            self.parameters += [self.symbol_width_parameter,
-                                self.symbol_height_parameter, self.symbol_border_parameter]
+            self.parameters.append(self.symbol_border_parameter)
         if self.text:
             self.text_parameter = UText(name="Label", default_value=self.text)
             self.text_position_parameter = UOptions(name="TextPosition", options=[
@@ -113,23 +108,21 @@ class Node(CustomObject):
 
     def specify_relations(self):
         width_relation = XIdentity(
-            part=self.border, whole=self, desc_id=self.border.desc_ids["width"], parameter=self.width_parameter)
+            part=self.border, whole=self, desc_ids=[self.border.desc_ids["width"]], parameter=self.width_parameter)
         height_relation = XIdentity(
-            part=self.border, whole=self, desc_id=self.border.desc_ids["height"], parameter=self.height_parameter)
-        rounding_relation = XRelation(part=self.border, whole=self, desc_id=self.border.desc_ids[
-                                      "rounding_radius"], parameters=[self.rounding_parameter, self.width_parameter, self.height_parameter], formula=f"min({self.width_parameter.name};{self.height_parameter.name})/2*Rounding")
+            part=self.border, whole=self, desc_ids=[self.border.desc_ids["height"]], parameter=self.height_parameter)
+        rounding_relation = XRelation(part=self.border, whole=self, desc_ids=[self.border.desc_ids[
+                                      "rounding_radius"]], parameters=[self.rounding_parameter, self.width_parameter, self.height_parameter], formula=f"min({self.width_parameter.name};{self.height_parameter.name})/2*Rounding")
         if self.text:
             text_relation = XIdentity(
-                part=self.label, whole=self, desc_id=self.label.desc_ids["text"], parameter=self.text_parameter)
-            text_position_relation = XRelation(part=self.label, whole=self, desc_id=POS_Y, parameters=[
+                part=self.label, whole=self, desc_ids=[self.label.desc_ids["text"]], parameter=self.text_parameter)
+            text_position_relation = XRelation(part=self.label, whole=self, desc_ids=[POS_Y], parameters=[
                 self.text_position_parameter, self.height_parameter, self.text_height_parameter], formula=f"if({self.text_position_parameter.name}==0;-{self.text_height_parameter.name}/2;if({self.text_position_parameter.name}==1;{self.height_parameter.name}/2+5;-{self.height_parameter.name}/2-5-{self.text_height_parameter.name}))")
             text_size_relation = XIdentity(
-                part=self.label, whole=self, desc_id=self.label.desc_ids["text_height"], parameter=self.text_height_parameter)
+                part=self.label, whole=self, desc_ids=[self.label.desc_ids["text_height"]], parameter=self.text_height_parameter)
         if self.symbol:
-            symbol_scale_x_relation = XRelation(part=self.symbol, whole=self, desc_id=SCALE_X, parameters=[self.symbol_width_parameter, self.symbol_height_parameter, self.width_parameter,
-                                                                                                           self.height_parameter, self.symbol_border_parameter], formula=f"(1-{self.symbol_border_parameter.name})*min({self.width_parameter.name}/{self.symbol_width_parameter.name};{self.height_parameter.name}/{self.symbol_height_parameter.name})")
-            symbol_scale_y_relation = XRelation(part=self.symbol, whole=self, desc_id=SCALE_Y, parameters=[self.symbol_width_parameter, self.symbol_height_parameter, self.width_parameter,
-                                                                                                           self.height_parameter, self.symbol_border_parameter], formula=f"(1-{self.symbol_border_parameter.name})*min({self.width_parameter.name}/{self.symbol_width_parameter.name};{self.height_parameter.name}/{self.symbol_height_parameter.name})")
+            symbol_scale_relation = XRelation(part=self.symbol, whole=self, desc_ids=[self.symbol.diameter_parameter.desc_id], parameters=[self.width_parameter, self.height_parameter, self.symbol_border_parameter],
+                                              formula=f"(1-{self.symbol_border_parameter.name})*min({self.width_parameter.name};{self.height_parameter.name})")
 
 
 class MonoLogosNode(Node):
@@ -162,7 +155,6 @@ class Connection(CustomObject):
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.parts = []
         trace_start = self.start_object
         trace_target = self.target_object
         if self.start_object_is_node:
@@ -224,11 +216,9 @@ class FootPath(CustomObject):
         self.linear_field = LinearField(length=10)
         self.plain_effector = PlainEffector(
             fields=[self.linear_field], scale=-1)
-        self.left_foot_adjusted = Group(self.left_foot, name="LeftFoot")
-        self.right_foot_adjusted = Group(self.right_foot, name="RightFoot")
-        self.cloner = Cloner(target_object=self.path, clones=[self.left_foot_adjusted, self.right_foot_adjusted],
+        self.cloner = Cloner(target_object=self.path, clones=[self.left_foot, self.right_foot],
                              effectors=[self.plain_effector], step_size=self.step_length)
-        self.parts = [self.linear_field, self.plain_effector, self.cloner]
+        self.parts += [self.linear_field, self.plain_effector, self.cloner]
 
     def specify_parameters(self):
         self.offset_start_parameter = UCompletion(name="OffsetStart")
@@ -245,6 +235,9 @@ class FootPath(CustomObject):
             name="ScaleZoneLength", default_value=self.scale_zone_length)
         self.path_completion_parameter = UCompletion(
             name="PathCompletion", default_value=self.path_completion)
-        self.parameters = [self.offset_start_parameter, self.offset_end_parameter, self.step_length_parameter,
-                           self.step_width_parameter, self.floor_plane_parameter, self.scale_zone_length_parameter,
-                           self.path_completion_parameter, self.foot_size_parameter]
+        self.parameters += [self.offset_start_parameter, self.offset_end_parameter, self.step_length_parameter,
+                            self.step_width_parameter, self.floor_plane_parameter, self.scale_zone_length_parameter,
+                            self.path_completion_parameter, self.foot_size_parameter]
+
+    #def specify_relations(self):
+     #   step_width_left_foot_relation = XRelation(part=self.left_foot)
