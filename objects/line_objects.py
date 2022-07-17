@@ -2,35 +2,37 @@ from pydeation.objects.abstract_objects import LineObject
 from pydeation.objects.helper_objects import Null, Group
 from pydeation.constants import *
 import c4d
+import os
 
 
 class Circle(LineObject):
 
     def __init__(self, radius=200, ellipse_ratio=1, ring_ratio=1, **kwargs):
+        self.radius = radius
+        self.ellipse_ratio = ellipse_ratio
+        self.ring_ratio = ring_ratio
         super().__init__(**kwargs)
-        self.set_object_properties(
-            radius=radius, ellipse_ratio=ellipse_ratio, ring_ratio=ring_ratio)
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Osplinecircle)
 
-    def set_object_properties(self, radius=200, ellipse_ratio=1, ring_ratio=1):
+    def set_object_properties(self):
         # check input values
-        if not 0 <= ring_ratio <= 1:
+        if not 0 <= self.ring_ratio <= 1:
             raise ValueError("ring_ratio must be between 0 and 1")
-        if not 0 <= ellipse_ratio <= 1:
+        if not 0 <= self.ellipse_ratio <= 1:
             raise ValueError("ring_ratio must be between 0 and 1")
         # implicit properties
-        if ring_ratio != 1:
+        if self.ring_ratio != 1:
             self.obj[c4d.PRIM_CIRCLE_RING] = True
-        inner_radius = radius * ring_ratio
-        if ellipse_ratio != 1:
+        inner_radius = self.radius * self.ring_ratio
+        if self.ellipse_ratio != 1:
             self.obj[c4d.PRIM_CIRCLE_ELLIPSE] = True
-        ellipse_radius = radius * ellipse_ratio
+        ellipse_radius = self.radius * self.ellipse_ratio
         # set properties
         self.obj[c4d.PRIM_CIRCLE_RADIUSY] = ellipse_radius
         self.obj[c4d.PRIM_CIRCLE_INNER] = inner_radius
-        self.obj[c4d.PRIM_CIRCLE_RADIUS] = radius
+        self.obj[c4d.PRIM_CIRCLE_RADIUS] = self.radius
         # set constants
         self.obj[c4d.SPLINEOBJECT_SUB] = 32
 
@@ -38,25 +40,24 @@ class Circle(LineObject):
 class Rectangle(LineObject):
 
     def __init__(self, width=100, height=100, rounding=False, **kwargs):
+        self.width = width
+        self.height = height
+        self.rounding = rounding
         super().__init__(**kwargs)
-        self.set_object_properties(
-            width=width, height=height, rounding=rounding)
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Osplinerectangle)
 
-    def set_object_properties(self, width=100, height=100, rounding=False):
+    def set_object_properties(self):
         # check input values
-        if not 0 <= rounding <= 1:
+        if not 0 <= self.rounding <= 1:
             raise ValueError("rounding must be between 0 and 1")
-        # yin properties
-        if rounding:
-            rounding *= min(width, height) / 2
-        # yang properties
-        self.obj[c4d.PRIM_RECTANGLE_WIDTH] = width
-        self.obj[c4d.PRIM_RECTANGLE_HEIGHT] = height
-        self.obj[c4d.PRIM_RECTANGLE_ROUNDING] = bool(rounding)
-        self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding
+        self.obj[c4d.PRIM_RECTANGLE_WIDTH] = self.width
+        self.obj[c4d.PRIM_RECTANGLE_HEIGHT] = self.height
+        if self.rounding:
+            self.obj[c4d.PRIM_RECTANGLE_ROUNDING] = True
+            rounding_radius = self.rounding * min(self.width, self.height) / 2
+            self.obj[c4d.PRIM_RECTANGLE_RADIUS] = rounding_radius
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
@@ -69,17 +70,18 @@ class Rectangle(LineObject):
 class Arc(LineObject):
 
     def __init__(self, radius=150, start_angle=0, end_angle=PI / 2, **kwargs):
+        self.radius = radius
+        self.start_angle = start_angle
+        self.end_angle = end_angle
         super().__init__(**kwargs)
-        self.set_object_properties(
-            radius=radius, start_angle=start_angle, end_angle=end_angle)
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Osplinearc)
 
-    def set_object_properties(self, radius=150, start_angle=0, end_angle=PI / 2):
-        self.obj[c4d.PRIM_ARC_RADIUS] = radius
-        self.obj[c4d.PRIM_ARC_START] = start_angle
-        self.obj[c4d.PRIM_ARC_END] = end_angle
+    def set_object_properties(self):
+        self.obj[c4d.PRIM_ARC_RADIUS] = self.radius
+        self.obj[c4d.PRIM_ARC_START] = self.start_angle
+        self.obj[c4d.PRIM_ARC_END] = self.end_angle
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
@@ -91,28 +93,36 @@ class Arc(LineObject):
 
 class Tracer(LineObject):
 
-    def __init__(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False, **kwargs):
+    def __init__(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False, nodes_to_children=False, **kwargs):
+        self.nodes = nodes
+        self.spline_type = spline_type
+        self.tracing_mode = tracing_mode
+        self.reverse = reverse
         super().__init__(**kwargs)
-        self.set_object_properties(
-            *nodes, spline_type=spline_type, tracing_mode=tracing_mode, reverse=reverse)
+        if nodes_to_children:
+            self.nodes_to_children()
 
     def specify_object(self):
         self.obj = c4d.BaseObject(1018655)
 
-    def set_object_properties(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False):
+    def nodes_to_children(self):
+        """inserts nodes under tracer object as children"""
+        for node in self.nodes:
+            node.obj.InsertUnder(self.obj)
+
+    def set_object_properties(self):
         # implicit properties
         trace_list = c4d.InExcludeData()
-        for node in nodes:
+        for node in self.nodes:
             trace_list.InsertObject(node.obj, 1)
-            node.obj.InsertUnder(self.obj)
         # set properties
         self.obj[c4d.MGTRACEROBJECT_OBJECTLIST] = trace_list
         spline_types = {"bezier": 4, "linear": 0}
-        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[spline_type]
-        self.obj[c4d.MGTRACEROBJECT_REVERSESPLINE] = reverse
+        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
+        self.obj[c4d.MGTRACEROBJECT_REVERSESPLINE] = self.reverse
         tracing_modes = {"path": 0, "objects": 1, "elements": 2}
         # tracing mode to object
-        self.obj[c4d.MGTRACEROBJECT_MODE] = tracing_modes[tracing_mode]
+        self.obj[c4d.MGTRACEROBJECT_MODE] = tracing_modes[self.tracing_mode]
         # set constants
         self.obj[c4d.SPLINEOBJECT_INTERPOLATION] = 1  # adaptive
         self.obj[c4d.MGTRACEROBJECT_USEPOINTS] = False  # no vertex tracing
@@ -155,17 +165,25 @@ class Arrow(Line):
 
 
 class Spline(LineObject):
-    """turns a c4d spline into a pydeation spline"""
+    """creates a basic spline"""
 
-    def __init__(self, input_spline, spline_type="bezier", **kwargs):
-        self.input_spline = input_spline
+    def __init__(self, points=[], spline_type="bezier", **kwargs):
+        self.points = points
+        self.spline_type = spline_type
         super().__init__(**kwargs)
-        self.set_object_properties(spline_type=spline_type)
+        self.add_points_to_spline()
 
     def specify_object(self):
-        self.obj = self.input_spline.GetClone()
+        self.obj = c4d.BaseObject(c4d.Ospline)
 
-    def set_object_properties(self, spline_type="bezier"):
+    def add_points_to_spline(self):
+        if self.points:
+            c4d_points = [c4d.Vector(*point) for point in self.points]
+            point_count = len(self.points)
+            self.obj.ResizeObject(point_count)
+            self.obj.SetAllPoints(c4d_points)
+
+    def set_object_properties(self):
         spline_types = {
             "linear": 0,
             "cubic": 1,
@@ -174,29 +192,94 @@ class Spline(LineObject):
             "bezier": 4
         }
         # set interpolation
-        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[spline_type]
+        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
+
+
+class SVG(Spline):  # takes care of importing svgs
+
+    def __init__(self, file_name, x=0, y=0, z=0, **kwargs):
+        self.file_name = file_name
+        self.x = x
+        self.y = y
+        self.z = z
+        self.extract_spline_from_vector_import()
+        super().__init__(**kwargs)
+        self.fix_axes()
+        self.add_bounding_box_information()
+
+    def extract_spline_from_vector_import(self):
+        file_path = os.path.join(SVG_PATH, self.file_name + ".svg")
+        vector_import = c4d.BaseObject(1057899)
+        self.document = c4d.documents.GetActiveDocument()
+        self.document.InsertObject(vector_import)
+        vector_import[c4d.ART_FILE] = file_path
+        self.document.ExecutePasses(
+            bt=None, animation=False, expressions=False, caches=True, flags=c4d.BUILDFLAGS_NONE)
+        vector_import.Remove()
+        cache = vector_import.GetCache()
+        cache = cache.GetDown()
+        cache = cache.GetDown()
+        cache = cache.GetDownLast()
+        self.spline = cache.GetClone()
+
+    def fix_axes(self):
+        self.document.SetSelection(self.obj)  # select svg
+        c4d.CallCommand(1011982)  # moves svg axes to center
+        self.obj[c4d.ID_BASEOBJECT_REL_POSITION] = c4d.Vector(
+            0, 0, 0)  # move svg to origin
+        # set specified position
+        self.set_position(x=self.x, y=self.y, z=self.z)
+
+    def specify_object(self):
+        self.obj = self.spline
+
+    def add_bounding_box_information(self):
+        bounding_radius = self.obj.GetRad()
+        self.width = bounding_radius.x * 2
+        self.height = bounding_radius.y * 2
+
+
+class PySpline(LineObject):
+    """turns a c4d spline into a pydeation spline"""
+
+    def __init__(self, input_spline, spline_type="bezier", **kwargs):
+        self.input_spline = input_spline
+        self.spline_type = spline_type
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = self.input_spline.GetClone()
+
+    def set_object_properties(self):
+        spline_types = {
+            "linear": 0,
+            "cubic": 1,
+            "akima": 2,
+            "b-spline": 3,
+            "bezier": 4
+        }
+        # set interpolation
+        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
 
 
 class Text(LineObject):
 
     def __init__(self, text, height=50, anchor="middle", seperate_letters=False, **kwargs):
+        self.text = text
+        self.height = height
+        self.anchor = anchor
+        self.seperate_letters = seperate_letters
         super().__init__(name=text, **kwargs)
-        self.set_object_properties(
-            text, height=height, anchor=anchor, seperate_letters=seperate_letters)
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Osplinetext)
 
-    def set_object_properties(self, text, height=50, anchor="middle", seperate_letters=False):
-        # write properties to self
-        self.text = text
-        # immanent properties
+    def set_object_properties(self):
         anchors = {"left": 0, "middle": 1, "right": 0}
-        # yang properties
-        self.obj[c4d.PRIM_TEXT_TEXT] = text
-        self.obj[c4d.PRIM_TEXT_HEIGHT] = height
-        self.obj[c4d.PRIM_TEXT_ALIGN] = anchors[anchor]
-        self.obj[c4d.PRIM_TEXT_SEPARATE] = seperate_letters
+        self.obj[c4d.PRIM_TEXT_TEXT] = self.text
+        self.obj[c4d.PRIM_TEXT_HEIGHT] = self.height
+        self.obj[c4d.PRIM_TEXT_ALIGN] = anchors[self.anchor]
+        self.obj[c4d.PRIM_TEXT_SEPARATE] = self.seperate_letters
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
@@ -242,8 +325,8 @@ class Letters(Text):
                 kwargs["y"] = 0
             if "z" not in kwargs:
                 kwargs["z"] = 0
-            pydeation_letter = Spline(letter, x=x - kwargs["x"], y=y, z=z - kwargs["z"], h=h, p=p, b=b, scale_x=scale_x, scale_y=scale_y,
-                                      scale_z=scale_z, visible=self.visible)
+            pydeation_letter = PySpline(letter, x=x - kwargs["x"], y=y, z=z - kwargs["z"], h=h, p=p, b=b, scale_x=scale_x, scale_y=scale_y,
+                                        scale_z=scale_z, visible=self.visible)
             pydeation_letters.append(pydeation_letter)
         # create text from letters
         self = Group(*pydeation_letters, name=self.text, **kwargs)
