@@ -1,11 +1,11 @@
 from pydeation.materials import FillMaterial, SketchMaterial
 from pydeation.tags import FillTag, SketchTag, XPressoTag
-from pydeation.constants import WHITE, SVG_PATH, PI
+from pydeation.constants import WHITE
 from pydeation.animation.object_animators import Show, Hide
 from pydeation.animation.sketch_animators import Draw
+from pydeation.xpresso.userdata import UGroup
 from abc import ABC, abstractmethod
 import c4d
-import os
 
 
 class ProtoObject(ABC):
@@ -19,6 +19,7 @@ class ProtoObject(ABC):
         self.set_position(x=x, y=y, z=z)
         self.set_rotation(h=h, p=p, b=b)
         self.set_scale(uniform_scale=scale, x=scale_x, y=scale_y, z=scale_z)
+        self.set_object_properties()
         self.xpressions = {}  # keeps track of animators, composers etc.
         self.accessed_parameters = {}  # keeps track which parameters have AccessControl
         self.helper_objects = {}  # keeps track of helper objects created by Animators
@@ -102,11 +103,8 @@ class ProtoObject(ABC):
         """optionally holds a uncreation animation, UnDraw by default"""
         return UnDraw(self)
 
-
-class HelperObject(ProtoObject):  # invisible helper objects
-
-    @abstractmethod
     def set_object_properties(self):
+        """used to set the unique properties of a specific object"""
         pass
 
 
@@ -204,8 +202,9 @@ class VisibleObject(ProtoObject):  # visible objects
 class LineObject(VisibleObject):  # line objects only require sketch material
 
     def __init__(self, color=WHITE, plane="xy", fill_color=None, solid=False, arrow_start=False, arrow_end=False, **kwargs):
+        self.plane = plane
         super().__init__(**kwargs)
-        self.set_general_properties(plane=plane)
+        self.set_plane()
         if solid or fill_color is not None:
             self.create_loft(color=color, fill_color=fill_color,
                              arrow_start=arrow_start, arrow_end=arrow_end)
@@ -214,14 +213,9 @@ class LineObject(VisibleObject):  # line objects only require sketch material
                 color=color, arrow_start=arrow_start, arrow_end=arrow_end)
             self.set_sketch_tag()
 
-    def set_general_properties(self, plane="xy"):
-        # set plane
+    def set_plane(self):
         planes = {"xy": 0, "zy": 1, "xz": 2}
-        self.obj[c4d.PRIM_PLANE] = planes[plane]
-
-    @abstractmethod
-    def set_object_properties(self):
-        pass
+        self.obj[c4d.PRIM_PLANE] = planes[self.plane]
 
     def create_loft(self, color=WHITE, fill_color=None, arrow_start=False, arrow_end=False):
         self.loft = Loft(color=color, fill_color=fill_color,
@@ -236,10 +230,6 @@ class SolidObject(LineObject):  # solid objects also require fill material
         self.set_fill_material(filling=filling, fill_color=fill_color)
         self.set_fill_tag()
 
-    @abstractmethod
-    def set_object_properties(self):
-        pass
-
 
 class Loft(SolidObject):
 
@@ -249,52 +239,72 @@ class Loft(SolidObject):
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Oloft)
 
-    def set_object_properties(self):
-        pass
 
+class CustomObject(VisibleObject):
+    """this class is used to create custom objects that are basically
+    groups with coupling of the childrens parameters through xpresso
+    GOALS:
+        - recursively combine custom objects --> chain xpresso animators somehow
+        - specify animation behaviour for Create/UnCreate animator"""
 
-class SVG(LineObject):  # takes care of importing svgs
-
-    def __init__(self, file_name, x=0, y=0, z=0, plane="xy", **kwargs):
-        self.extract_spline_from_vector_import(file_name)
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.fix_axes(x=x, y=y, z=z)
-        self.set_plane(plane)
+        self.specify_parts()
+        self.insert_parts()
+        self.set_xpresso_tag()
+        self.specify_parameters()
+        self.insert_parameters()
+        self.specify_relations()
+        self.add_bounding_box_information()
 
-    def extract_spline_from_vector_import(self, file_name):
-        file_path = os.path.join(SVG_PATH, file_name + ".svg")
-        vector_import = c4d.BaseObject(1057899)
-        self.document = c4d.documents.GetActiveDocument()
-        self.document.InsertObject(vector_import)
-        vector_import[c4d.ART_FILE] = file_path
-        self.document.ExecutePasses(
-            bt=None, animation=False, expressions=False, caches=True, flags=c4d.BUILDFLAGS_NONE)
-        vector_import.Remove()
-        cache = vector_import.GetCache()
-        cache = cache.GetDown()
-        cache = cache.GetDown()
-        cache = cache.GetDownLast()
-        self.spline = cache.GetClone()
-
-    def fix_axes(self, x=0, y=0, z=0):
-        self.document.SetSelection(self.obj)  # select svg
-        c4d.CallCommand(1011982)  # moves svg axes to center
-        self.obj[c4d.ID_BASEOBJECT_REL_POSITION] = c4d.Vector(
-            0, 0, 0)  # move svg to origin
-        # set specified position
-        self.set_position(x=x, y=y, z=z)
-
-    def set_plane(self, plane):
-        planes = {"xy": c4d.Vector(0, 0, 0), "zy": c4d.Vector(
-            PI / 2, 0, 0), "xz": c4d.Vector(0, -PI / 2, 0)}
-        self.set_frozen_rotation(planes[plane])
+    def insert_parts(self):
+        """inserts the parts as children"""
+        for part in self.parts:
+            part.obj.InsertUnder(self.obj)
 
     def specify_object(self):
-        self.obj = self.spline
+        self.obj = c4d.BaseObject(c4d.Onull)
 
-    def set_object_properties(self, spline_type="bezier", closed=True):
-        # implicit propertiesd
-        spline_types = {"bezier": 4, "linear": 0}
-        # set properties
-        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[spline_type]
-        self.obj[c4d.SPLINEOBJECT_CLOSED] = closed
+    def specify_parameters(self):
+        """specifies optional parameters for the custom object"""
+        self.parameters = None
+
+    def insert_parameters(self):
+        """inserts the specified parameters as userdata"""
+        if self.parameters:
+            self.u_group = UGroup(
+                *self.parameters, target=self.obj, name=self.name)
+
+    def specify_relations(self):
+        """specifies the relations between the part's parameters using xpresso"""
+        pass
+
+    @abstractmethod
+    def specify_parts(self):
+        """save parts as attributes and write them to self.parts"""
+        pass
+
+    def create(self):
+        """specifies the creation animation"""
+        animations = [part.create() for part in self.parts]
+        return animations
+
+    def un_create(self):
+        """specifies the uncreation animation"""
+        animations = []
+        for part in self.parts:
+            if part.un_create():
+                animations.append(part.un_create())
+            else:
+                animations.append(UnDraw(part))
+        return animations
+
+    def set_xpresso_tag(self):
+        """inserts an xpresso tag used for coordination of the parts"""
+        self.custom_tag = XPressoTag(target=self, name="CustomTag")
+
+    def add_bounding_box_information(self):
+        bounding_box_center, bounding_radius = c4d.utils.GetBBox(
+            self.obj, self.obj.GetMg())
+        self.width = bounding_radius.x * 2
+        self.height = bounding_radius.y * 2

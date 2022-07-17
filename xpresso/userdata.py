@@ -114,9 +114,8 @@ class UString(UData):
     def specify_data_type(self):
         # create base container
         self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_STRING)
-        # TODO: USE PORT RIPPER TO GET DESC IDS
-        self.port_desc_id_in = None
-        self.port_desc_id_out = None
+        self.port_desc_id_in = STRING_DESCID_IN
+        self.port_desc_id_out = STRING_DESCID_OUT
         self.value_type = str
 
     def specify_constraints(self):
@@ -173,7 +172,7 @@ class UAngle(UReal):
 
     def specify_constraints(self):
         # set range
-        self.bc[c4d.DESC_MIN] = 0
+        self.bc[c4d.DESC_MIN] = -2 * PI
         self.bc[c4d.DESC_MAX] = 2 * PI
         # set unit to degree
         self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_DEGREE
@@ -193,8 +192,6 @@ class ULength(UReal):
     """creates a length field: l -> [0,∞)"""
 
     def specify_constraints(self):
-        # set lower bound
-        self.bc[c4d.DESC_MIN] = 0
         # set step size
         self.bc[c4d.DESC_STEP] = 0.01
         # set unit to length
@@ -256,13 +253,14 @@ class UText(UString):
         super().specify_name(name)
 
 
-class UDropDown(UInt):
-    """creates a drop down menu: i -> {options}"""
+class UOptions(UInt):
+    """creates a menu: i -> {options}"""
 
-    def __init__(self, options=[], **kwargs):
+    def __init__(self, options=[], default_value=None, **kwargs):
         super().__init__(**kwargs)
         self.options = options
         self.specify_options()
+        self.default_value = options.index(default_value)
 
     def specify_constraints(self):
         # set interface to quicktab radio
