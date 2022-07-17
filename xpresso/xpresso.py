@@ -21,7 +21,18 @@ class XNode:
             "python": 1022471,
             "rangemapper": c4d.ID_OPERATOR_RANGEMAPPER,
             "reals2vec": c4d.ID_OPERATOR_REAL2VECT,
-            "vec2reals": c4d.ID_OPERATOR_VECT2REAL
+            "vec2reals": c4d.ID_OPERATOR_VECT2REAL,
+            "nearest_point_on_spline": c4d.ID_OPERATOR_NEARESTPOINTONSPLINE,
+            "mix": c4d.ID_OPERATOR_MIX,
+            "distance": c4d.ID_OPERATOR_DISTANCE
+        }
+        # define data types
+        self.data_types = {
+            "integer": 0,
+            "real": 1,
+            "normal": 2,
+            "vector": 3,
+            "matrix": 4
         }
         # set attributes
         self.target = target
@@ -279,8 +290,9 @@ class XReals2Vec(XNode):
 class XMath(XNode):
     """creates a math node"""
 
-    def __init__(self, target, mode="+", **kwargs):
+    def __init__(self, target, mode="+", data_type="real", **kwargs):
         self.mode = mode
+        self.data_type = data_type
         super().__init__(target, "math", **kwargs)
 
     def set_params(self):
@@ -294,3 +306,39 @@ class XMath(XNode):
         }
         # specify mode
         self.obj[c4d.GV_MATH_FUNCTION_ID] = modes[self.mode]
+        # specify data type
+        if self.mode in ("-", "+"):
+            self.obj[c4d.GV_DYNAMIC_DATATYPE] = self.data_types[self.data_type]
+        else:  # in multiplicative mode the data types have different values
+            data_types = {
+                "integer": 15,
+                "real": 19
+            }
+            self.obj[c4d.GV_DYNAMIC_DATATYPE] = data_types[self.data_type]
+
+
+class XNearestPointOnSpline(XNode):
+    """creates a nearest point on spline node"""
+
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "nearest_point_on_spline", **kwargs)
+
+
+class XMix(XNode):
+    """creates a mix node"""
+
+    def __init__(self, target, mixing_factor=1 / 2, data_type="real", **kwargs):
+        self.mixing_factor = mixing_factor
+        self.data_type = data_type
+        super().__init__(target, "mix", **kwargs)
+
+    def set_params(self):
+        self.obj[c4d.GV_MIX_INPUT_MIXINGFACTOR] = self.mixing_factor
+        self.obj[c4d.GV_DYNAMIC_DATATYPE] = self.data_types[self.data_type]
+
+
+class XDistance(XNode):
+    """creates a distance node"""
+
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "distance", **kwargs)
