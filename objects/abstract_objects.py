@@ -1,9 +1,10 @@
 from pydeation.materials import FillMaterial, SketchMaterial
 from pydeation.tags import FillTag, SketchTag, XPressoTag
-from pydeation.constants import WHITE
+from pydeation.constants import WHITE, SCALE_X, SCALE_Y, SCALE_Z
 from pydeation.animation.object_animators import Show, Hide
 from pydeation.animation.sketch_animators import Draw
-from pydeation.xpresso.userdata import UGroup
+from pydeation.xpresso.userdata import UGroup, ULength
+from pydeation.xpresso.xpressions import XRelation
 from abc import ABC, abstractmethod
 import c4d
 
@@ -247,15 +248,20 @@ class CustomObject(VisibleObject):
         - recursively combine custom objects --> chain xpresso animators somehow
         - specify animation behaviour for Create/UnCreate animator"""
 
-    def __init__(self, **kwargs):
+    def __init__(self, diameter=None, **kwargs):
         super().__init__(**kwargs)
+        self.diameter = diameter
+        self.parameters = []
+        self.parts = []
         self.specify_parts()
         self.insert_parts()
         self.set_xpresso_tag()
         self.specify_parameters()
+        self.add_bounding_box_information()
+        self.specify_bounding_box_parameters()
         self.insert_parameters()
         self.specify_relations()
-        self.add_bounding_box_information()
+        self.specify_bounding_box_relations()
 
     def insert_parts(self):
         """inserts the parts as children"""
@@ -265,9 +271,31 @@ class CustomObject(VisibleObject):
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Onull)
 
+    def add_bounding_box_information(self):
+        bounding_box_center, bounding_radius = c4d.utils.GetBBox(
+            self.obj, self.obj.GetMg())
+        self.width = bounding_radius.x * 2
+        self.height = bounding_radius.y * 2
+        self.depth = bounding_radius.z * 2
+
     def specify_parameters(self):
         """specifies optional parameters for the custom object"""
-        self.parameters = None
+        pass
+
+    def specify_bounding_box_parameters(self):
+        """specifies bounding box parameters for the custom object"""
+        default_diameter = self.diameter if self.diameter else max(
+            self.width, self.height, self.depth)
+        self.diameter_parameter = ULength(
+            name="Diameter", default_value=default_diameter)
+        self.default_width_parameter = ULength(
+            name="DefaultWidth", default_value=self.width)
+        self.default_height_parameter = ULength(
+            name="DefaultHeight", default_value=self.height)
+        self.default_depth_parameter = ULength(
+            name="DefaultDepth", default_value=self.depth)
+        self.parameters += [self.diameter_parameter, self.default_width_parameter,
+                            self.default_height_parameter, self.default_depth_parameter]
 
     def insert_parameters(self):
         """inserts the specified parameters as userdata"""
@@ -278,6 +306,11 @@ class CustomObject(VisibleObject):
     def specify_relations(self):
         """specifies the relations between the part's parameters using xpresso"""
         pass
+
+    def specify_bounding_box_relations(self):
+        """gives the custom object basic control over the bounding box diameter"""
+        diameter_relation = XRelation(part=self, whole=self, desc_ids=[SCALE_X, SCALE_Y, SCALE_Z], parameters=[self.diameter_parameter, self.default_width_parameter, self.default_height_parameter, self.default_depth_parameter],
+                                      formula=f"{self.diameter_parameter.name}/max({self.default_width_parameter.name};max({self.default_height_parameter.name};{self.default_depth_parameter.name}))")
 
     @abstractmethod
     def specify_parts(self):
@@ -302,9 +335,3 @@ class CustomObject(VisibleObject):
     def set_xpresso_tag(self):
         """inserts an xpresso tag used for coordination of the parts"""
         self.custom_tag = XPressoTag(target=self, name="CustomTag")
-
-    def add_bounding_box_information(self):
-        bounding_box_center, bounding_radius = c4d.utils.GetBBox(
-            self.obj, self.obj.GetMg())
-        self.width = bounding_radius.x * 2
-        self.height = bounding_radius.y * 2
