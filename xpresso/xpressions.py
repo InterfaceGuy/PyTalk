@@ -12,6 +12,7 @@ class XPression(ABC):
         self.target = target
         self.freeze_tag = freeze_tag
         self.composition_level = composition_level
+        self.nodes = []
         self.construct()
 
     @abstractmethod
@@ -534,7 +535,6 @@ class XComposition(XPression):
         # create xcomposer
         self.xcomposer = XComposer(
             self.target, name=self.name, composition_level=self.composition_level)
-        print(self.composition_level)
         self.completion_slider = self.xcomposer.completion_slider
         # create access controls
         for xanimator, input_range in zip(self.xanimators, input_ranges):
@@ -570,7 +570,15 @@ class XAnimation(XPression):
                 xanimator, interpolate=xanimator.interpolate)
 
 
-class XRelation(XPression):
+class CustomXPression(XPression):
+
+    def group_nodes(self):
+        self.xgroup = XGroup(*self.nodes, custom_tag=True,
+                             name=self.__class__.__name__)
+        self.obj = self.xgroup.obj
+
+
+class XRelation(CustomXPression):
     """creates a relation between a parameter of a part and the whole of a CustomObject"""
 
     def __init__(self, part=None, whole=None, desc_id=None, parameters=None, formula=None):
@@ -605,10 +613,6 @@ class XRelation(XPression):
             self.whole, variables=[parameter.name for parameter in self.parameters], formula=self.formula)
         self.nodes.append(self.formula_node)
 
-    def group_nodes(self):
-        self.xgroup = XGroup(*self.nodes, custom_tag=True)
-        self.obj = self.xgroup.obj
-
     def connect_ports(self):
         for formula_in_port, parameter_port_out in zip(self.formula_node.obj.GetInPorts(), self.whole_node.obj.GetOutPorts()):
             parameter_port_out.Connect(formula_in_port)
@@ -616,8 +620,11 @@ class XRelation(XPression):
             0).Connect(self.part_node.obj.GetInPort(0))
 
 
-class XConnection(XRelation):
-    """creates a relation between a parameter of a part and the whole of a CustomObject"""
+class XIdentity(XRelation):
+    """creates a direct connection between a parameter of a part and the whole of a CustomObject"""
+
+    def __init__(self, parameter=None, **kwargs):
+        super().__init__(parameters=[parameter], **kwargs)
 
     def construct(self):
         self.create_part_node()
@@ -628,3 +635,136 @@ class XConnection(XRelation):
     def connect_ports(self):
         self.whole_node.obj.GetOutPort(0).Connect(
             self.part_node.obj.GetInPort(0))
+
+
+class XClosestPointOnSpline(CustomXPression):
+    """creates a setup that positions a point on a spline such that the distance to a reference point is minimised"""
+
+    def __init__(self, reference_point=None, spline_point=None, target=None, spline=None):
+        self.spline = spline
+        self.spline_point = spline_point
+        self.reference_point = reference_point
+        super().__init__(target)
+
+    def construct(self):
+        self.create_spline_node()
+        self.create_reference_point_node()
+        self.create_spline_point_node()
+        self.create_nearest_point_on_spline_node()
+        self.create_math_nodes()
+        self.group_nodes()
+        self.connect_ports()
+
+    def create_spline_node(self):
+        self.spline_node = XObject(self.target, link_target=self.spline)
+        self.spline_node.obj.AddPort(c4d.GV_PORT_OUTPUT, OBJECT_DESCID_OUT)
+        self.spline_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+        self.nodes.append(self.spline_node)
+
+    def create_reference_point_node(self):
+        self.reference_point_node = XObject(
+            self.target, link_target=self.reference_point)
+        self.reference_point_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+        self.nodes.append(self.reference_point_node)
+
+    def create_spline_point_node(self):
+        self.spline_point_node = XObject(
+            self.target, link_target=self.spline_point)
+        self.spline_point_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, c4d.ID_BASEOBJECT_REL_POSITION)
+        self.nodes.append(self.spline_point_node)
+
+    def create_nearest_point_on_spline_node(self):
+        self.nearest_point_on_spline_node = XNearestPointOnSpline(self.target)
+        self.nodes.append(self.nearest_point_on_spline_node)
+
+    def create_math_nodes(self):
+        self.add_node = XMath(self.target, mode="+", data_type="vector")
+        self.substract_node = XMath(self.target, mode="-", data_type="vector")
+        self.nodes += [self.add_node, self.substract_node]
+
+    def connect_ports(self):
+        self.spline_node.obj.GetOutPort(0).Connect(
+            self.nearest_point_on_spline_node.obj.GetInPort(0))
+        self.spline_node.obj.GetOutPort(1).Connect(
+            self.substract_node.obj.GetInPort(1))
+        self.spline_node.obj.GetOutPort(1).Connect(
+            self.add_node.obj.GetInPort(0))
+        self.reference_point_node.obj.GetOutPort(0).Connect(
+            self.substract_node.obj.GetInPort(0))
+        self.nearest_point_on_spline_node.obj.GetOutPort(1).Connect(
+            self.add_node.obj.GetInPort(1))
+        self.substract_node.obj.GetOutPort(0).Connect(
+            self.nearest_point_on_spline_node.obj.GetInPort(1))
+        self.add_node.obj.GetOutPort(0).Connect(
+            self.spline_point_node.obj.GetInPort(0))
+
+
+class XScaleBetweenPoints(CustomXPression):
+    """creates a setup that scales adn positions an object such that it touches two points on its periphery"""
+
+    def __init__(self, scaled_object=None, point_a=None, point_b=None, target=None):
+        self.scaled_object = scaled_object
+        self.point_a = point_a
+        self.point_b = point_b
+        super().__init__(target)
+
+    def construct(self):
+        self.create_distance_node()
+        self.create_mix_node()
+        self.create_divide_node()
+        self.create_point_nodes()
+        self.create_scaled_object_node()
+        self.group_nodes()
+        self.connect_ports()
+
+    def create_distance_node(self):
+        self.distance_node = XDistance(self.target)
+        self.nodes.append(self.distance_node)
+
+    def create_mix_node(self):
+        self.mix_node = XMix(self.target, data_type="vector")
+        self.nodes.append(self.mix_node)
+
+    def create_divide_node(self):
+        self.divide_node = XMath(self.target, mode="/")
+        self.constant_node = XConstant(self.target, value=2)
+        self.nodes += [self.divide_node, self.constant_node]
+
+    def create_point_nodes(self):
+        self.point_a_node = XObject(self.target, link_target=self.point_a)
+        self.point_a_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+        self.point_b_node = XObject(self.target, link_target=self.point_b)
+        self.point_b_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+        self.nodes += [self.point_a_node, self.point_b_node]
+
+    def create_scaled_object_node(self):
+        self.scaled_object_node = XObject(
+            self.target, link_target=self.scaled_object)
+        self.scaled_object_node_global_position_port = self.scaled_object_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+        self.scaled_object_node_size_port = self.scaled_object_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, c4d.SPHERICAL_SIZE)
+        self.nodes.append(self.scaled_object_node)
+
+    def connect_ports(self):
+        self.point_a_node.obj.GetOutPort(0).Connect(
+            self.distance_node.obj.GetInPort(0))
+        self.point_b_node.obj.GetOutPort(0).Connect(
+            self.distance_node.obj.GetInPort(1))
+        self.point_a_node.obj.GetOutPort(0).Connect(
+            self.mix_node.obj.GetInPort(1))
+        self.point_b_node.obj.GetOutPort(0).Connect(
+            self.mix_node.obj.GetInPort(2))
+        self.distance_node.obj.GetOutPort(0).Connect(
+            self.divide_node.obj.GetInPort(0))
+        self.divide_node.obj.GetOutPort(0).Connect(
+            self.scaled_object_node_size_port)
+        self.mix_node.obj.GetOutPort(0).Connect(
+            self.scaled_object_node_global_position_port)
+        self.constant_node.obj.GetOutPort(0).Connect(
+            self.divide_node.obj.GetInPort(1))
