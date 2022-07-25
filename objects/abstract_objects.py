@@ -3,8 +3,8 @@ from pydeation.tags import FillTag, SketchTag, XPressoTag
 from pydeation.constants import WHITE, SCALE_X, SCALE_Y, SCALE_Z
 from pydeation.animation.object_animators import Show, Hide
 from pydeation.animation.sketch_animators import Draw
-from pydeation.xpresso.userdata import UGroup, ULength
-from pydeation.xpresso.xpressions import XRelation
+from pydeation.xpresso.userdata import UGroup, ULength, UCheckBox
+from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength
 from abc import ABC, abstractmethod
 import c4d
 
@@ -35,6 +35,7 @@ class ProtoObject(ABC):
 
     def set_unique_desc_ids(self):
         """optional method to make unique descIds easily accessible"""
+        pass
 
     def set_name(self, name=None):
         if name is None:
@@ -88,7 +89,6 @@ class ProtoObject(ABC):
             self.obj[c4d.ID_BASEOBJECT_SCALE, c4d.VECTOR_Y] += y
         if z is not None:
             self.obj[c4d.ID_BASEOBJECT_SCALE, c4d.VECTOR_Z] += z
-
         if uniform_scale is not None:
             scale = c4d.Vector(uniform_scale, uniform_scale, uniform_scale)
         self.obj[c4d.ID_BASEOBJECT_SCALE] = scale
@@ -111,13 +111,17 @@ class ProtoObject(ABC):
 
 class VisibleObject(ProtoObject):  # visible objects
 
-    def __init__(self, visible=False, **kwargs):
+    def __init__(self, visible=True, **kwargs):
         super().__init__(**kwargs)
-        self.set_visibility(visible=visible)
+        self.visible = visible
+        self.set_visibility()
         self.set_xpresso_tags()
+        self.specify_visibility_parameter()
+        self.insert_visibility_parameter()
+        self.specify_visibility_relation()
 
-    def set_visibility(self, visible=False):
-        if visible:
+    def set_visibility(self):
+        if self.visible:
             show_animation = Show(self)
             show_animation.execute()
         else:
@@ -152,6 +156,8 @@ class VisibleObject(ProtoObject):  # visible objects
         # set priority to be executed after compositions and before animators
         self.freeze_tag = XPressoTag(
             target=self, name="FreezeTag", priority=0, priority_mode="animation")
+        # inserts an xpresso tag used for custom xpressions
+        self.custom_tag = XPressoTag(target=self, name="CustomTag")
 
     def add_composition_tag(self):
         """adds another layer to the composition hierarchy"""
@@ -195,9 +201,23 @@ class VisibleObject(ProtoObject):  # visible objects
             new_position.z -= bounding_box_target.z + bounding_box.z + offset
         if direction == "back":
             new_position.z += bounding_box_target.z + bounding_box.z + offset
-
         self.obj.InsertUnder(target.obj)
         self.set_position(position=new_position)
+
+    def specify_visibility_parameter(self):
+        """specifies visibility parameter"""
+        self.visibility_parameter = UCheckBox(
+            name="Visibility", default_value=self.visible)
+
+    def insert_visibility_parameter(self):
+        """inserts the visibility parameter as userdata"""
+        self.visibility_u_group = UGroup(
+            self.visibility_parameter, target=self.obj, name="Visibility")
+
+    def specify_visibility_relation(self):
+        """link parameter to visibility"""
+        visibility_relation = XRelation(part=self, whole=self, desc_ids=[c4d.ID_BASEOBJECT_VISIBILITY_EDITOR, c4d.ID_BASEOBJECT_VISIBILITY_RENDER],
+                                        parameters=[self.visibility_parameter], formula=f"1-{self.visibility_parameter.name}")
 
 
 class LineObject(VisibleObject):  # line objects only require sketch material
@@ -213,6 +233,9 @@ class LineObject(VisibleObject):  # line objects only require sketch material
             self.set_sketch_material(
                 color=color, arrow_start=arrow_start, arrow_end=arrow_end)
             self.set_sketch_tag()
+        self.specify_spline_length_parameter()
+        self.insert_spline_length_parameter()
+        self.specify_spline_length_relation()
 
     def set_plane(self):
         planes = {"xy": 0, "zy": 1, "xz": 2}
@@ -222,6 +245,17 @@ class LineObject(VisibleObject):  # line objects only require sketch material
         self.loft = Loft(color=color, fill_color=fill_color,
                          arrow_start=arrow_start, arrow_end=arrow_end)
         self.obj.InsertUnder(self.loft.obj)
+
+    def specify_spline_length_parameter(self):
+        self.spline_length_parameter = ULength(name="SplineLength")
+
+    def insert_spline_length_parameter(self):
+        self.spline_length_u_group = UGroup(
+            self.spline_length_parameter, target=self.obj, name="Spline")
+
+    def specify_spline_length_relation(self):
+        self.spline_length_relation = XSplineLength(
+            spline=self, whole=self, parameter=self.spline_length_parameter)
 
 
 class SolidObject(LineObject):  # solid objects also require fill material
@@ -255,13 +289,19 @@ class CustomObject(VisibleObject):
         self.parts = []
         self.specify_parts()
         self.insert_parts()
-        self.set_xpresso_tag()
         self.specify_parameters()
-        self.add_bounding_box_information()
-        self.specify_bounding_box_parameters()
         self.insert_parameters()
         self.specify_relations()
+        self.add_bounding_box_information()
+        self.specify_bounding_box_parameters()
+        self.insert_bounding_box_parameters()
         self.specify_bounding_box_relations()
+        self.specify_visibility_inheritance_relations()
+
+    @abstractmethod
+    def specify_parts(self):
+        """save parts as attributes and write them to self.parts"""
+        pass
 
     def insert_parts(self):
         """inserts the parts as children"""
@@ -271,31 +311,9 @@ class CustomObject(VisibleObject):
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Onull)
 
-    def add_bounding_box_information(self):
-        bounding_box_center, bounding_radius = c4d.utils.GetBBox(
-            self.obj, self.obj.GetMg())
-        self.width = bounding_radius.x * 2
-        self.height = bounding_radius.y * 2
-        self.depth = bounding_radius.z * 2
-
     def specify_parameters(self):
         """specifies optional parameters for the custom object"""
         pass
-
-    def specify_bounding_box_parameters(self):
-        """specifies bounding box parameters for the custom object"""
-        default_diameter = self.diameter if self.diameter else max(
-            self.width, self.height, self.depth)
-        self.diameter_parameter = ULength(
-            name="Diameter", default_value=default_diameter)
-        self.default_width_parameter = ULength(
-            name="DefaultWidth", default_value=self.width)
-        self.default_height_parameter = ULength(
-            name="DefaultHeight", default_value=self.height)
-        self.default_depth_parameter = ULength(
-            name="DefaultDepth", default_value=self.depth)
-        self.parameters += [self.diameter_parameter, self.default_width_parameter,
-                            self.default_height_parameter, self.default_depth_parameter]
 
     def insert_parameters(self):
         """inserts the specified parameters as userdata"""
@@ -307,15 +325,46 @@ class CustomObject(VisibleObject):
         """specifies the relations between the part's parameters using xpresso"""
         pass
 
+    def specify_visibility_inheritance_relations(self):
+        """inherits visibility to parts"""
+        visibility_relations = []
+        for part in self.parts:
+            if hasattr(part, "visibility_parameter"):
+                visibility_relation = XIdentity(
+                    part=part, whole=self, desc_ids=[part.visibility_parameter.desc_id], parameter=self.visibility_parameter)
+                visibility_relations.append(visibility_relation)
+
+    def add_bounding_box_information(self):
+        bounding_box_center, bounding_radius = c4d.utils.GetBBox(
+            self.obj, self.obj.GetMg())
+        self.width = bounding_radius.x * 2
+        self.height = bounding_radius.y * 2
+        self.depth = bounding_radius.z * 2
+
+    def specify_bounding_box_parameters(self):
+        """specifies bounding box parameters"""
+        default_diameter = self.diameter if self.diameter else max(
+            self.width, self.height, self.depth)
+        self.diameter_parameter = ULength(
+            name="Diameter", default_value=default_diameter)
+        self.default_width_parameter = ULength(
+            name="DefaultWidth", default_value=self.width)
+        self.default_height_parameter = ULength(
+            name="DefaultHeight", default_value=self.height)
+        self.default_depth_parameter = ULength(
+            name="DefaultDepth", default_value=self.depth)
+        self.bounding_box_parameters = [self.diameter_parameter, self.default_width_parameter,
+                                        self.default_height_parameter, self.default_depth_parameter]
+
+    def insert_bounding_box_parameters(self):
+        """inserts the bounding box parameters"""
+        self.bounding_box_u_group = UGroup(
+            *self.bounding_box_parameters, target=self.obj, name="BoundingBox")
+
     def specify_bounding_box_relations(self):
         """gives the custom object basic control over the bounding box diameter"""
         diameter_relation = XRelation(part=self, whole=self, desc_ids=[SCALE_X, SCALE_Y, SCALE_Z], parameters=[self.diameter_parameter, self.default_width_parameter, self.default_height_parameter, self.default_depth_parameter],
                                       formula=f"{self.diameter_parameter.name}/max({self.default_width_parameter.name};max({self.default_height_parameter.name};{self.default_depth_parameter.name}))")
-
-    @abstractmethod
-    def specify_parts(self):
-        """save parts as attributes and write them to self.parts"""
-        pass
 
     def create(self):
         """specifies the creation animation"""
@@ -331,7 +380,3 @@ class CustomObject(VisibleObject):
             else:
                 animations.append(UnDraw(part))
         return animations
-
-    def set_xpresso_tag(self):
-        """inserts an xpresso tag used for coordination of the parts"""
-        self.custom_tag = XPressoTag(target=self, name="CustomTag")

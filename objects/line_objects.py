@@ -1,5 +1,5 @@
 from pydeation.objects.abstract_objects import LineObject
-from pydeation.objects.helper_objects import Null, Group
+from pydeation.objects.helper_objects import Null
 from pydeation.constants import *
 import c4d
 import os
@@ -35,6 +35,11 @@ class Circle(LineObject):
         self.obj[c4d.PRIM_CIRCLE_RADIUS] = self.radius
         # set constants
         self.obj[c4d.SPLINEOBJECT_SUB] = 32
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "radius": c4d.DescID(c4d.DescLevel(c4d.PRIM_CIRCLE_RADIUS, c4d.DTYPE_REAL, 0))
+        }
 
 
 class Rectangle(LineObject):
@@ -237,6 +242,7 @@ class SVG(Spline):  # takes care of importing svgs
         bounding_radius = self.obj.GetRad()
         self.width = bounding_radius.x * 2
         self.height = bounding_radius.y * 2
+        self.depth = 0
 
 
 class PySpline(LineObject):
@@ -288,6 +294,7 @@ class Text(LineObject):
         }
 
 
+'''
 class Letters(Text):
     """converts a text object into a group of separate letters"""
 
@@ -341,7 +348,8 @@ class Letters(Text):
 
     def has_lines(self):
         """check if new lines present"""
-        if "\n" in self.text:
+        if "/n" in self.text:
             return True
         else:
             return False
+'''
