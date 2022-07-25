@@ -572,6 +572,11 @@ class XAnimation(XPression):
 
 class CustomXPression(XPression):
 
+    def __init__(self, target):
+        super().__init__(target)
+        self.group_nodes()
+        self.connect_ports()
+
     def group_nodes(self):
         self.xgroup = XGroup(*self.nodes, custom_tag=True,
                              name=self.__class__.__name__)
@@ -587,15 +592,12 @@ class XRelation(CustomXPression):
         self.parameters = parameters
         self.part = part
         self.whole = whole
-        self.nodes = []
         super().__init__(self.whole)
 
     def construct(self):
-        self.create_part_node()
         self.create_whole_node()
+        self.create_part_node()
         self.create_formula_node()
-        self.group_nodes()
-        self.connect_ports()
 
     def create_part_node(self):
         self.part_node = XObject(self.whole, link_target=self.part)
@@ -627,15 +629,13 @@ class XIdentity(XRelation):
     def __init__(self, parameter=None, **kwargs):
         super().__init__(parameters=[parameter], **kwargs)
 
-    def construct(self):
-        self.create_part_node()
-        self.create_whole_node()
-        self.group_nodes()
-        self.connect_ports()
-
     def connect_ports(self):
         self.whole_node.obj.GetOutPort(0).Connect(
             self.part_node.obj.GetInPort(0))
+
+    def construct(self):
+        self.create_whole_node()
+        self.create_part_node()
 
 
 class XClosestPointOnSpline(CustomXPression):
@@ -653,8 +653,6 @@ class XClosestPointOnSpline(CustomXPression):
         self.create_spline_point_node()
         self.create_nearest_point_on_spline_node()
         self.create_matrix_nodes()
-        self.group_nodes()
-        self.connect_ports()
 
     def create_spline_node(self):
         self.spline_node = XObject(self.target, link_target=self.spline)
@@ -723,8 +721,6 @@ class XScaleBetweenPoints(CustomXPression):
         self.create_divide_node()
         self.create_point_nodes()
         self.create_scaled_object_node()
-        self.group_nodes()
-        self.connect_ports()
 
     def create_distance_node(self):
         self.distance_node = XDistance(self.target)
@@ -774,3 +770,109 @@ class XScaleBetweenPoints(CustomXPression):
             self.scaled_object_node_global_position_port)
         self.constant_node.obj.GetOutPort(0).Connect(
             self.divide_node.obj.GetInPort(1))
+
+
+class XSplineLength(CustomXPression):
+    """writes the length of a spline to a specified parameter"""
+
+    def __init__(self, spline=None, whole=None, parameter=None):
+        self.spline = spline
+        self.whole = whole
+        self.parameter = parameter
+        super().__init__(self.whole)
+
+    def construct(self):
+        self.create_spline_node()
+        self.create_spline_object_node()
+        self.create_whole_node()
+
+    def create_spline_node(self):
+        self.spline_node = XSpline(self.target)
+        self.spline_length_port = self.spline_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_SPLINE_OUTPUT_LENGTH)
+        self.nodes.append(self.spline_node)
+
+    def create_spline_object_node(self):
+        self.spline_object_node = XObject(self.target, link_target=self.spline)
+        self.spline_object_port = self.spline_object_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_OBJECT_OUT)
+        self.nodes.append(self.spline_object_node)
+
+    def create_whole_node(self):
+        self.whole_node = XObject(
+            self.target, link_target=self.whole)
+        self.parameter_port = self.whole_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.parameter.desc_id)
+        self.nodes.append(self.whole_node)
+
+    def connect_ports(self):
+        self.spline_object_port.Connect(self.spline_node.obj.GetInPort(0))
+        self.spline_length_port.Connect(self.parameter_port)
+
+
+class XAlignToSpline(CustomXPression):
+    """positions an object on a spline given the relative completion"""
+
+    def __init__(self, part=None, whole=None, spline=None, completion_parameter=None):
+        self.part = part
+        self.whole = whole
+        self.spline = spline
+        self.completion_parameter = completion_parameter
+        super().__init__(self.whole)
+
+    def construct(self):
+        self.create_part_node()
+        self.create_whole_node()
+        self.create_spline_object_node()
+        self.create_spline_node()
+        self.create_matrix_to_hpb_node()
+        self.create_vector_to_matrix_node()
+
+    def create_whole_node(self):
+        self.whole_node = XObject(self.whole)
+        self.completion_port = self.whole_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.completion_parameter.desc_id)
+        self.nodes.append(self.whole_node)
+
+    def create_part_node(self):
+        self.part_node = XObject(self.whole, link_target=self.part)
+        self.global_position_port = self.part_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+        self.h_port = self.part_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, ROT_H)
+        self.p_port = self.part_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, ROT_P)
+        self.b_port = self.part_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, ROT_B)
+        self.nodes.append(self.part_node)
+
+    def create_spline_object_node(self):
+        self.spline_object_node = XObject(self.whole, link_target=self.spline)
+        self.spline_object_port = self.spline_object_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_OBJECT_OUT)
+        self.nodes.append(self.spline_object_node)
+
+    def create_spline_node(self):
+        self.spline_node = XSpline(self.whole)
+        self.tangent_port = self.spline_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_SPLINE_OUTPUT_TANGENT)
+        self.nodes.append(self.spline_node)
+
+    def create_matrix_to_hpb_node(self):
+        self.matrix_to_hpb_node = XMatrix2HPB(self.whole)
+        self.nodes.append(self.matrix_to_hpb_node)
+
+    def create_vector_to_matrix_node(self):
+        self.vector_to_matrix_node = XVect2Matrix(self.whole)
+        self.nodes.append(self.vector_to_matrix_node)
+
+    def connect_ports(self):
+        self.completion_port.Connect(self.spline_node.obj.GetInPort(1))
+        self.spline_node.obj.GetOutPort(0).Connect(self.global_position_port)
+        self.spline_object_port.Connect(self.spline_node.obj.GetInPort(0))
+        self.tangent_port.Connect(self.vector_to_matrix_node.obj.GetInPort(0))
+        self.vector_to_matrix_node.obj.GetOutPort(0).Connect(
+            self.matrix_to_hpb_node.obj.GetInPort(0))
+        self.matrix_to_hpb_node.obj.GetOutPort(0).Connect(self.h_port)
+        self.matrix_to_hpb_node.obj.GetOutPort(1).Connect(self.p_port)
+        self.matrix_to_hpb_node.obj.GetOutPort(2).Connect(self.b_port)
