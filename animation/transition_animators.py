@@ -1,5 +1,6 @@
 from pydeation.objects.abstract_objects import LineObject
-from pydeation.objects.helper_objects import Group, MoSpline, SplineEffector, LinearField, SphericalField
+from pydeation.objects.custom_objects import Group
+from pydeation.objects.helper_objects import MoSpline, SplineEffector, LinearField, SphericalField
 from pydeation.animation.abstract_animators import ProtoAnimator, abstractmethod
 from pydeation.animation.object_animators import Hide, Show
 from pydeation.animation.animation import AnimationGroup
@@ -10,7 +11,6 @@ import c4d
 class TransitionAnimator(ProtoAnimator):
     """abstract animator for handling transition animations"""
     def __new__(cls, obj_ini, obj_fin, transition_obj, **kwargs):
-        print(1, transition_obj)
         transition_animation = super().__new__(cls, obj_ini, **kwargs)
         hide_obj_ini_animation = (Hide(obj_ini), (0, 1))
         show_obj_fin_animation = (Show(obj_fin), (1, 1))
@@ -71,7 +71,7 @@ class Morph(TransitionAnimator):
             field = LinearField(direction="x-", length=cls.linear_field_length)
         elif cls.mode == "constant":
             x, y, z = cls.bounding_box_center.x, cls.bounding_box_center.y, cls.bounding_box_center.z
-            field = SphericalField(radius=cls.bounding_box.GetLength() * 1.1,
+            field = SphericalField(radius=cls.bounding_box.GetLength() * 1.1, inner_offset=1,
                                    x=x, y=y, z=z)
         if cls.match_segments:
             spline_effectors_ini = Group(*[SplineEffector(spline=spline_ini, segment_index=i, name=f"SplineEffector{i}")
@@ -88,10 +88,7 @@ class Morph(TransitionAnimator):
             # we want to match the segments in the most natural way using modulu
             indices_ini, indices_fin = match_indices(
                 segment_count_ini, segment_count_fin)
-            print(segment_count_ini, segment_count_fin)
-            print(spline_effectors_ini, spline_effectors_fin)
             for i, j, mospline in zip(indices_ini, indices_fin, mosplines):
-                print(i, j)
                 mospline.add_effectors(
                     spline_effectors_ini[i], spline_effectors_fin[j])
             cls.morph_setup = Group(mosplines, spline_effectors_fin, spline_effectors_ini,
