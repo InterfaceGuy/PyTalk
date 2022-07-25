@@ -20,13 +20,16 @@ class XNode:
             "object": c4d.ID_OPERATOR_OBJECT,
             "python": 1022471,
             "rangemapper": c4d.ID_OPERATOR_RANGEMAPPER,
-            "reals2vec": c4d.ID_OPERATOR_REAL2VECT,
-            "vec2reals": c4d.ID_OPERATOR_VECT2REAL,
+            "reals2vect": c4d.ID_OPERATOR_REAL2VECT,
+            "vect2reals": c4d.ID_OPERATOR_VECT2REAL,
             "nearest_point_on_spline": c4d.ID_OPERATOR_NEARESTPOINTONSPLINE,
             "mix": c4d.ID_OPERATOR_MIX,
             "distance": c4d.ID_OPERATOR_DISTANCE,
             "matrix_mul_vector": c4d.ID_OPERATOR_MATRIXMULVECTOR,
-            "invert": c4d.ID_OPERATOR_INV
+            "invert": c4d.ID_OPERATOR_INV,
+            "spline": c4d.ID_OPERATOR_SPLINE,
+            "matrix2hpb": c4d.ID_OPERATOR_MATRIXCALCHPB,
+            "vect2matrix": c4d.ID_OPERATOR_VECTCALCMATRIX
         }
         # define data types
         self.data_types = {
@@ -276,17 +279,17 @@ class XFreeze(XNode):
 
 
 class XVec2Reals(XNode):
-    """creates a vec2reals node"""
+    """creates a vect2reals node"""
 
     def __init__(self, target, **kwargs):
-        super().__init__(target, "vec2reals", **kwargs)
+        super().__init__(target, "vect2reals", **kwargs)
 
 
 class XReals2Vec(XNode):
-    """creates a reals2vec node"""
+    """creates a reals2vect node"""
 
     def __init__(self, target, **kwargs):
-        super().__init__(target, "reals2vec", **kwargs)
+        super().__init__(target, "reals2vect", **kwargs)
 
 
 class XMath(XNode):
@@ -366,3 +369,24 @@ class XInvert(XNode):
             "matrix": 25
         }
         self.obj[c4d.GV_DYNAMIC_DATATYPE] = data_types[self.data_type]
+
+
+class XSpline(XNode):
+    """creates a spline node"""
+
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "spline", **kwargs)
+
+
+class XMatrix2HPB(XNode):
+    """creates a matrix to hpb node"""
+
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "matrix2hpb", **kwargs)
+
+
+class XVect2Matrix(XNode):
+    """creates a vect2matrix node"""
+
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "vect2matrix", **kwargs)
