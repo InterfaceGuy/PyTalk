@@ -1,5 +1,6 @@
 from abc import abstractmethod
-from pydeation.objects.abstract_objects import ProtoObject
+from pydeation.objects.abstract_objects import ProtoObject, VisibleObject
+from pydeation.xpresso.xpressions import XInheritGlobalMatrix
 from c4d.modules.mograph import FieldLayer
 import random
 import numpy as np
@@ -22,7 +23,58 @@ class Null(ProtoObject):
         self.obj[c4d.NULLOBJECT_DISPLAY] = shapes[self.display]
 
 
-class Cloner(ProtoObject):
+class MoGraphObject(ProtoObject):
+
+    def add_effectors(self):
+        self.effector_list = c4d.InExcludeData()
+        for effector in self.effectors:
+            self.effector_list.InsertObject(effector.obj, 1)
+        self.obj[c4d.ID_MG_MOTIONGENERATOR_EFFECTORLIST] = self.effector_list
+
+    def add_effector(self, effector):
+        self.effector_list.InsertObject(effector.obj, 1)
+        self.obj[c4d.MGMOSPLINEOBJECT_EFFECTORLIST] = self.effector_list
+
+
+class Tracer(MoGraphObject):
+
+    def __init__(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False, nodes_to_children=False, **kwargs):
+        self.nodes = nodes
+        self.spline_type = spline_type
+        self.tracing_mode = tracing_mode
+        self.reverse = reverse
+        super().__init__(**kwargs)
+        if nodes_to_children:
+            self.nodes_to_children()
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(1018655)
+
+    def nodes_to_children(self):
+        """inserts nodes under tracer object as children"""
+        for node in self.nodes:
+            node.obj.InsertUnder(self.obj)
+
+    def set_object_properties(self):
+        # implicit properties
+        trace_list = c4d.InExcludeData()
+        for node in self.nodes:
+            trace_list.InsertObject(node.obj, 1)
+        # set properties
+        self.obj[c4d.MGTRACEROBJECT_OBJECTLIST] = trace_list
+        spline_types = {"bezier": 4, "linear": 0}
+        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
+        self.obj[c4d.MGTRACEROBJECT_REVERSESPLINE] = self.reverse
+        tracing_modes = {"path": 0, "objects": 1, "elements": 2}
+        # tracing mode to object
+        self.obj[c4d.MGTRACEROBJECT_MODE] = tracing_modes[self.tracing_mode]
+        # set constants
+        self.obj[c4d.SPLINEOBJECT_INTERPOLATION] = 1  # adaptive
+        self.obj[c4d.MGTRACEROBJECT_USEPOINTS] = False  # no vertex tracing
+        self.obj[c4d.MGTRACEROBJECT_SPACE] = False  # global space
+
+
+class Cloner(MoGraphObject):
 
     def __init__(self, mode="object", clones=[], effectors=[], target_object=None, step_size=10, offset_start=0, offset_end=0, offset=0, **kwargs):
         self.mode = mode
@@ -62,11 +114,9 @@ class Cloner(ProtoObject):
         for clone in self.clones:
             clone.obj.InsertUnder(self.obj)
 
-    def add_effectors(self):
-        effector_list = c4d.InExcludeData()
-        for effector in self.effectors:
-            effector_list.InsertObject(effector.obj, 1)
-        self.obj[c4d.ID_MG_MOTIONGENERATOR_EFFECTORLIST] = effector_list
+    def add_clones(self, *clones):
+        for clone in clones:
+            clone.obj.InsertUnder(self.obj)
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
@@ -81,7 +131,47 @@ class Cloner(ProtoObject):
         }
 
 
-class MoSpline(ProtoObject):
+class Instance(VisibleObject):
+
+    def __init__(self, target, inherit_global_matrix=True, **kwargs):
+        self.target = target
+        super().__init__(**kwargs)
+        if inherit_global_matrix:
+            self.create_global_matrix_inheritance()
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(5126)
+
+    def set_object_properties(self):
+        self.obj[c4d.INSTANCEOBJECT_LINK] = self.target.obj
+
+    def create_global_matrix_inheritance(self):
+        global_matrix_inheritance = XInheritGlobalMatrix(
+            inheritor=self.target, target=self)
+
+
+class EmptySpline(ProtoObject):
+
+    def __init__(self, spline_type="bezier", **kwargs):
+        self.spline_type = spline_type
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Ospline)
+
+    def set_object_properties(self):
+        spline_types = {
+            "linear": 0,
+            "cubic": 1,
+            "akima": 2,
+            "b-spline": 3,
+            "bezier": 4
+        }
+        # set interpolation
+        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
+
+
+class MoSpline(MoGraphObject):
 
     def __init__(self, mode="spline", generation_mode="even", point_count=100, source_spline=None, destination_spline=None, effectors=[], **kwargs):
         self.mode = mode
@@ -104,16 +194,16 @@ class MoSpline(ProtoObject):
         self.obj[c4d.MGMOSPLINEOBJECT_MODE] = modes[self.mode]
         self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_MODE] = generation_modes[self.generation_mode]
         self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_COUNT] = self.point_count
+        self.obj[c4d.MGMOSPLINEOBJECT_DISPLAYMODE] = 0  # display as regular spline
         if self.source_spline:
             self.obj[c4d.MGMOSPLINEOBJECT_SOURCE_SPLINE] = self.source_spline.obj
         if self.destination_spline:
             self.obj[c4d.MGMOSPLINEOBJECT_DEST_SPLINE] = self.destination_spline.obj
 
-    def add_effectors(self):
-        effector_list = c4d.InExcludeData()
-        for effector in self.effectors:
-            effector_list.InsertObject(effector.obj, 1)
-        self.obj[c4d.MGMOSPLINEOBJECT_EFFECTORLIST] = effector_list
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "point_count": c4d.DescID(c4d.DescLevel(c4d.MGMOSPLINEOBJECT_SPLINE_COUNT, c4d.DTYPE_LONG, 0))
+        }
 
 
 class Effector(ProtoObject):
@@ -223,6 +313,16 @@ class RandomEffector(Effector):
         }
         self.obj[c4d.MGSPLINEEFFECTOR_TRANSFORMMODE] = random_modes[self.mode]
 
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "position_x": c4d.DescID(c4d.DescLevel(c4d.ID_MG_BASEEFFECTOR_POSITION, c4d.DTYPE_VECTOR, 0),
+                                     c4d.DescLevel(c4d.VECTOR_X, c4d.DTYPE_REAL, 0)),
+            "position_y": c4d.DescID(c4d.DescLevel(c4d.ID_MG_BASEEFFECTOR_POSITION, c4d.DTYPE_VECTOR, 0),
+                                     c4d.DescLevel(c4d.VECTOR_Y, c4d.DTYPE_REAL, 0)),
+            "position_z": c4d.DescID(c4d.DescLevel(c4d.ID_MG_BASEEFFECTOR_POSITION, c4d.DTYPE_VECTOR, 0),
+                                     c4d.DescLevel(c4d.VECTOR_Z, c4d.DTYPE_REAL, 0))
+        }
+
 
 class PlainEffector(Effector):
 
@@ -231,6 +331,29 @@ class PlainEffector(Effector):
 
     def specify_object(self):
         self.obj = c4d.BaseObject(1021337)
+
+    def set_object_properties(self):
+        pass
+
+
+class Deformer(ProtoObject):
+
+    def __init__(self, target=None, **kwargs):
+        self.target = target
+        super().__init__(**kwargs)
+        self.insert_under_target()
+
+    def insert_under_target(self):
+        self.obj.InsertUnder(self.target.obj)
+
+
+class CorrectionDeformer(Deformer):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(1024542)
 
     def set_object_properties(self):
         pass
@@ -275,3 +398,15 @@ class SphericalField(ProtoObject):
     def set_object_properties(self):
         self.obj[c4d.FIELD_INNER_OFFSET] = self.inner_offset
         self.obj[c4d.LINEAR_SIZE] = self.radius
+
+
+class RandomField(ProtoObject):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Frandom)
+
+    def set_object_properties(self):
+        pass
