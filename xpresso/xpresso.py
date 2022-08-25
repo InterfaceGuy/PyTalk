@@ -1,4 +1,5 @@
 from pydeation.constants import *
+from c4d.modules.mograph import FieldLayer
 import c4d
 
 
@@ -29,7 +30,9 @@ class XNode:
             "invert": c4d.ID_OPERATOR_INV,
             "spline": c4d.ID_OPERATOR_SPLINE,
             "matrix2hpb": c4d.ID_OPERATOR_MATRIXCALCHPB,
-            "vect2matrix": c4d.ID_OPERATOR_VECTCALCMATRIX
+            "vect2matrix": c4d.ID_OPERATOR_VECTCALCMATRIX,
+            "falloff": 1019302,
+            "bounding_box": c4d.ID_OPERATOR_BOX
         }
         # define data types
         self.data_types = {
@@ -117,11 +120,20 @@ class XCondition(XNode):
 class XConstant(XNode):
     """creates a constant node"""
 
-    def __init__(self, target, value=0, **kwargs):
+    def __init__(self, target, value=0, data_type="real", **kwargs):
         self.value = value
+        self.data_type = data_type
         super().__init__(target, "constant", **kwargs)
 
     def set_params(self):
+        data_types = {
+            "integer": 15,
+            "real": 19,
+            "vector": 23
+        }
+        self.obj[c4d.GV_DYNAMIC_DATATYPE] = data_types[self.data_type]
+        if self.data_type == "vector":
+            self.value = c4d.Vector(*self.value)
         self.obj[c4d.GV_CONST_VALUE] = self.value  # set value
 
 
@@ -207,6 +219,56 @@ class XDelta(XPython):
         self.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 1\n    delta_t = Input1 - Input2\n    if delta_t:\n        Output1 = delta_t'
 
 
+class XBBox(XPython):
+    """a more robust python version of the bounding box node"""
+
+    def __init__(self, target, name="BoundingBox", **kwargs):
+        self.object_port_count = 0
+        super().__init__(target, name=name, **kwargs)
+        self.set_ports()
+
+    def set_params(self):
+        self.obj[c4d.GV_PYTHON_CODE] = 'from typing import Optional\nimport c4d\n\nop: c4d.modules.graphview.GvNode # The Xpresso node\n\n\nObject: c4d.BaseList2D # In: The object to measure the bounding box for.\nCenter: c4d.Vector # Out: The bounding box center.\nDiameter: c4d.Vector # Out: The bounding box radius.\n\n\ndef get_bounding_box(obj):\n\n    center = obj.GetMp()*obj.GetMg()\n    radius = obj.GetRad()\n    \n    return center, radius\n\n \n# Recurses a hierarchy, starting from op\n# Returns number successful callbacks\ndef recurse_hierarchy(op, callback, local_bboxes):\n    count = 0\n    while op:\n        count += 1\n        center, radius = get_bounding_box(op)\n        if radius != c4d.Vector(0,0,0) or op.GetName() == "MoSpline":\n            local_bbox = (center, radius)\n            local_bboxes.append(local_bbox)\n        sub_count, local_bboxes = recurse_hierarchy(op.GetDown(), callback, local_bboxes)\n        count += sub_count\n        op = op.GetNext()\n    return count, local_bboxes\n\n\ndef get_global_bounding_box(local_bboxes):\n    """derives the global bounding box from a list of local ones"""\n    xs = []\n    ys = []\n    zs = []\n    for local_bbox in local_bboxes:\n        center, radius = local_bbox\n        max_x = center.x + radius.x\n        min_x = center.x - radius.x\n        max_y = center.y + radius.y\n        min_y = center.y - radius.y\n        max_z = center.z + radius.z\n        min_z = center.z - radius.z\n        xs += [min_x, max_x]\n        ys += [min_y, max_y]\n        zs += [min_z, max_z]\n\n    global_max_x = max(xs)\n    global_min_x = min(xs)\n    global_max_y = max(ys)\n    global_min_y = min(ys)\n    global_max_z = max(zs)\n    global_min_z = min(zs)\n\n    global_width = global_max_x - global_min_x\n    global_height = global_max_y - global_min_y\n    global_depth = global_max_z - global_min_z\n\n    global_center_x = global_min_x + global_width/2\n    global_center_y = global_min_y + global_height/2\n    global_center_z = global_min_z + global_depth/2\n\n    global_diameter = c4d.Vector(global_width, global_height, global_depth)\n    global_center = c4d.Vector(global_center_x, global_center_y, global_center_z)\n\n    return global_center, global_diameter\n\n\ndef main() -> None:\n    global Center, Diameter\n\n    local_bboxes = []\n\n    for port in op.GetInPorts():\n        obj = globals()[port.GetName(op)]\n        \n        count, local_bboxes = recurse_hierarchy(obj, get_bounding_box, local_bboxes)\n\n    global_bbox = get_global_bounding_box(local_bboxes)\n\n    Center, Diameter = global_bbox'
+
+    def set_ports(self):
+        self.obj.RemoveUnusedPorts()
+        # add diameter port out
+        self.diameter_port_out = self.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, PYTHON_VECTOR_DESCID_OUT)
+        self.diameter_port_out.SetName("Diameter")
+        # add center port out
+        self.center_port_out = self.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, PYTHON_VECTOR_DESCID_OUT)
+        self.center_port_out.SetName("Center")
+
+    def add_object_port(self):
+        new_object_port = self.obj.AddPort(
+            c4d.GV_PORT_INPUT, PYTHON_OBJECT_DESCID_IN)
+        new_object_port.SetName(f"Object{self.object_port_count}")
+        self.object_port_count += 1
+        return new_object_port
+
+
+class XMax(XPython):
+    """outputs the maximum value of all input values"""
+
+    def __init__(self, target, name="Max", **kwargs):
+        super().__init__(target, name=name, **kwargs)
+
+    def set_params(self):
+        self.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 0\n    values = []\n    for port in op.GetInPorts():\n        value = globals()[port.GetName(op)]\n        values.append(value)\n    Output1 = max(values)'
+
+
+class XMin(XPython):
+    """outputs the minimum value of all input values"""
+
+    def __init__(self, target, name="Min", **kwargs):
+        super().__init__(target, name=name, **kwargs)
+
+    def set_params(self):
+        self.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 0\n    values = []\n    for port in op.GetInPorts():\n        value = globals()[port.GetName(op)]\n        values.append(value)\n    Output1 = min(values)'
+
+
 class XFormula(XNode):
     """creates a formula node"""
 
@@ -235,8 +297,9 @@ class XFormula(XNode):
 class XRangeMapper(XNode):
     """creates a range mapper node"""
 
-    def __init__(self, target, input_range=(0, 1), easing=False, reverse=False, **kwargs):
+    def __init__(self, target, input_range=(0, 1), output_range=(0, 1), easing=False, reverse=False, **kwargs):
         self.input_range = input_range
+        self.output_range = output_range
         self.easing = easing
         self.reverse = reverse
         super().__init__(target, "rangemapper", **kwargs)
@@ -260,15 +323,17 @@ class XRangeMapper(XNode):
                            vTangentLeft=c4d.Vector(-0.25, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
 
         self.obj[c4d.GV_RANGEMAPPER_SPLINE] = spline
+
+        # set output range
+        self.obj[c4d.GV_RANGEMAPPER_RANGE21] = self.output_range[0]
+        self.obj[c4d.GV_RANGEMAPPER_RANGE22] = self.output_range[1]
+        # set input range
+        self.obj[c4d.GV_RANGEMAPPER_RANGE11] = self.input_range[0]
+        self.obj[c4d.GV_RANGEMAPPER_RANGE12] = self.input_range[1]
         # set options
-        # set output range to zero to one
-        self.obj[c4d.GV_RANGEMAPPER_OUTPUT_DEFS] = 4
         self.obj[c4d.GV_RANGEMAPPER_CLAMP_LOWER] = True
         self.obj[c4d.GV_RANGEMAPPER_CLAMP_UPPER] = True
         self.obj[c4d.GV_RANGEMAPPER_REVERSE] = self.reverse
-        # set range
-        self.obj[c4d.GV_RANGEMAPPER_RANGE11] = self.input_range[0]
-        self.obj[c4d.GV_RANGEMAPPER_RANGE12] = self.input_range[1]
 
 
 class XFreeze(XNode):
@@ -312,14 +377,12 @@ class XMath(XNode):
         # specify mode
         self.obj[c4d.GV_MATH_FUNCTION_ID] = modes[self.mode]
         # specify data type
-        if self.mode in ("-", "+"):
-            self.obj[c4d.GV_DYNAMIC_DATATYPE] = self.data_types[self.data_type]
-        else:  # in multiplicative mode the data types have different values
-            data_types = {
-                "integer": 15,
-                "real": 19
-            }
-            self.obj[c4d.GV_DYNAMIC_DATATYPE] = data_types[self.data_type]
+        data_types = {
+            "integer": 15,
+            "real": 19,
+            "vector": 23
+        }
+        self.obj[c4d.GV_DYNAMIC_DATATYPE] = data_types[self.data_type]
 
 
 class XNearestPointOnSpline(XNode):
@@ -390,3 +453,20 @@ class XVect2Matrix(XNode):
 
     def __init__(self, target, **kwargs):
         super().__init__(target, "vect2matrix", **kwargs)
+
+
+class XFalloff(XNode):
+    """creates a falloff node"""
+
+    def __init__(self, target, fields=[], **kwargs):
+        self.fields = fields
+        super().__init__(target, "falloff", **kwargs)
+
+    def set_params(self):
+        # insert fields
+        field_list = c4d.FieldList()
+        for field in self.fields:
+            field_layer = FieldLayer(c4d.FLfield)
+            field_layer.SetLinkedObject(field.obj)
+            field_list.InsertLayer(field_layer)
+        self.obj[c4d.FIELDS] = field_list
