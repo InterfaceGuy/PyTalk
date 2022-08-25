@@ -638,6 +638,14 @@ class XIdentity(XRelation):
         self.create_part_node()
 
 
+class XInheritPosition(object):
+    """relates the """
+
+    def __init__(self, arg):
+        super(XInheritPosition, self).__init__()
+        self.arg = arg
+
+
 class XClosestPointOnSpline(CustomXPression):
     """creates a setup that positions a point on a spline such that the distance to a reference point is minimised"""
 
@@ -673,7 +681,7 @@ class XClosestPointOnSpline(CustomXPression):
         self.spline_point_node = XObject(
             self.target, link_target=self.spline_point)
         self.spline_point_node.obj.AddPort(
-            c4d.GV_PORT_INPUT, c4d.ID_BASEOBJECT_REL_POSITION)
+            c4d.GV_PORT_INPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
         self.nodes.append(self.spline_point_node)
 
     def create_nearest_point_on_spline_node(self):
@@ -876,3 +884,223 @@ class XAlignToSpline(CustomXPression):
         self.matrix_to_hpb_node.obj.GetOutPort(0).Connect(self.h_port)
         self.matrix_to_hpb_node.obj.GetOutPort(1).Connect(self.p_port)
         self.matrix_to_hpb_node.obj.GetOutPort(2).Connect(self.b_port)
+
+
+class XLinkParamToField(CustomXPression):
+    """links a field to a userdata parameter"""
+
+    def __init__(self, field=None, target=None, part=None, parameter=None):
+        self.field = field
+        self.target = target
+        self.part = part
+        self.parameter = parameter
+        super().__init__(self.target)
+
+    def construct(self):
+        self.create_part_node_out()
+        self.create_part_node_in()
+        self.create_falloff_node()
+
+    def create_falloff_node(self):
+        self.falloff_node = XFalloff(self.target, fields=[self.field])
+        self.nodes.append(self.falloff_node)
+
+    def create_part_node_in(self):
+        self.part_node_in = XObject(self.target, link_target=self.part)
+        self.parameter_port = self.part_node_in.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.parameter.desc_id)
+        self.nodes.append(self.part_node_in)
+
+    def create_part_node_out(self):
+        self.part_node_out = XObject(self.target, link_target=self.part)
+        self.visual_position_port = self.part_node_out.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.part.visual_position_parameter.desc_id)
+        self.nodes.append(self.part_node_out)
+
+    def connect_ports(self):
+        self.visual_position_port.Connect(self.falloff_node.obj.GetInPort(0))
+        self.falloff_node.obj.GetOutPort(0).Connect(self.parameter_port)
+
+
+class XBoundingBox(CustomXPression):
+    """calculates the bounding box of a set of objects"""
+
+    def __init__(self, *elements, target=None, width_parameter=None, height_parameter=None, depth_parameter=None, center_parameter=None):
+        self.elements = elements
+        self.width_parameter = width_parameter
+        self.height_parameter = height_parameter
+        self.depth_parameter = depth_parameter
+        self.center_parameter = center_parameter
+        self.target = target
+        super().__init__(self.target)
+
+    def construct(self):
+        self.create_element_nodes()
+        self.create_target_node()
+        self.create_bounding_box_node()
+        self.create_vector_to_reals_node()
+
+    def create_element_nodes(self):
+        self.element_nodes = []
+        self.object_ports = []
+        for element in self.elements:
+            element_node = XObject(self.target, link_target=element)
+            object_port = element_node.obj.AddPort(
+                c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_OBJECT_OUT)
+            self.element_nodes.append(element_node)
+            self.object_ports.append(object_port)
+        self.nodes += self.element_nodes
+
+    def create_target_node(self):
+        self.target_node = XObject(self.target)
+        self.width_parameter_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.width_parameter.desc_id)
+        self.height_parameter_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.height_parameter.desc_id)
+        self.depth_parameter_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.depth_parameter.desc_id)
+        self.center_parameter_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.center_parameter.desc_id)
+        self.nodes.append(self.target_node)
+
+    def create_bounding_box_node(self):
+        self.bounding_box_node = XBBox(self.target)
+        self.nodes.append(self.bounding_box_node)
+
+    def create_vector_to_reals_node(self):
+        self.vector_to_reals_node = XVec2Reals(self.target)
+        self.nodes.append(self.vector_to_reals_node)
+
+    def connect_ports(self):
+        self.connect_bounding_box_node_to_parameters()
+        self.connect_element_nodes_to_bounding_box_node()
+
+    def connect_bounding_box_node_to_parameters(self):
+        self.bounding_box_node.diameter_port_out.Connect(
+            self.vector_to_reals_node.obj.GetInPort(0))
+        self.bounding_box_node.center_port_out.Connect(
+            self.center_parameter_port)
+        self.vector_to_reals_node.obj.GetOutPort(
+            0).Connect(self.width_parameter_port)
+        self.vector_to_reals_node.obj.GetOutPort(
+            1).Connect(self.height_parameter_port)
+        self.vector_to_reals_node.obj.GetOutPort(
+            2).Connect(self.depth_parameter_port)
+
+    def connect_element_nodes_to_bounding_box_node(self):
+        for object_port in self.object_ports:
+            object_port.Connect(self.bounding_box_node.add_object_port())
+
+
+class XInheritGlobalMatrix(CustomXPression):
+    """creates a simple setup which inherits the global matrix from the inheritor to the target object"""
+
+    def __init__(self, inheritor=None, target=None):
+        self.inheritor = inheritor
+        self.target = target
+        super().__init__(self.target)
+
+    def construct(self):
+        self.create_inheritor_node()
+        self.create_target_node()
+
+    def create_inheritor_node(self):
+        self.inheritor_node = XObject(self.target, link_target=self.inheritor)
+        self.global_matrix_port_out = self.inheritor_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_GLOBAL_OUT)
+        self.nodes.append(self.inheritor_node)
+
+    def create_target_node(self):
+        self.target_node = XObject(self.target)
+        self.global_matrix_port_in = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, c4d.GV_OBJECT_OPERATOR_GLOBAL_IN)
+        self.nodes.append(self.target_node)
+
+    def connect_ports(self):
+        self.global_matrix_port_out.Connect(self.global_matrix_port_in)
+
+
+class Movement:
+    """holds the information for a single movement which can be chained together by XAction into an action"""
+
+    def __init__(self, parameter, timing, output=(0, 1)):
+        self.parameter = parameter
+        self.timing = timing
+        self.output = output
+
+
+class XAction(CustomXPression):
+    """specifies a series of overlapping linear parameter movements"""
+
+    def __init__(self, *movements, completion_parameter=None, target=None, name=None):
+        self.movements = list(movements)
+        self.completion_parameter = completion_parameter
+        self.target = target
+        super().__init__(self.target)
+
+    def construct(self):
+        self.create_object_node_out()
+        self.create_object_node_in()
+        self.create_range_mapper_nodes()
+
+    def create_object_node_out(self):
+        self.object_node_out = XObject(self.target)
+        self.completion_port = self.object_node_out.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.completion_parameter.desc_id)
+        self.nodes.append(self.object_node_out)
+
+    def create_object_node_in(self):
+        self.object_node_in = XObject(self.target)
+        self.parameter_ports = []
+        for movement in self.movements:
+            parameter_port = self.object_node_in.obj.AddPort(
+                c4d.GV_PORT_INPUT, movement.parameter.desc_id)
+            self.parameter_ports.append(parameter_port)
+        self.nodes.append(self.object_node_in)
+
+    def create_range_mapper_nodes(self):
+        self.range_mapper_nodes = []
+        for movement in self.movements:
+            range_mapper_node = XRangeMapper(
+                self.target, input_range=movement.timing, output_range=movement.output)
+            self.range_mapper_nodes.append(range_mapper_node)
+        self.nodes += self.range_mapper_nodes
+
+    def connect_ports(self):
+        for range_mapper_node, parameter_port in zip(self.range_mapper_nodes, self.parameter_ports):
+            self.completion_port.Connect(range_mapper_node.obj.GetInPort(0))
+            range_mapper_node.obj.GetOutPort(0).Connect(parameter_port)
+
+
+class XCorrectMoSplineTransform(CustomXPression):
+    """feeds the inverted global matrix of the parent null into the local matrix of the mospline to fix the transform behaviour"""
+
+    def __init__(self, mospline, target=None):
+        self.mospline = mospline
+        self.target = target
+        super().__init__(self.target)
+
+    def construct(self):
+        self.create_target_node()
+        self.create_invert_node()
+        self.create_mospline_node()
+
+    def create_target_node(self):
+        self.target_node = XObject(self.target)
+        self.global_matrix_port_out = self.target_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_GLOBAL_OUT)
+        self.nodes.append(self.target_node)
+
+    def create_mospline_node(self):
+        self.mospline_node = XObject(self.target, link_target=self.mospline)
+        self.local_matrix_port_in = self.mospline_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, c4d.GV_OBJECT_OPERATOR_LOCAL_IN)
+        self.nodes.append(self.mospline_node)
+
+    def create_invert_node(self):
+        self.invert_node = XInvert(self.target, data_type="matrix")
+        self.nodes.append(self.invert_node)
+
+    def connect_ports(self):
+        self.global_matrix_port_out.Connect(self.invert_node.obj.GetInPort(0))
+        self.invert_node.obj.GetOutPort(0).Connect(self.local_matrix_port_in)
