@@ -52,7 +52,7 @@ class Scene(ABC):
 
     def set_interactive_render_region(self):
         """creates an IRR window over the full size of the editor view"""
-        c4d.CallCommand(600000016)  # call IRR script by ID
+        c4d.CallCommand(600000017)  # call IRR script by ID
         c4d.EventAdd()
         # workaround because script needs to be executed from main thread not pydeation library
         # ID changes depending on machine
