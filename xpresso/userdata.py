@@ -122,8 +122,29 @@ class UString(UData):
         # no constraints needed for string field
         pass
 
-
 ### concrete classes ###
+
+
+class UVector(UData):
+    """creates a vector field"""
+
+    def specify_data_type(self):
+        # create base container
+        self.bc = c4d.GetCustomDataTypeDefault(c4d.DTYPE_VECTOR)
+        self.port_desc_id_in = None
+        self.port_desc_id_out = None
+        self.value_type = c4d.Vector
+
+    def specify_name(self, name):
+        # sets the display name of the element
+        if name is None:
+            name = "Vector"
+        super().specify_name(name)
+
+    def specify_constraints(self):
+        # no constraints needed for vector field
+        pass
+
 
 class UColor(UData):
     """creates a color field"""
@@ -138,7 +159,7 @@ class UColor(UData):
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "color"
+            name = "Color"
         super().specify_name(name)
 
     def specify_constraints(self):
@@ -151,7 +172,7 @@ class UCompletion(UReal):
 
     def specify_constraints(self):
         # set range
-        self.bc[c4d.DESC_MIN] = 0
+        self.bc[c4d.DESC_MIN] = -1
         self.bc[c4d.DESC_MAX] = 1
         # set unit to percent
         self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_PERCENT
@@ -163,7 +184,7 @@ class UCompletion(UReal):
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "completion"
+            name = "Completion"
         super().specify_name(name)
 
 
@@ -184,7 +205,7 @@ class UAngle(UReal):
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "angle"
+            name = "Angle"
         super().specify_name(name)
 
 
@@ -192,15 +213,15 @@ class ULength(UReal):
     """creates a length field: l -> [0,∞)"""
 
     def specify_constraints(self):
-        # set step size
-        self.bc[c4d.DESC_STEP] = 0.01
         # set unit to length
         self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_LONG
+        # set step size
+        self.bc[c4d.DESC_STEP] = 0.01
 
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "length"
+            name = "Length"
         super().specify_name(name)
 
 
@@ -215,7 +236,7 @@ class UStrength(UReal):
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "strength"
+            name = "Strength"
         super().specify_name(name)
 
 
@@ -229,7 +250,7 @@ class UCount(UInt):
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "count"
+            name = "Count"
         super().specify_name(name)
 
 
@@ -239,7 +260,7 @@ class UCheckBox(UBool):
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "checkbox"
+            name = "CheckBox"
         super().specify_name(name)
 
 
@@ -275,7 +296,7 @@ class UOptions(UInt):
     def specify_name(self, name):
         # sets the display name of the element
         if name is None:
-            name = "options"
+            name = "Options"
         super().specify_name(name)
 
 
