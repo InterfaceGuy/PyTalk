@@ -31,7 +31,6 @@ class ProtoAnimator(ABC):
             animation_group_rescaled.category = category
             return animation_group_rescaled
 
-    
     @classmethod
     def set_initial_values(cls):
         """sets the initial values for an animation"""
