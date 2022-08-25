@@ -96,79 +96,6 @@ class Arc(LineObject):
         }
 
 
-class Tracer(LineObject):
-
-    def __init__(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False, nodes_to_children=False, **kwargs):
-        self.nodes = nodes
-        self.spline_type = spline_type
-        self.tracing_mode = tracing_mode
-        self.reverse = reverse
-        super().__init__(**kwargs)
-        if nodes_to_children:
-            self.nodes_to_children()
-
-    def specify_object(self):
-        self.obj = c4d.BaseObject(1018655)
-
-    def nodes_to_children(self):
-        """inserts nodes under tracer object as children"""
-        for node in self.nodes:
-            node.obj.InsertUnder(self.obj)
-
-    def set_object_properties(self):
-        # implicit properties
-        trace_list = c4d.InExcludeData()
-        for node in self.nodes:
-            trace_list.InsertObject(node.obj, 1)
-        # set properties
-        self.obj[c4d.MGTRACEROBJECT_OBJECTLIST] = trace_list
-        spline_types = {"bezier": 4, "linear": 0}
-        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
-        self.obj[c4d.MGTRACEROBJECT_REVERSESPLINE] = self.reverse
-        tracing_modes = {"path": 0, "objects": 1, "elements": 2}
-        # tracing mode to object
-        self.obj[c4d.MGTRACEROBJECT_MODE] = tracing_modes[self.tracing_mode]
-        # set constants
-        self.obj[c4d.SPLINEOBJECT_INTERPOLATION] = 1  # adaptive
-        self.obj[c4d.MGTRACEROBJECT_USEPOINTS] = False  # no vertex tracing
-        self.obj[c4d.MGTRACEROBJECT_SPACE] = False  # global space
-
-
-class Line(Tracer):
-
-    def __init__(self, start_point, stop_point, arrow_start=False, arrow_end=False, **kwargs):
-        self.create_nulls(start_point, stop_point)
-        super().__init__(self.start_null, self.stop_null, arrow_start=arrow_start,
-                         arrow_end=arrow_end, spline_type="linear", tracing_mode="objects", **kwargs)
-        self.make_nulls_children()
-
-    def create_nulls(self, start_point, stop_point):
-        self.start_null = Null(
-            name="StartPoint", x=start_point[0], y=start_point[1], z=start_point[2])
-        self.stop_null = Null(
-            name="StopPoint", x=stop_point[0], y=stop_point[1], z=stop_point[2])
-
-    def make_nulls_children(self):
-        self.start_null.obj.InsertUnder(self.obj)
-        self.stop_null.obj.InsertUnder(self.obj)
-
-
-class Arrow(Line):
-
-    def __init__(self, start_point, stop_point, direction="positive", **kwargs):
-        if direction == "positive":
-            arrow_start = False
-            arrow_end = True
-        elif direction == "negative":
-            arrow_start = True
-            arrow_end = False
-        elif direction == "bidirectional":
-            arrow_start = True
-            arrow_end = True
-        super().__init__(start_point, stop_point,
-                         arrow_start=arrow_start, arrow_end=arrow_end, **kwargs)
-
-
 class Spline(LineObject):
     """creates a basic spline"""
 
@@ -210,7 +137,6 @@ class SVG(Spline):  # takes care of importing svgs
         self.extract_spline_from_vector_import()
         super().__init__(**kwargs)
         self.fix_axes()
-        self.add_bounding_box_information()
 
     def extract_spline_from_vector_import(self):
         file_path = os.path.join(SVG_PATH, self.file_name + ".svg")
@@ -238,11 +164,38 @@ class SVG(Spline):  # takes care of importing svgs
     def specify_object(self):
         self.obj = self.spline
 
-    def add_bounding_box_information(self):
-        bounding_radius = self.obj.GetRad()
-        self.width = bounding_radius.x * 2
-        self.height = bounding_radius.y * 2
-        self.depth = 0
+
+class EdgeSpline(LineObject):
+
+    def __init__(self, *children, mode="intersection", intersecting_objects=[], **kwargs):
+        self.mode = mode
+        self.intersecting_objects = intersecting_objects
+        super().__init__(**kwargs)
+
+    def specify_intersecting_object(self):
+        self.obj = c4d.BaseObject(1057180)
+
+    def set_intersecting_object_properties(self):
+        # set mode
+        modes = {
+            "standard": 0,
+            "curvature": 1,
+            "contour": 2,
+            "outline": 3,
+            "intersection": 4,
+        }
+        self.obj[c4d.ID_MT_EDGETOSPLINE_MODE_CYCLE] = modes[mode]
+        """DOES NOT WORK DUE TO CUSTOM DATATYPE
+        # set intersecting_objects
+        intersecting_object_list = c4d.InExcludeData()
+        for intersecting_object in self.intersecting_objects:
+            intersecting_object_list.InsertObject(
+                intersecting_object.obj, 1)
+        self.obj[c4d.ID_MT_EDGETOSPLINE_EDGESPLINE_INTERSECT_OBJECTS] = intersecting_object_list
+        """
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {}
 
 
 class PySpline(LineObject):
@@ -268,7 +221,8 @@ class PySpline(LineObject):
         self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
 
 
-class Text(LineObject):
+class SplineText(LineObject):
+    """creates the native text object of c4d as opposed to the customized version which has additional structure"""
 
     def __init__(self, text, height=50, anchor="middle", seperate_letters=False, **kwargs):
         self.text = text
