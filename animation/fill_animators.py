@@ -1,120 +1,108 @@
-from pydeation.animation.abstract_animators import FillAnimator
+from pydeation.animation.abstract_animators import ProtoAnimator
 from pydeation.xpresso.userdata import *
 from pydeation.constants import WHITE
 import c4d
 
-class Fill(FillAnimator):
 
-    def __new__(cls, *objs, filling=1, **kwargs):
-        cls.set_values(filling)
-        return super().__new__(cls, *objs, category="constructive", **kwargs)
+class Fill(ProtoAnimator):
 
-    @classmethod
-    def specify_desc_ids(cls):
-        cls.desc_ids = {
+    def __init__(self, *objs, filling=1, **kwargs):
+        self.set_values(filling)
+        return super().__init__(self, *objs, category="constructive", **kwargs)
+
+    def specify_desc_ids(self):
+        self.desc_ids = {
             "fill_transparency": c4d.DescID(c4d.DescLevel(c4d.MATERIAL_TRANSPARENCY_BRIGHTNESS, c4d.DTYPE_REAL, 0))
         }
 
-    @classmethod
-    def set_values(cls, filling):
-        cls.values = [filling]
+    def set_values(self, filling):
+        self.values = [filling]
 
-    @classmethod
-    def specify_xpression(cls):
-            cls.parameter_name = "FillTransparency"
-            cls.interpolate = True
-            cls.reverse_parameter_range = True
+    def specify_xpression(self):
+        self.parameter_name = "FillTransparency"
+        self.interpolate = True
+        self.reverse_parameter_range = True
 
 
 class UnFill(Fill):
 
-    def __new__(cls, *objs, filling=0, **kwargs):
-        cls.set_values(filling)
-        return super(Fill, cls).__new__(cls, *objs, category="destructive", **kwargs)
+    def __init__(self, *objs, filling=0, **kwargs):
+        self.set_values(filling)
+        return super(Fill, self).__init__(self, *objs, category="destructive", **kwargs)
 
 
 class Pulse(Fill):
 
-    def __new__(cls, *objs, n=1, filling_lower=0, filling_upper=1, **kwargs):
-        cls.set_values(n, filling_lower, filling_upper)
-        return super(Fill, cls).__new__(cls, *objs, category=None, **kwargs)
+    def __init__(self, *objs, n=1, filling_lower=0, filling_upper=1, **kwargs):
+        self.set_values(n, filling_lower, filling_upper)
+        return super(Fill, self).__init__(self, *objs, category=None, **kwargs)
 
-    @classmethod
-    def set_values(cls, n, filling_lower, filling_upper):
-        cls.values = [n, filling_lower, filling_upper]
+    def set_values(self, n, filling_lower, filling_upper):
+        self.values = [n, filling_lower, filling_upper]
 
-    @classmethod
-    def specify_xpression(cls):
-            cls.parameter_name = "FillTransparency"
-            cls.udatas = [(UCount, "n"), (UStrength, "filling_lower"), (UStrength, "filling_upper")]
-            cls.formula = "filling_lower + sin(n*Pi*t) * sin(n*Pi*t) * (filling_upper - filling_lower)"
-            cls.reverse_parameter_range = True
+    def specify_xpression(self):
+        self.parameter_name = "FillTransparency"
+        self.udatas = [(UCount, "n"), (UStrength, "filling_lower"),
+                       (UStrength, "filling_upper")]
+        self.formula = "filling_lower + sin(n*Pi*t) * sin(n*Pi*t) * (filling_upper - filling_lower)"
+        self.reverse_parameter_range = True
 
 
-class ChangeFillColorR(FillAnimator):
+class ChangeFillColorR(ProtoAnimator):
 
-    def __new__(cls, *objs, color_r=1, **kwargs):
-        cls.set_values(color_r)
-        return super().__new__(cls, *objs, **kwargs)
+    def __init__(self, *objs, color_r=1, **kwargs):
+        self.set_values(color_r)
+        return super().__init__(self, *objs, **kwargs)
 
-    @classmethod
-    def specify_desc_ids(cls):
-        cls.desc_ids = {
+    def specify_desc_ids(self):
+        self.desc_ids = {
             "filler_color_r": c4d.DescID(c4d.DescLevel(c4d.MATERIAL_LUMINANCE_COLOR, c4d.DTYPE_COLOR, 0),
-                                     c4d.DescLevel(c4d.COLOR_R, c4d.DTYPE_REAL, 0))
+                                         c4d.DescLevel(c4d.COLOR_R, c4d.DTYPE_REAL, 0))
         }
 
-    @classmethod
-    def set_values(cls, color_r):
-        cls.values = [color_r]
+    def set_values(self, color_r):
+        self.values = [color_r]
 
-    @classmethod
-    def specify_xpression(cls):
-            cls.parameter_name = "FillColorR"
-            cls.interpolate = True
+    def specify_xpression(self):
+        self.parameter_name = "FillColorR"
+        self.interpolate = True
 
 
-class ChangeFillColorG(FillAnimator):
+class ChangeFillColorG(ProtoAnimator):
 
-    def __new__(cls, *objs, color_g=1, **kwargs):
-        cls.set_values(color_g)
-        return super().__new__(cls, *objs, **kwargs)
+    def __init__(self, *objs, color_g=1, **kwargs):
+        self.set_values(color_g)
+        return super().__init__(self, *objs, **kwargs)
 
-    @classmethod
-    def specify_desc_ids(cls):
-        cls.desc_ids = {
+    def specify_desc_ids(self):
+        self.desc_ids = {
             "filler_color_g": c4d.DescID(c4d.DescLevel(c4d.MATERIAL_LUMINANCE_COLOR, c4d.DTYPE_COLOR, 0),
-                                     c4d.DescLevel(c4d.COLOR_G, c4d.DTYPE_REAL, 0))
+                                         c4d.DescLevel(c4d.COLOR_G, c4d.DTYPE_REAL, 0))
         }
 
-    @classmethod
-    def set_values(cls, color_g):
-        cls.values = [color_g]
+    def set_values(self, color_g):
+        self.values = [color_g]
 
-    @classmethod
-    def specify_xpression(cls):
-            cls.parameter_name = "FillColorG"
-            cls.interpolate = True
+    def specify_xpression(self):
+        self.parameter_name = "FillColorG"
+        self.interpolate = True
 
 
-class ChangeFillColorB(FillAnimator):
+class ChangeFillColorB(ProtoAnimator):
 
-    def __new__(cls, *objs, color_b=1, **kwargs):
-        cls.set_values(color_b)
-        return super().__new__(cls, *objs, **kwargs)
+    def __init__(self, *objs, color_b=1, **kwargs):
+        self.set_values(color_b)
+        return super().__init__(self, *objs, **kwargs)
 
-    @classmethod
-    def specify_desc_ids(cls):
-        cls.desc_ids = {
+    def specify_desc_ids(self):
+        self.desc_ids = {
             "filler_color_b": c4d.DescID(c4d.DescLevel(c4d.MATERIAL_LUMINANCE_COLOR, c4d.DTYPE_COLOR, 0),
-                                     c4d.DescLevel(c4d.COLOR_B, c4d.DTYPE_REAL, 0))
+                                         c4d.DescLevel(c4d.COLOR_B, c4d.DTYPE_REAL, 0))
         }
 
-    @classmethod
-    def set_values(cls, color_b):
-        cls.values = [color_b]
+    def set_values(self, color_b):
+        self.values = [color_b]
 
-    @classmethod
-    def specify_xpression(cls):
-            cls.parameter_name = "FillColorB"
-            cls.interpolate = True
+    def specify_xpression(self):
+        self.parameter_name = "FillColorB"
+        self.interpolate = True

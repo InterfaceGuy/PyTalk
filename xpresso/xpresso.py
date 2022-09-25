@@ -44,6 +44,7 @@ class XNode:
         }
         # set attributes
         self.target = target
+        """
         # set xtag to animator tag as default
         self.xtag = target.animator_tag.obj
         if freeze_tag:
@@ -53,7 +54,8 @@ class XNode:
                 self.xtag = target.add_composition_tag()
             else:
                 self.xtag = target.composition_tags[composition_level - 1].obj
-        if custom_tag:
+        """
+        if True:  # custom_tag:
             self.xtag = target.custom_tag.obj
         self.master = self.xtag.GetNodeMaster()
         # get parent xgroup/root

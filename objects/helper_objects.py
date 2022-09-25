@@ -1,9 +1,6 @@
-from abc import abstractmethod
 from pydeation.objects.abstract_objects import ProtoObject, VisibleObject
 from pydeation.xpresso.xpressions import XInheritGlobalMatrix
 from c4d.modules.mograph import FieldLayer
-import random
-import numpy as np
 import c4d
 
 
@@ -171,6 +168,35 @@ class EmptySpline(ProtoObject):
         self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
 
 
+class HelperSpline(ProtoObject):
+    """turns a c4d spline into a hidden pydeation spline"""
+
+    def __init__(self, input_spline, spline_type="bezier", **kwargs):
+        self.input_spline = self.get_spline(input_spline)
+        self.spline_type = spline_type
+        super().__init__(**kwargs)
+
+    def get_spline(self, input_spline):
+        # turns any primitive spline into a single editable spline
+        if type(input_spline) is not c4d.SplineObject:
+            pass
+        return input_spline
+
+    def specify_object(self):
+        self.obj = self.input_spline.GetClone()
+
+    def set_object_properties(self):
+        spline_types = {
+            "linear": 0,
+            "cubic": 1,
+            "akima": 2,
+            "b-spline": 3,
+            "bezier": 4
+        }
+        # set interpolation
+        self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
+
+
 class MoSpline(MoGraphObject):
 
     def __init__(self, mode="spline", generation_mode="even", point_count=100, source_spline=None, destination_spline=None, effectors=[], **kwargs):
@@ -194,7 +220,8 @@ class MoSpline(MoGraphObject):
         self.obj[c4d.MGMOSPLINEOBJECT_MODE] = modes[self.mode]
         self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_MODE] = generation_modes[self.generation_mode]
         self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_COUNT] = self.point_count
-        self.obj[c4d.MGMOSPLINEOBJECT_DISPLAYMODE] = 0  # display as regular spline
+        # display as regular spline
+        self.obj[c4d.MGMOSPLINEOBJECT_DISPLAYMODE] = 0
         if self.source_spline:
             self.obj[c4d.MGMOSPLINEOBJECT_SOURCE_SPLINE] = self.source_spline.obj
         if self.destination_spline:

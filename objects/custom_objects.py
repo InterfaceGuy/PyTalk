@@ -1,14 +1,12 @@
-from abc import abstractmethod
-from pydeation.objects.abstract_objects import CustomObject, LineObject
+from pydeation.objects.abstract_objects import CustomObject
 from pydeation.objects.solid_objects import Extrude
 from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline
 from pydeation.objects.sketch_objects import Human, Fire, Footprint
 from pydeation.objects.helper_objects import *
-from pydeation.xpresso.userdata import UAngle, UGroup, ULength, UOptions, UCompletion, UText, UStrength, UCount
+from pydeation.objects.light_objects import Light
+from pydeation.xpresso.userdata import *
 from pydeation.xpresso.xpressions import *
-from pydeation.animation.abstract_animators import AnimationGroup
-from pydeation.animation.sketch_animators import Draw, UnDraw
-from pydeation.tags import XPressoTag
+from pydeation.animation.animation import ScalarAnimation
 from pydeation.constants import *
 from pydeation.utils import match_indices
 import c4d
@@ -125,7 +123,7 @@ class Group(CustomObject):
 
 
 class Director(CustomObject):
-    """the multi object takes multiple actors (objects) and drives a specified shared animation parameter using fields"""
+    """the director object takes multiple actors (objects) and drives a specified shared animation parameter using fields"""
 
     def __init__(self, *actors, parameter=None, mode="domino", completion=0, field_length=30, **kwargs):
         self.actors = actors
@@ -137,8 +135,9 @@ class Director(CustomObject):
 
     def specify_live_bounding_box_relation(self):
         """the bounding box of the director takes all targeted actors into account"""
-        live_bounding_box_relation = XBoundingBox(*self.actors, target=self, width_parameter=self.width_parameter, height_parameter=self.height_parameter,
-                                                  depth_parameter=self.depth_parameter, center_parameter=self.center_parameter)
+        live_bounding_box_relation = XBoundingBox(self, target=self, width_parameter=self.width_parameter, height_parameter=self.height_parameter,
+                                                  depth_parameter=self.depth_parameter, center_parameter=self.center_parameter,
+                                                  center_x_parameter=self.center_x_parameter, center_y_parameter=self.center_y_parameter, center_z_parameter=self.center_z_parameter)
 
     def specify_parts(self):
         if self.mode == "domino":
@@ -202,13 +201,20 @@ class PhysicalCampfire(CustomObject):
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.border = Circle(plane="xz")
-        self.left_human = Human(perspective="portrait", posture="standing")
-        self.right_human = Human(perspective="portrait", posture="standing")
+        self.circle_border = Circle(plane="xz")
+        self.circle_membrane = Membrane(
+            self.circle_border, color=BLACK, fill=True)
+        self.circle = Group(self.circle_border,
+                            self.circle_membrane, name="Circle")
+        self.left_human = Human(perspective="portrait",
+                                posture="standing", on_floor=True)
+        self.right_human = Human(
+            perspective="portrait", posture="standing", on_floor=True)
         self.humans = Group(self.left_human, self.right_human, name="Humans")
-        self.fire = Fire()
-        self.symbol = ProjectLiminality(p=-PI / 2, diameter=20, z=-30)
-        self.parts += [self.border, self.humans, self.fire, self.symbol]
+        self.fire = PhysicalFire()
+        self.symbol = ProjectLiminality(
+            p=-PI / 2, diameter=20, z=-30, show_label=False)
+        self.parts += [self.circle, self.humans, self.fire, self.symbol]
 
     def specify_parameters(self):
         self.border_radius_parameter = ULength(
@@ -219,12 +225,200 @@ class PhysicalCampfire(CustomObject):
                             self.distance_humans_parameter]
 
     def specify_relations(self):
-        self.border_radius_relation = XIdentity(part=self.border, whole=self, desc_ids=[
-                                                self.border.desc_ids["radius"]], parameter=self.border_radius_parameter)
-        self.distance_left_human_relation = XRelation(part=self.left_human, whole=self, desc_ids=[POS_X],
-                                                      parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"-{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
-        self.distance_right_human_relation = XRelation(part=self.right_human, whole=self, desc_ids=[POS_X],
-                                                       parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
+        border_radius_relation = XIdentity(part=self.circle_border, whole=self, desc_ids=[self.circle_border.desc_ids["radius"]],
+                                           parameter=self.border_radius_parameter)
+        distance_left_human_relation = XRelation(part=self.left_human, whole=self, desc_ids=[POS_X],
+                                                 parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"-{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
+        distance_right_human_relation = XRelation(part=self.right_human, whole=self, desc_ids=[POS_X],
+                                                  parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.fire.creation_parameter,
+                     (1 / 4, 1), part=self.fire),
+            Movement(self.circle_border.creation_parameter,
+                     (0, 2 / 3), part=self.circle_border),
+            Movement(self.left_human.creation_parameter,
+                     (1 / 3, 2 / 3), part=self.left_human),
+            Movement(self.right_human.creation_parameter,
+                     (1 / 3, 2 / 3), part=self.right_human),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+
+class PhysicalFire(CustomObject):
+    """the physical fire used in the physical campfire object consisting of the fire sketch and a glow light"""
+
+    def __init__(self, brightness=1, **kwargs):
+        self.brightness = brightness
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.fire = Fire(on_floor=True)
+        self.light_source = Light(
+            temperature=0.1, brightness=self.brightness, visibility_type="visible", radius=30, y=4.5)
+        self.parts += [self.fire, self.light_source]
+
+    def specify_action_parameters(self):
+        self.creation_parameter = UCompletion(name="Creation", default_value=0)
+        self.action_parameters = [self.creation_parameter]
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.fire.svg.draw_parameter, (0, 1), part=self.fire.svg),
+            Movement(self.light_source.creation_parameter,
+                     (1 / 2, 1), part=self.light_source),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+
+class DigitalCampfire(CustomObject):
+
+    def __init__(self, distance_humans=1 / 2, border_radius=50, **kwargs):
+        self.distance_humans = distance_humans
+        self.border_radius = border_radius
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.circle_border = Circle(plane="xz")
+        self.circle_membrane = Membrane(
+            self.circle_border, color=BLACK, fill=True)
+        self.circle = Group(self.circle_border,
+                            self.circle_membrane, name="Circle")
+        self.left_human = Human(perspective="portrait",
+                                posture="standing", on_floor=True)
+        self.right_human = Human(
+            perspective="portrait", posture="standing", on_floor=True)
+        self.humans = Group(self.left_human, self.right_human, name="Humans")
+        self.digital_fire = DigitalFire(brightness=1 / 2)
+        self.parts += [self.circle, self.humans, self.digital_fire]
+
+    def specify_parameters(self):
+        self.border_radius_parameter = ULength(
+            name="BorderRadiusParameter", default_value=self.border_radius)
+        self.distance_humans_parameter = UCompletion(
+            name="DistanceHumansParameter", default_value=self.distance_humans)
+        self.parameters += [self.border_radius_parameter,
+                            self.distance_humans_parameter]
+
+    def specify_relations(self):
+        border_radius_relation = XIdentity(part=self.circle_border, whole=self, desc_ids=[self.circle_border.desc_ids["radius"]],
+                                           parameter=self.border_radius_parameter)
+        distance_left_human_relation = XRelation(part=self.left_human, whole=self, desc_ids=[POS_X],
+                                                 parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"-{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
+        distance_right_human_relation = XRelation(part=self.right_human, whole=self, desc_ids=[POS_X],
+                                                  parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
+
+    def specify_actions(self):
+        creation_action = XAction(
+            Movement(self.digital_fire.creation_parameter,
+                     (1 / 4, 1), part=self.digital_fire),
+            Movement(self.circle_border.draw_parameter,
+                     (0, 2 / 3), part=self.circle_border),
+            Movement(self.left_human.svg.draw_parameter,
+                     (1 / 3, 2 / 3), part=self.left_human.svg),
+            Movement(self.right_human.svg.draw_parameter,
+                     (1 / 3, 2 / 3), part=self.right_human.svg),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+
+class Laptop(CustomObject):
+    """a minimalistic latop"""
+
+    def __init__(self, opening_angle=PI, **kwargs):
+        self.opening_angle = opening_angle
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.screen_border = Rectangle(plane="xz", rounding=0.1, height=9,
+                                       width=16, z=-4.5, name="Screen")
+        self.screen_membrane = Membrane(self.screen_border, color=BLACK)
+        self.screen = Group(self.screen_border,
+                            self.screen_membrane, name="Screen")
+        self.body = Rectangle(plane="xz", rounding=0.1,
+                              height=9, width=16, z=-4.5, name="Body")
+        self.hinge = Group(self.screen, name="ScreenHinge")
+        self.parts += [self.hinge, self.screen, self.body]
+
+    def specify_parameters(self):
+        self.opening_angle_parameter = UAngle(
+            name="OpeningAnlgeParameter", default_value=self.opening_angle)
+        self.screen_draw_parameter = UCompletion(
+            name="ScreenDrawParameter")
+        self.body_draw_parameter = UCompletion(
+            name="BodyDrawParameter")
+        self.screen_fill_parameter = UCompletion(
+            name="ScreenFillParameter", default_value=1)
+        self.parameters += [self.opening_angle_parameter, self.screen_draw_parameter,
+                            self.body_draw_parameter, self.screen_fill_parameter]
+
+    def specify_relations(self):
+        opening_angle_relation = XRelation(part=self.hinge, whole=self, desc_ids=[ROT_P],
+                                           parameters=[self.opening_angle_parameter], formula=f"-{self.opening_angle_parameter.name}")
+        screen_draw_inheritance = XIdentity(part=self.screen_border, whole=self, desc_ids=[
+                                            self.screen_border.draw_parameter.desc_id], parameter=self.screen_draw_parameter)
+        screen_fill_inheritance = XIdentity(part=self.screen_membrane, whole=self, desc_ids=[self.screen_membrane.fill_parameter.desc_id],
+                                            parameter=self.screen_fill_parameter)
+        body_draw_inheritance = XIdentity(part=self.body, whole=self, desc_ids=[
+            self.body.draw_parameter.desc_id], parameter=self.body_draw_parameter)
+
+    def specify_action_parameters(self):
+        self.creation_parameter = UCompletion(name="Creation", default_value=0)
+        self.action_parameters = [self.creation_parameter]
+
+    def specify_actions(self):
+        creation_action = XAction(
+            Movement(self.opening_angle_parameter,
+                     (1 / 3, 1), output=(0, PI / 2)),
+            Movement(self.screen_draw_parameter, (0, 2 / 3)),
+            Movement(self.body_draw_parameter, (0, 2 / 3)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+
+class DigitalFire(CustomObject):
+    """the digitial version of the fire used in the physical campfire object consisting of two laptops and a glow light"""
+
+    def __init__(self, distance=2, brightness=1, **kwargs):
+        self.distance = distance
+        self.brightness = brightness
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.laptop_left = Laptop(h=-PI / 2, name="LaptopLeft")
+        self.laptop_right = Laptop(h=PI / 2, name="LaptopRight")
+        self.light_source = Light(
+            temperature=1, brightness=self.brightness, visibility_type="inverse_volumetric", radius=30, y=4.5)
+        self.parts += [self.laptop_left, self.laptop_right, self.light_source]
+
+    def specify_parameters(self):
+        self.distance_parameter = ULength(
+            name="DistanceParameter")
+        self.laptop_left_creation_parameter = UCompletion(
+            name="LaptopLeftCreationParameter")
+        self.laptop_right_creation_parameter = UCompletion(
+            name="LaptopLeftCreationParameter")
+        self.parameters += [self.distance_parameter,
+                            self.laptop_left_creation_parameter, self.laptop_right_creation_parameter]
+
+    def specify_relations(self):
+        distance_relation_left = XRelation(part=self.laptop_left, whole=self, desc_ids=[POS_X],
+                                           parameters=[self.distance_parameter], formula=f"-{self.distance_parameter.name}/2")
+        distance_relation_right = XRelation(part=self.laptop_right, whole=self, desc_ids=[POS_X],
+                                            parameters=[self.distance_parameter], formula=f"{self.distance_parameter.name}/2")
+
+    def specify_action_parameters(self):
+        self.creation_parameter = UCompletion(name="Creation", default_value=0)
+        self.action_parameters = [self.creation_parameter]
+
+    def specify_actions(self):
+        creation_action = XAction(
+            Movement(self.laptop_left.creation_parameter,
+                     (0, 1), part=self.laptop_left),
+            Movement(self.laptop_right.creation_parameter,
+                     (0, 1), part=self.laptop_right),
+            Movement(self.distance_parameter, (0, 1),
+                     output=(10, self.distance)),
+            Movement(self.light_source.creation_parameter,
+                     (1 / 2, 1), part=self.light_source),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 class ProjectLiminality(CustomObject):
@@ -238,6 +432,7 @@ class ProjectLiminality(CustomObject):
         self.small_circle_radius = small_circle_radius
         self.small_circle_opacity = small_circle_opacity
         self.circle_gap = circle_gap
+        self.show_label = show_label
         super().__init__(**kwargs)
 
     def specify_parts(self):
@@ -246,9 +441,11 @@ class ProjectLiminality(CustomObject):
         self.left_line = Line((0, 0, 0), (0, 0, 0), name="LeftLine")
         self.right_line = Line((0, 0, 0), (0, 0, 0), name="RigthLine")
         self.lines = Group(self.left_line, self.right_line, z=1, name="Lines")
-        self.label = Text("ProjectLiminality", y=-100)
         self.parts += [self.big_circle,
-                       self.small_circle, self.lines, self.label]
+                       self.small_circle, self.lines]
+        if self.show_label:
+            self.label = Text("ProjectLiminality", y=-100)
+            self.parts.append(self.label)
 
     def specify_parameters(self):
         self.lines_distance_percent_parameter = UCompletion(
@@ -601,6 +798,15 @@ class FootPath(CustomObject):
                                            parameters=[self.floor_plane_parameter], formula=f"if({self.floor_plane_parameter.name}==0;0;Pi/2)")
         """
 
+    def specify_action_parameters(self):
+        self.creation_parameter = UCompletion(name="Creation", default_value=0)
+        self.action_parameters = [self.creation_parameter]
+
+    def specify_actions(self):
+        creation_action = XAction(
+            Movement(self.path_completion_parameter, (0, 1)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
 
 class SplineScreen(CustomObject):
     """creates a spline at the intersection with a 2D screen"""
@@ -638,17 +844,25 @@ class SplineScreen(CustomObject):
 class Text(CustomObject):
     """creates a text object holding individual letters which can be animated using a Director"""
 
-    def __init__(self, text, height=50, anchor="middle", writing_completion=1, **kwargs):
+    def __init__(self, text, height=50, anchor="middle", writing_completion=1, fill=1, **kwargs):
         self.text = text
         self.spline_text = SplineText(
             self.text, height=height, anchor=anchor, seperate_letters=True)
         self.writing_completion = writing_completion
+        self.fill = fill
         self.convert_spline_text_to_spline_letters()
         self.convert_spline_letters_to_custom_letters()
         super().__init__(**kwargs)
 
+    def set_name(self, name=None):
+        self.name = self.text
+        self.obj.SetName(self.name)
+
     def convert_spline_text_to_spline_letters(self):
+        # make splinetext editable into seperate characters
         self.spline_letters_hierarchy = self.spline_text.get_editable()
+        # undo seperation to later safe it as hidden spline for utility (e.g.morphing)
+        self.spline_text.obj[c4d.PRIM_TEXT_SEPARATE] = False
         self.spline_text.obj.Remove()
         self.spline_letters = []
         for spline_letter in self.spline_letters_hierarchy.GetChildren():
@@ -663,27 +877,32 @@ class Text(CustomObject):
     def specify_parts(self):
         self.writing_director = Director(
             *self.custom_letters, parameter=self.custom_letters[0].creation_parameter)
-        self.parts += [*self.custom_letters, self.writing_director]
+        self.spline_text = HelperSpline(self.spline_text.get_editable())
+        self.parts += [*self.custom_letters,
+                       self.writing_director, self.spline_text]
 
     def specify_parameters(self):
         self.writing_completion_parameter = UCompletion(
             name="WritingParameter", default_value=self.writing_completion)
-        self.parameters += [self.writing_completion_parameter]
+        self.fill_parameter = UCompletion(name="Fill", default_value=self.fill)
+        self.parameters += [self.writing_completion_parameter,
+                            self.fill_parameter]
 
     def specify_relations(self):
         writing_completion_relation = XIdentity(part=self.writing_director, whole=self, desc_ids=[self.writing_director.completion_parameter.desc_id],
                                                 parameter=self.writing_completion_parameter)
+        # for custom_letter in self.custom_letters:
+        #    fill_inheritance = XIdentity(part=custom_letter, whole=self, desc_ids=[custom_letter.fill_parameter.desc_id],
+        #                                 parameter=self.fill_parameter)
 
     def specify_action_parameters(self):
-        pass
-        """self.creation_parameter = UCompletion(name="Creation", default_value=0)
-        self.action_parameters = [self.creation_parameter]"""
+        self.creation_parameter = UCompletion(name="Creation", default_value=0)
+        self.action_parameters = [self.creation_parameter]
 
     def specify_actions(self):
-        pass
-        """creation_action = XAction(
-        Movement(self.some_parameter, (0, 1)),
-        target=self, completion_parameter=self.creation_parameter, name="Creation")"""
+        creation_action = XAction(
+            Movement(self.writing_completion_parameter, (0, 1)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 class Letter(CustomObject):
@@ -716,8 +935,6 @@ class Letter(CustomObject):
                                      desc_ids=[self.spline.draw_parameter.desc_id], parameter=self.draw_parameter)
         fill_inheritance = XIdentity(part=self.membrane, whole=self,
                                      desc_ids=[self.membrane.fill_parameter.desc_id], parameter=self.fill_parameter)
-        mospline_correction = XCorrectMoSplineTransform(
-            self.membrane.mospline, target=self)
 
     def specify_action_parameters(self):
         self.creation_parameter = UCompletion(name="Creation", default_value=0)
@@ -733,15 +950,16 @@ class Letter(CustomObject):
 class Membrane(CustomObject):
     """creates a membrane for any given spline using the extrude and mospline object"""
 
-    def __init__(self, spline, thickness=0, fill=0, **kwargs):
+    def __init__(self, spline, thickness=0, fill=0, color=WHITE, **kwargs):
         self.spline = spline
         self.thickness = thickness
         self.fill = fill
+        self.color = color
         super().__init__(**kwargs)
 
     def specify_parts(self):
         self.mospline = MoSpline(source_spline=self.spline)
-        self.extrude = Extrude(self.mospline)
+        self.extrude = Extrude(self.mospline, color=self.color)
         self.parts += [self.extrude, self.mospline]
 
     def specify_parameters(self):
@@ -755,6 +973,8 @@ class Membrane(CustomObject):
                                        parameter=self.thickness_parameter)
         fill_inheritance = XIdentity(part=self.extrude, whole=self, desc_ids=[self.extrude.fill_parameter.desc_id],
                                      parameter=self.fill_parameter)
+        mospline_correction = XCorrectMoSplineTransform(
+            self.mospline, target=self)
 
     def specify_action_parameters(self):
         pass
@@ -766,87 +986,3 @@ class Membrane(CustomObject):
         # creation_action = XAction(
         #    Movement(self.some_parameter, (0, 1)),
         #    target=self, completion_parameter=self.creation_parameter, name="Creation")
-
-
-class Morpher(CustomObject):
-    """creates a (set of) spline(s) depending on segment count that morphs between any two splines"""
-
-    def __init__(self, spline_ini: LineObject, spline_fin: LineObject, morph_completion=0, linear_field_length=50, **kwargs):
-        self.spline_ini = spline_ini
-        self.spline_fin = spline_fin
-        self.morph_completion = morph_completion
-        self.linear_field_length = linear_field_length
-        self.get_segment_counts()
-        super().__init__(**kwargs)
-
-    def set_name(self, name=None):
-        self.name = f"Morph:{self.spline_ini.name}->{self.spline_fin.name}"
-        self.obj.SetName(self.name)
-
-    def get_segment_counts(self):
-        self.segment_count_ini = self.spline_ini.get_segment_count()
-        self.segment_count_fin = self.spline_fin.get_segment_count()
-        self.segment_count = max(
-            self.segment_count_ini, self.segment_count_fin)
-
-    def specify_parts(self):
-        self.create_linear_field()
-        self.create_spline_effectors()
-        self.create_destination_splines()
-        self.create_mosplines()
-
-        self.parts += [self.linear_field, self.spline_effectors_ini,
-                       self.spline_effectors_fin, self.mosplines, self.destination_splines]
-
-    def create_linear_field(self):
-        self.linear_field = LinearField(direction="x-")
-        self.parts.append(self.linear_field)
-
-    def create_spline_effectors(self):
-        self.spline_effectors_ini = Group(*[SplineEffector(spline=self.spline_ini, segment_index=i, name=f"SplineEffector{i}")
-                                            for i in range(self.segment_count_ini)], name="SplineEffectorsInitial")
-        self.spline_effectors_fin = Group(*[SplineEffector(spline=self.spline_fin, fields=[self.linear_field], segment_index=i, name=f"SplineEffector{i}")
-                                            for i in range(self.segment_count_fin)], name="SplineEffectorsFinal")
-
-    def create_destination_splines(self):
-        self.destination_splines = Group(
-            *[Spline(name=f"DestinationSpline{i}", draw_completion=1) for i in range(self.segment_count)], name="DestinationSplines")
-
-    def create_mosplines(self):
-        self.mosplines = Group(*[MoSpline(source_spline=self.spline_ini, destination_spline=destination_spline, name=f"MoSpline{i}")
-                                 for i, destination_spline in enumerate(self.destination_splines)], name="MoSplines")
-        # we want to match the segments in the most natural way using modulu
-        indices_ini, indices_fin = match_indices(
-            self.segment_count_ini, self.segment_count_fin)
-        for i, j, mospline in zip(indices_ini, indices_fin, self.mosplines):
-            mospline.add_effector(self.spline_effectors_ini[i])
-            mospline.add_effector(self.spline_effectors_fin[j])
-
-    def specify_parameters(self):
-        self.morph_completion_parameter = UCompletion(
-            name="MorphCompletionParameter", default_value=self.morph_completion)
-        self.linear_field_length_parameter = ULength(
-            name="FieldLengthParameter", default_value=self.linear_field_length)
-        self.parameters += [self.morph_completion_parameter,
-                            self.linear_field_length_parameter]
-
-    def specify_relations(self):
-        morph_completion_relation = XRelation(part=self.linear_field, whole=self, desc_ids=[POS_X], parameters=[self.morph_completion_parameter, self.linear_field_length_parameter, self.width_parameter],
-                                              formula=f"-({self.width_parameter.name}/2+{self.linear_field_length_parameter.name})+({self.width_parameter.name}+2*{self.linear_field_length_parameter.name})*{self.morph_completion_parameter.name}")
-        linear_field_length_relation = XIdentity(part=self.linear_field, whole=self, desc_ids=[self.linear_field.desc_ids["length"]],
-                                                 parameter=self.linear_field_length_parameter)
-
-    def specify_action_parameters(self):
-        pass
-        """
-        self.creation_parameter = UCompletion(name="Creation", default_value=0)
-        self.action_parameters = [self.creation_parameter]
-        """
-
-    def specify_actions(self):
-        pass
-        """
-        creation_action = XAction(
-            Movement(self.morph_completion_parameter, (0, 1)),
-            target=self, completion_parameter=self.creation_parameter, name="Creation")
-        """

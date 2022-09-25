@@ -1,25 +1,26 @@
 from pydeation.materials import FillMaterial, SketchMaterial
 from pydeation.tags import FillTag, SketchTag, XPressoTag
 from pydeation.constants import WHITE, SCALE_X, SCALE_Y, SCALE_Z
+from pydeation.animation.animation import VectorAnimation, ScalarAnimation
 from pydeation.animation.object_animators import Show, Hide
-from pydeation.animation.sketch_animators import Draw
 from pydeation.xpresso.userdata import UGroup, ULength, UCheckBox, UVector, UCompletion
-from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength, XBoundingBox
+from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength, XBoundingBox, XAction, Movement
 from abc import ABC, abstractmethod
 import c4d
 
 
 class ProtoObject(ABC):
 
-    def __init__(self, name=None, x=0, y=0, z=0, h=0, p=0, b=0, scale=1, scale_x=1, scale_y=1, scale_z=1, position=None, rotation=None):
+    def __init__(self, name=None, x=0, y=0, z=0, h=0, p=0, b=0, scale=1, position=None, rotation=None):
         self.document = c4d.documents.GetActiveDocument()  # get document
         self.specify_object()
+        self.set_xpresso_tags()
         self.set_unique_desc_ids()
         self.insert_to_document()
         self.set_name(name=name)
         self.set_position(x=x, y=y, z=z, position=position)
         self.set_rotation(h=h, p=p, b=b, rotation=rotation)
-        self.set_scale(uniform_scale=scale, x=scale_x, y=scale_y, z=scale_z)
+        self.set_scale(scale=scale)
         self.set_object_properties()
         self.xpressions = {}  # keeps track of animators, composers etc.
         self.accessed_parameters = {}  # keeps track which parameters have AccessControl
@@ -34,6 +35,31 @@ class ProtoObject(ABC):
     def specify_object(self):
         pass
 
+    def set_xpresso_tags(self):
+        """initializes the necessary xpresso tags on the object"""
+        # the composition tags hold the hierarchy of compositions and ensure execution from highest to lowest
+        #self.composition_tags = []
+        # the animator tag holds the acting of the animators on the actual parameters
+        # set priority to be executed last
+        # self.animator_tag = XPressoTag(
+        #    target=self, name="AnimatorTag", priority=1, priority_mode="expression")
+        # the freeze tag holds the freezing xpressions that are executed before the animators
+        # set priority to be executed after compositions and before animators
+        # self.freeze_tag = XPressoTag(
+        #    target=self, name="FreezeTag", priority=0, priority_mode="animation")
+        # inserts an xpresso tag used for custom xpressions
+        self.custom_tag = XPressoTag(target=self, name="CustomTag")
+
+    def add_composition_tag(self):
+        """adds another layer to the composition hierarchy"""
+        # set priority according to position in composition hierarchy
+        tag_name = "CompositionTag" + str(len(self.composition_tags))
+        tag_priority = -len(self.composition_tags)
+        composition_tag = XPressoTag(
+            target=self, name=tag_name, priority=tag_priority, priority_mode="initial")
+        self.composition_tags.append(composition_tag)
+        return composition_tag.obj
+
     def set_unique_desc_ids(self):
         """optional method to make unique descIds easily accessible"""
         pass
@@ -45,68 +71,100 @@ class ProtoObject(ABC):
             self.name = name
         self.obj.SetName(self.name)
 
-    def set_position(self, x=0, y=0, z=0, position=None):
+    def specify_parameters(self):
+        """specifies optional parameters for the custom object"""
+        pass
+
+    def insert_parameters(self):
+        """inserts the specified parameters as userdata"""
+        if self.parameters:
+            self.parameters_u_group = UGroup(
+                *self.parameters, target=self.obj, name=self.name + "Parameters")
+
+    def specify_relations(self):
+        """specifies the relations between the part's parameters using xpresso"""
+        pass
+
+    def set_position(self, x=0, y=0, z=0, position=None, relative=False):
         if position is None:
             position = c4d.Vector(x, y, z)
         elif type(position) is not c4d.Vector:
             position = c4d.Vector(*position)
-        self.obj[c4d.ID_BASEOBJECT_POSITION] = position
+        if relative:
+            self.obj[c4d.ID_BASEOBJECT_POSITION] += position
+        else:
+            self.obj[c4d.ID_BASEOBJECT_POSITION] = position
 
-    def set_rotation(self, h=0, p=0, b=0, rotation=None):
+    def set_rotation(self, h=0, p=0, b=0, rotation=None, relative=False):
         if rotation is None:
             rotation = c4d.Vector(h, p, b)
         elif type(rotation) is not c4d.Vector:
             rotation = c4d.Vector(*rotation)
-        self.obj[c4d.ID_BASEOBJECT_ROTATION] = rotation
+        if relative:
+            self.obj[c4d.ID_BASEOBJECT_ROTATION] += rotation
+        else:
+            self.obj[c4d.ID_BASEOBJECT_ROTATION] = rotation
 
-    def set_frozen_rotation(self, h=0, p=0, b=0, rotation=None):
+    def set_frozen_rotation(self, h=0, p=0, b=0, rotation=None, relative=False):
         if rotation is None:
             rotation = c4d.Vector(h, p, b)
-        self.obj[c4d.ID_BASEOBJECT_FROZEN_ROTATION] = rotation
-
-    def set_scale(self, uniform_scale=1, x=1, y=1, z=1):
-        if x != 1 or y != 1 or z != 1:
-            scale = c4d.Vector(x, y, z)
+        if relative:
+            self.obj[c4d.ID_BASEOBJECT_FROZEN_ROTATION] += rotation
         else:
-            scale = c4d.Vector(uniform_scale, uniform_scale, uniform_scale)
-        self.obj[c4d.ID_BASEOBJECT_SCALE] = scale
+            self.obj[c4d.ID_BASEOBJECT_FROZEN_ROTATION] = rotation
 
-    def move(self, x=None, y=None, z=None, position=None):
+    def set_scale(self, scale=1, relative=False):
+        if relative:
+            self.obj[c4d.ID_BASEOBJECT_SCALE] *= scale
+        else:
+            scale = c4d.Vector(scale, scale, scale)
+            self.obj[c4d.ID_BASEOBJECT_SCALE] = scale
+
+    def move(self, x=0, y=0, z=0, position=None):
         if position is None:
             position = c4d.Vector(x, y, z)
         elif type(position) is not c4d.Vector:
             position = c4d.Vector(*position)
-        self.obj[c4d.ID_BASEOBJECT_POSITION] += position
+        descriptor = c4d.ID_BASEOBJECT_POSITION
+        animation = VectorAnimation(
+            target=self, descriptor=descriptor, vector=position, relative=True)
+        self.obj[descriptor] += position
+        return animation
 
-    def rotate(self, h=None, p=None, b=None):
-        if h is not None:
-            self.obj[c4d.ID_BASEOBJECT_ROTATION, c4d.VECTOR_X] += h
-        if p is not None:
-            self.obj[c4d.ID_BASEOBJECT_ROTATION, c4d.VECTOR_Y] += p
-        if b is not None:
-            self.obj[c4d.ID_BASEOBJECT_ROTATION, c4d.VECTOR_Z] += b
+    def rotate(self, h=0, p=0, b=0, rotation=None):
+        if rotation is None:
+            rotation = c4d.Vector(h, p, b)
+        elif type(rotation) is not c4d.Vector:
+            rotation = c4d.Vector(*rotation)
+        descriptor = c4d.ID_BASEOBJECT_ROTATION
+        animation = VectorAnimation(
+            target=self, descriptor=descriptor, vector=rotation, relative=True)
+        self.obj[descriptor] += rotation
+        return animation
 
-    def scale(self, uniform_scale=None, x=None, y=None, z=None):
-        if x is not None:
-            self.obj[c4d.ID_BASEOBJECT_SCALE, c4d.VECTOR_X] += x
-        if y is not None:
-            self.obj[c4d.ID_BASEOBJECT_SCALE, c4d.VECTOR_Y] += y
-        if z is not None:
-            self.obj[c4d.ID_BASEOBJECT_SCALE, c4d.VECTOR_Z] += z
-        if uniform_scale is not None:
-            scale = c4d.Vector(uniform_scale, uniform_scale, uniform_scale)
-        self.obj[c4d.ID_BASEOBJECT_SCALE] = scale
+    def scale(self, x=0, y=0, z=0, scale=None):
+        if scale is None:
+            scale = c4d.Vector(x, y, z)
+        elif type(scale) is not c4d.Vector:
+            scale = c4d.Vector(*scale)
+        descriptor = c4d.ID_BASEOBJECT_SCALE
+        animation = VectorAnimation(
+            target=self, descriptor=descriptor, vector=scale, relative=True, multiplicative=True)
+        self.obj[descriptor] += scale
+        return animation
 
     def insert_to_document(self):
         self.document.InsertObject(self.obj)
 
-    def create(self):
-        """optionally holds a creation animation, Draw by default"""
-        return Draw(self)
-
-    def un_create(self):
-        """optionally holds a uncreation animation, UnDraw by default"""
-        return UnDraw(self)
+    def get_segment_count(self):
+        if type(self.obj) is c4d.SplineObject:
+            editable_obj = self.obj
+        else:
+            editable_obj = self.get_editable()
+        if type(editable_obj) is c4d.PolygonObject:
+            raise TypeError("method only works on spline objects")
+        segment_count = editable_obj.GetSegmentCount() + 1  # shift to natural count
+        return segment_count
 
     def set_object_properties(self):
         """used to set the unique properties of a specific object"""
@@ -115,11 +173,10 @@ class ProtoObject(ABC):
 
 class VisibleObject(ProtoObject):  # visible objects
 
-    def __init__(self, visible=True, **kwargs):
+    def __init__(self, visible=True, creation=0, **kwargs):
         super().__init__(**kwargs)
+        self.creation = creation
         self.visible = visible
-        self.set_visibility()
-        self.set_xpresso_tags()
         self.specify_visibility_parameter()
         self.insert_visibility_parameter()
         self.specify_visibility_relation()
@@ -128,6 +185,25 @@ class VisibleObject(ProtoObject):  # visible objects
         self.specify_live_bounding_box_relation()
         self.add_bounding_box_information()
         self.specify_visual_position_parameter()
+
+    def specify_action_parameters(self):
+        self.creation_parameter = UCompletion(
+            name="Creation", default_value=self.creation)
+        self.action_parameters = [self.creation_parameter]
+
+    def insert_action_parameters(self):
+        """inserts the specified action_parameters as userdata"""
+        if self.action_parameters:
+            self.actions_u_group = UGroup(
+                *self.action_parameters, target=self.obj, name=self.name + "Actions")
+
+    def specify_actions(self):
+        """specifies actions that coordinate parameters"""
+        pass
+
+    def specify_creation(self):
+        """specifies the creation action"""
+        pass
 
     def specify_visual_position_parameter(self):
         self.visual_position_parameter = UVector(name="VisualPosition")
@@ -142,31 +218,6 @@ class VisibleObject(ProtoObject):  # visible objects
             hide_animation = Hide(self)
             hide_animation.execute()
 
-    def set_xpresso_tags(self):
-        """initializes the necessary xpresso tags on the object"""
-        # the composition tags hold the hierarchy of compositions and ensure execution from highest to lowest
-        self.composition_tags = []
-        # the animator tag holds the acting of the animators on the actual parameters
-        # set priority to be executed last
-        self.animator_tag = XPressoTag(
-            target=self, name="AnimatorTag", priority=1, priority_mode="expression")
-        # the freeze tag holds the freezing xpressions that are executed before the animators
-        # set priority to be executed after compositions and before animators
-        self.freeze_tag = XPressoTag(
-            target=self, name="FreezeTag", priority=0, priority_mode="animation")
-        # inserts an xpresso tag used for custom xpressions
-        self.custom_tag = XPressoTag(target=self, name="CustomTag")
-
-    def add_composition_tag(self):
-        """adds another layer to the composition hierarchy"""
-        # set priority according to position in composition hierarchy
-        tag_name = "CompositionTag" + str(len(self.composition_tags))
-        tag_priority = -len(self.composition_tags)
-        composition_tag = XPressoTag(
-            target=self, name=tag_name, priority=tag_priority, priority_mode="initial")
-        self.composition_tags.append(composition_tag)
-        return composition_tag.obj
-
     def get_clone(self):
         """clones an object and inserts it into the scene"""
         clone = self.obj.GetClone()
@@ -179,11 +230,6 @@ class VisibleObject(ProtoObject):  # visible objects
         editable_clone = c4d.utils.SendModelingCommand(command=c4d.MCOMMAND_MAKEEDITABLE, list=[
             clone], mode=c4d.MODELINGCOMMANDMODE_ALL, doc=self.document)[0]
         return editable_clone
-
-    def get_segment_count(self):
-        editable_clone = self.get_editable()
-        segment_count = editable_clone.GetSegmentCount() + 1  # shift to natural count
-        return segment_count
 
     def attach_to(self, target, direction="front", offset=0):
         """places the object such that the bounding boxes touch along a given direction and makes object child of target"""
@@ -228,8 +274,16 @@ class VisibleObject(ProtoObject):  # visible objects
         self.height_parameter = ULength(name="Height")
         self.depth_parameter = ULength(name="Depth")
         self.center_parameter = UVector(name="Center")
-        self.live_bounding_box_parameters = [
-            self.width_parameter, self.height_parameter, self.depth_parameter, self.center_parameter]
+        self.center_x_parameter = ULength(name="CenterX")
+        self.center_y_parameter = ULength(name="CenterY")
+        self.center_z_parameter = ULength(name="CenterZ")
+        self.live_bounding_box_parameters = [self.width_parameter,
+                                             self.height_parameter,
+                                             self.depth_parameter,
+                                             self.center_parameter,
+                                             self.center_x_parameter,
+                                             self.center_y_parameter,
+                                             self.center_z_parameter]
 
     def insert_live_bounding_box_parameters(self):
         """inserts the bounding box parameters as userdata"""
@@ -239,7 +293,8 @@ class VisibleObject(ProtoObject):  # visible objects
     def specify_live_bounding_box_relation(self):
         """feed bounding box information into parameters"""
         live_bounding_box_relation = XBoundingBox(self, target=self, width_parameter=self.width_parameter, height_parameter=self.height_parameter,
-                                                  depth_parameter=self.depth_parameter, center_parameter=self.center_parameter)
+                                                  depth_parameter=self.depth_parameter, center_parameter=self.center_parameter,
+                                                  center_x_parameter=self.center_x_parameter, center_y_parameter=self.center_y_parameter, center_z_parameter=self.center_z_parameter)
 
     def add_bounding_box_information(self):
         bounding_box_center, bounding_radius = c4d.utils.GetBBox(
@@ -249,51 +304,87 @@ class VisibleObject(ProtoObject):  # visible objects
         self.depth = bounding_radius.z * 2
         self.center = bounding_box_center
 
+    def create(self, completion=1):
+        """specifies the creation animation"""
+        desc_id = self.creation_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        return animation
+
+    def uncreate(self, completion=0):
+        """specifies the uncreation animation"""
+        desc_id = self.creation_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        return animation
+
 
 class LineObject(VisibleObject):
     """line objects consist of splines and only require a sketch material"""
+    # TODO: add create membrane option that creates group with border and membrane object
 
-    def __init__(self, color=WHITE, plane="xy", arrow_start=False, arrow_end=False, draw_completion=0, **kwargs):
+    def __init__(self, color=WHITE, plane="xy", arrow_start=False, arrow_end=False, draw_completion=0, opacity=1, **kwargs):
+        super().__init__(**kwargs)
         self.color = color
         self.plane = plane
         self.arrow_start = arrow_start
         self.arrow_end = arrow_end
         self.draw_completion = draw_completion
-        super().__init__(**kwargs)
+        self.opacity = opacity
         self.set_sketch_material()
         self.set_sketch_tag()
+        self.sketch_parameter_setup()
         self.set_plane()
         self.spline_length_parameter_setup()
-        self.draw_parameter_setup()
+        self.parameters = []
+        self.specify_parameters()
+        self.insert_parameters()
+        self.specify_relations()
+        self.action_parameters = []
+        self.specify_action_parameters()
+        self.insert_action_parameters()
+        self.specify_actions()
+        self.specify_creation()
 
     def spline_length_parameter_setup(self):
         self.specify_spline_length_parameter()
         self.insert_spline_length_parameter()
         self.specify_spline_length_relation()
 
-    def draw_parameter_setup(self):
-        self.specify_draw_parameter()
-        self.insert_draw_parameter()
-        self.specify_draw_relation()
+    def sketch_parameter_setup(self):
+        self.specify_sketch_parameters()
+        self.insert_sketch_parameters()
+        self.specify_sketch_relations()
+
+    def specify_creation(self):
+        """specifies the creation action"""
+        creation_action = XAction(
+            Movement(self.draw_parameter, (0, 1)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
 
     def set_sketch_material(self):
         self.sketch_material = SketchMaterial(
-            name=self.name, color=self.color, arrow_start=self.arrow_start, arrow_end=self.arrow_end)
+            name=self.__class__.__name__, color=self.color, arrow_start=self.arrow_start, arrow_end=self.arrow_end)
 
     def set_sketch_tag(self):
         self.sketch_tag = SketchTag(target=self, material=self.sketch_material)
 
-    def specify_draw_parameter(self):
+    def specify_sketch_parameters(self):
         self.draw_parameter = UCompletion(
             name="Draw", default_value=self.draw_completion)
+        self.opacity_parameter = UCompletion(
+            name="Opacity", default_value=self.opacity)
+        self.sketch_parameters = [self.draw_parameter, self.opacity_parameter]
 
-    def insert_draw_parameter(self):
+    def insert_sketch_parameters(self):
         self.draw_u_group = UGroup(
-            self.draw_parameter, target=self.obj, name="Sketch")
+            *self.sketch_parameters, target=self.obj, name="Sketch")
 
-    def specify_draw_relation(self):
-        self.draw_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["draw_completion"]],
-                                       parameter=self.draw_parameter)
+    def specify_sketch_relations(self):
+        draw_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["draw_completion"]],
+                                  parameter=self.draw_parameter)
+        opacity_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["opacity"]],
+                                     parameter=self.opacity_parameter)
 
     def set_plane(self):
         planes = {"xy": 0, "zy": 1, "xz": 2}
@@ -310,17 +401,64 @@ class LineObject(VisibleObject):
         self.spline_length_relation = XSplineLength(
             spline=self, whole=self, parameter=self.spline_length_parameter)
 
+    def draw(self, completion=1):
+        """specifies the draw animation"""
+        desc_id = self.draw_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def undraw(self, completion=0):
+        """specifies the undraw animation"""
+        desc_id = self.draw_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def fade_in(self, completion=1):
+        """specifies the fade in animation"""
+        desc_id = self.opacity_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def fade_out(self, completion=0):
+        """specifies the fade out animation"""
+        desc_id = self.opacity_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
 
 class SolidObject(VisibleObject):
     """solid objects only require a fill material"""
 
-    def __init__(self, fill=0, fill_color=WHITE, **kwargs):
-        self.fill = fill
-        self.fill_color = fill_color
+    def __init__(self, filled=0, color=WHITE, **kwargs):
+        self.filled = filled
+        self.color = color
         super().__init__(**kwargs)
         self.set_fill_material()
         self.set_fill_tag()
         self.fill_parameter_setup()
+        self.parameters = []
+        self.specify_parameters()
+        self.insert_parameters()
+        self.specify_relations()
+        self.action_parameters = []
+        self.specify_action_parameters()
+        self.insert_action_parameters()
+        self.specify_actions()
+        self.specify_creation()
+
+    def specify_creation(self):
+        """specifies the creation action"""
+        creation_action = XAction(
+            Movement(self.fill_parameter, (0, 1)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
 
     def fill_parameter_setup(self):
         self.specify_fill_parameter()
@@ -329,13 +467,14 @@ class SolidObject(VisibleObject):
 
     def set_fill_material(self):
         self.fill_material = FillMaterial(
-            name=self.name, fill=self.fill, color=self.fill_color)
+            name=self.name, fill=self.filled, color=self.color)
 
     def set_fill_tag(self):
         self.fill_tag = FillTag(target=self, material=self.fill_material)
 
     def specify_fill_parameter(self):
-        self.fill_parameter = UCompletion(name="Fill", default_value=self.fill)
+        self.fill_parameter = UCompletion(
+            name="Fill", default_value=self.filled)
 
     def insert_fill_parameter(self):
         self.fill_u_group = UGroup(
@@ -345,14 +484,21 @@ class SolidObject(VisibleObject):
         self.fill_relation = XRelation(part=self.fill_material, whole=self, desc_ids=[self.fill_material.desc_ids["transparency"]],
                                        parameters=[self.fill_parameter], formula=f"1-{self.fill_parameter.name}")
 
+    def fill(self, completion=1):
+        """specifies the fill animation"""
+        desc_id = self.fill_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
 
-class Loft(SolidObject):
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def specify_object(self):
-        self.obj = c4d.BaseObject(c4d.Oloft)
+    def unfill(self, completion=0):
+        """specifies the unfill animation"""
+        desc_id = self.fill_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
 
 
 class CustomObject(VisibleObject):
@@ -364,24 +510,29 @@ class CustomObject(VisibleObject):
 
     def __init__(self, diameter=None, **kwargs):
         super().__init__(**kwargs)
-        self.diameter = diameter
-        self.parameters = []
         self.parts = []
-        self.action_parameters = []
         self.specify_parts()
         self.insert_parts()
+        self.parameters = []
         self.specify_parameters()
         self.insert_parameters()
+        self.specify_relations()
+        self.action_parameters = []
         self.specify_action_parameters()
         self.insert_action_parameters()
-        self.specify_relations()
         self.specify_actions()
+        self.diameter = diameter
         self.add_bounding_box_information()
         self.specify_bounding_box_parameters()
         self.insert_bounding_box_parameters()
         self.specify_bounding_box_relations()
         self.specify_visibility_inheritance_relations()
         self.specify_position_inheritance()
+        self.specify_creation()
+
+    def specify_creation(self):
+        """used to specify the unique creation animation for each individual custom object"""
+        pass
 
     def specify_position_inheritance(self):
         """used to specify how the position should be determined"""
@@ -402,34 +553,6 @@ class CustomObject(VisibleObject):
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Onull)
-
-    def specify_parameters(self):
-        """specifies optional parameters for the custom object"""
-        pass
-
-    def insert_parameters(self):
-        """inserts the specified parameters as userdata"""
-        if self.parameters:
-            self.parameters_u_group = UGroup(
-                *self.parameters, target=self.obj, name=self.name + "Parameters")
-
-    def specify_action_parameters(self):
-        """specifies optional parameters for the custom object"""
-        pass
-
-    def insert_action_parameters(self):
-        """inserts the specified action_parameters as userdata"""
-        if self.action_parameters:
-            self.actions_u_group = UGroup(
-                *self.action_parameters, target=self.obj, name=self.name + "Actions")
-
-    def specify_relations(self):
-        """specifies the relations between the part's parameters using xpresso"""
-        pass
-
-    def specify_actions(self):
-        """specifies actions that coordinate parameters"""
-        pass
 
     def specify_visibility_inheritance_relations(self):
         """inherits visibility to parts"""
@@ -464,18 +587,3 @@ class CustomObject(VisibleObject):
         """gives the custom object basic control over the bounding box diameter"""
         diameter_relation = XRelation(part=self, whole=self, desc_ids=[SCALE_X, SCALE_Y, SCALE_Z], parameters=[self.diameter_parameter, self.default_width_parameter, self.default_height_parameter, self.default_depth_parameter],
                                       formula=f"{self.diameter_parameter.name}/max({self.default_width_parameter.name};max({self.default_height_parameter.name};{self.default_depth_parameter.name}))")
-
-    def create(self):
-        """specifies the creation animation"""
-        animations = [part.create() for part in self.parts]
-        return animations
-
-    def un_create(self):
-        """specifies the uncreation animation"""
-        animations = []
-        for part in self.parts:
-            if part.un_create():
-                animations.append(part.un_create())
-            else:
-                animations.append(UnDraw(part))
-        return animations

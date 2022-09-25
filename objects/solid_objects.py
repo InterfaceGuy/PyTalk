@@ -110,3 +110,12 @@ class Extrude(SolidObject):
         self.desc_ids = {
             "offset": c4d.DescID(c4d.DescLevel(c4d.EXTRUDEOBJECT_EXTRUSIONOFFSET, c4d.DTYPE_REAL, 0))
         }
+
+
+class Loft(SolidObject):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Oloft)

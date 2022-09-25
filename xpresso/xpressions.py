@@ -25,28 +25,37 @@ class XActiveRange(XPression):
     """xpression for checking if completion is in active range"""
 
     def construct(self):
-        # create nodes
-        compare_node_0 = XCompare(self.target, mode="!=", comparison_value=0)
-        compare_node_1 = XCompare(self.target, mode="!=", comparison_value=1)
-        bool_node = XBool(self.target, mode="AND")
+        self.create_nodes()
+        self.group_nodes()
+        self.create_ports()
+        self.connect_ports()
 
-        # group nodes
-        self.xgroup = XGroup(compare_node_0, compare_node_1,
-                             bool_node, name=self.__class__.__name__[1:])
+    def create_nodes(self):
+        self.compare_node_0 = XCompare(
+            self.target, mode="!=", comparison_value=0)
+        self.compare_node_1 = XCompare(
+            self.target, mode="!=", comparison_value=1)
+        self.bool_node = XBool(self.target, mode="AND")
+
+    def group_nodes(self):
+        self.xgroup = XGroup(self.compare_node_0, self.compare_node_1,
+                             self.bool_node, name=self.__class__.__name__[1:])
         self.obj = self.xgroup.obj
 
-        # create ports
+    def create_ports(self):
         self.real_interface_in = self.obj.AddPort(
             c4d.GV_PORT_INPUT, REAL_DESCID_IN)
         self.bool_interface_out = self.obj.AddPort(
             c4d.GV_PORT_OUTPUT, BOOL_DESCID_OUT)
 
-        # connect ports
-        self.real_interface_in.Connect(compare_node_0.obj.GetInPort(0))
-        self.real_interface_in.Connect(compare_node_1.obj.GetInPort(0))
-        compare_node_0.obj.GetOutPort(0).Connect(bool_node.obj.GetInPort(0))
-        compare_node_1.obj.GetOutPort(0).Connect(bool_node.obj.GetInPort(1))
-        bool_node.obj.GetOutPort(0).Connect(self.bool_interface_out)
+    def connect_ports(self):
+        self.real_interface_in.Connect(self.compare_node_0.obj.GetInPort(0))
+        self.real_interface_in.Connect(self.compare_node_1.obj.GetInPort(0))
+        self.compare_node_0.obj.GetOutPort(0).Connect(
+            self.bool_node.obj.GetInPort(0))
+        self.compare_node_1.obj.GetOutPort(0).Connect(
+            self.bool_node.obj.GetInPort(1))
+        self.bool_node.obj.GetOutPort(0).Connect(self.bool_interface_out)
 
 
 class XNotDescending(XPression):
@@ -925,12 +934,15 @@ class XLinkParamToField(CustomXPression):
 class XBoundingBox(CustomXPression):
     """calculates the bounding box of a set of objects"""
 
-    def __init__(self, *elements, target=None, width_parameter=None, height_parameter=None, depth_parameter=None, center_parameter=None):
+    def __init__(self, *elements, target=None, width_parameter=None, height_parameter=None, depth_parameter=None, center_parameter=None, center_x_parameter=None, center_y_parameter=None, center_z_parameter=None):
         self.elements = elements
         self.width_parameter = width_parameter
         self.height_parameter = height_parameter
         self.depth_parameter = depth_parameter
         self.center_parameter = center_parameter
+        self.center_x_parameter = center_x_parameter
+        self.center_y_parameter = center_y_parameter
+        self.center_z_parameter = center_z_parameter
         self.target = target
         super().__init__(self.target)
 
@@ -938,7 +950,7 @@ class XBoundingBox(CustomXPression):
         self.create_element_nodes()
         self.create_target_node()
         self.create_bounding_box_node()
-        self.create_vector_to_reals_node()
+        self.create_vector_to_reals_nodes()
 
     def create_element_nodes(self):
         self.element_nodes = []
@@ -961,31 +973,50 @@ class XBoundingBox(CustomXPression):
             c4d.GV_PORT_INPUT, self.depth_parameter.desc_id)
         self.center_parameter_port = self.target_node.obj.AddPort(
             c4d.GV_PORT_INPUT, self.center_parameter.desc_id)
+        self.center_x_parameter_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.center_x_parameter.desc_id)
+        self.center_y_parameter_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.center_y_parameter.desc_id)
+        self.center_z_parameter_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, self.center_z_parameter.desc_id)
         self.nodes.append(self.target_node)
 
     def create_bounding_box_node(self):
         self.bounding_box_node = XBBox(self.target)
         self.nodes.append(self.bounding_box_node)
 
-    def create_vector_to_reals_node(self):
-        self.vector_to_reals_node = XVec2Reals(self.target)
-        self.nodes.append(self.vector_to_reals_node)
+    def create_vector_to_reals_nodes(self):
+        self.diameter_vector_to_reals_node = XVec2Reals(self.target)
+        self.center_vector_to_reals_node = XVec2Reals(self.target)
+        self.nodes.append(self.diameter_vector_to_reals_node)
+        self.nodes.append(self.center_vector_to_reals_node)
 
     def connect_ports(self):
-        self.connect_bounding_box_node_to_parameters()
+        self.connect_diameter_bounding_box_node_to_parameters()
+        self.connect_center_bounding_box_node_to_parameters()
         self.connect_element_nodes_to_bounding_box_node()
 
-    def connect_bounding_box_node_to_parameters(self):
+    def connect_diameter_bounding_box_node_to_parameters(self):
         self.bounding_box_node.diameter_port_out.Connect(
-            self.vector_to_reals_node.obj.GetInPort(0))
+            self.diameter_vector_to_reals_node.obj.GetInPort(0))
+        self.diameter_vector_to_reals_node.obj.GetOutPort(
+            0).Connect(self.width_parameter_port)
+        self.diameter_vector_to_reals_node.obj.GetOutPort(
+            1).Connect(self.height_parameter_port)
+        self.diameter_vector_to_reals_node.obj.GetOutPort(
+            2).Connect(self.depth_parameter_port)
+
+    def connect_center_bounding_box_node_to_parameters(self):
         self.bounding_box_node.center_port_out.Connect(
             self.center_parameter_port)
-        self.vector_to_reals_node.obj.GetOutPort(
-            0).Connect(self.width_parameter_port)
-        self.vector_to_reals_node.obj.GetOutPort(
-            1).Connect(self.height_parameter_port)
-        self.vector_to_reals_node.obj.GetOutPort(
-            2).Connect(self.depth_parameter_port)
+        self.bounding_box_node.center_port_out.Connect(
+            self.center_vector_to_reals_node.obj.GetInPort(0))
+        self.center_vector_to_reals_node.obj.GetOutPort(
+            0).Connect(self.center_x_parameter_port)
+        self.center_vector_to_reals_node.obj.GetOutPort(
+            1).Connect(self.center_y_parameter_port)
+        self.center_vector_to_reals_node.obj.GetOutPort(
+            2).Connect(self.center_z_parameter_port)
 
     def connect_element_nodes_to_bounding_box_node(self):
         for object_port in self.object_ports:
@@ -1023,10 +1054,12 @@ class XInheritGlobalMatrix(CustomXPression):
 class Movement:
     """holds the information for a single movement which can be chained together by XAction into an action"""
 
-    def __init__(self, parameter, timing, output=(0, 1)):
+    def __init__(self, parameter, timing, output=(0, 1), part=None, easing=True):
         self.parameter = parameter
         self.timing = timing
         self.output = output
+        self.part = part
+        self.easing = easing
 
 
 class XAction(CustomXPression):
@@ -1050,19 +1083,25 @@ class XAction(CustomXPression):
         self.nodes.append(self.object_node_out)
 
     def create_object_node_in(self):
-        self.object_node_in = XObject(self.target)
+        self.object_nodes_in = []
         self.parameter_ports = []
         for movement in self.movements:
-            parameter_port = self.object_node_in.obj.AddPort(
+            if movement.part:
+                object_node_in = XObject(
+                    self.target, link_target=movement.part)
+            else:
+                object_node_in = XObject(self.target)
+            parameter_port = object_node_in.obj.AddPort(
                 c4d.GV_PORT_INPUT, movement.parameter.desc_id)
             self.parameter_ports.append(parameter_port)
-        self.nodes.append(self.object_node_in)
+            self.object_nodes_in.append(object_node_in)
+        self.nodes += self.object_nodes_in
 
     def create_range_mapper_nodes(self):
         self.range_mapper_nodes = []
         for movement in self.movements:
             range_mapper_node = XRangeMapper(
-                self.target, input_range=movement.timing, output_range=movement.output)
+                self.target, input_range=movement.timing, output_range=movement.output, easing=movement.easing)
             self.range_mapper_nodes.append(range_mapper_node)
         self.nodes += self.range_mapper_nodes
 
@@ -1104,3 +1143,76 @@ class XCorrectMoSplineTransform(CustomXPression):
     def connect_ports(self):
         self.global_matrix_port_out.Connect(self.invert_node.obj.GetInPort(0))
         self.invert_node.obj.GetOutPort(0).Connect(self.local_matrix_port_in)
+
+
+class XVisibilityControl(CustomXPression):
+    """toggles the visibility of the specified objects as a function of the driving parameter
+        if only initial objects are defined their visibility switches off and on again
+        if final objects are defined the visibility transitions to them"""
+
+    def __init__(self, target=None, driving_parameter=None, initial_objects=[], final_objects=[], invisibility_interval=(0, 1)):
+        self.target = target
+        self.driving_parameter = driving_parameter
+        self.initial_objects = initial_objects
+        self.final_objects = final_objects
+        self.invisibility_interval = invisibility_interval
+        super().__init__(self.target)
+
+    def construct(self):
+        self.create_initial_object_nodes()
+        self.create_final_object_nodes()
+        self.create_target_node()
+        self.create_compare_nodes()
+
+    def create_initial_object_nodes(self):
+        self.initial_object_nodes = []
+        self.initial_visibility_ports = []
+        for initial_object in self.initial_objects:
+            print(1, initial_object)
+            initial_object_node = XObject(
+                self.target, link_target=initial_object)
+            visibility_port_in = initial_object_node.obj.AddPort(
+                c4d.GV_PORT_INPUT, initial_object.visibility_parameter.desc_id)
+            self.initial_object_nodes.append(initial_object_node)
+            self.initial_visibility_ports.append(visibility_port_in)
+        self.nodes += self.initial_object_nodes
+
+    def create_final_object_nodes(self):
+        self.final_object_nodes = []
+        self.final_visibility_ports = []
+        for final_object in self.final_objects:
+            print(2, final_object)
+            final_object_node = XObject(
+                self.target, link_target=final_object)
+            visibility_port_in = final_object_node.obj.AddPort(
+                c4d.GV_PORT_INPUT, final_object.visibility_parameter.desc_id)
+            self.final_object_nodes.append(final_object_node)
+            self.final_visibility_ports.append(visibility_port_in)
+        self.nodes += self.final_object_nodes
+
+    def create_target_node(self):
+        self.target_node = XObject(self.target)
+        self.driving_parameter_port_out = self.target_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.driving_parameter.desc_id)
+        self.nodes.append(self.target_node)
+
+    def create_compare_nodes(self):
+        self.compare_node_lower = XCompare(
+            self.target, mode="<=", comparison_value=self.invisibility_interval[0])
+        self.compare_node_upper = XCompare(
+            self.target, mode=">=", comparison_value=self.invisibility_interval[1])
+        self.nodes += [self.compare_node_lower, self.compare_node_upper]
+
+    def connect_ports(self):
+        self.driving_parameter_port_out.Connect(
+            self.compare_node_lower.obj.GetInPort(0))
+        self.driving_parameter_port_out.Connect(
+            self.compare_node_upper.obj.GetInPort(0))
+        for initial_visibility_port in self.initial_visibility_ports:
+            print(1, initial_visibility_port)
+            self.compare_node_lower.obj.GetOutPort(0).Connect(
+                initial_visibility_port)
+        for final_visibility_port in self.final_visibility_ports:
+            print(2, final_visibility_port)
+            self.compare_node_upper.obj.GetOutPort(0).Connect(
+                final_visibility_port)

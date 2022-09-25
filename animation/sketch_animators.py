@@ -1,40 +1,33 @@
-from pydeation.animation.abstract_animators import SketchAnimator
-from pydeation.xpresso.userdata import UParameter
-from pydeation.xpresso.xpressions import XAnimation, XAnimator
-from pydeation.utils import match_indices
+from pydeation.animation.abstract_animators import ProtoAnimator
 import c4d
 
 
-class Draw(SketchAnimator):
+class Draw(ProtoAnimator):
 
-    def __new__(cls, *objs, drawing=1, category="constructive", **kwargs):
-        cls.set_values(drawing)
-        return super().__new__(cls, *objs, category=category, **kwargs)
+    def __init__(self, *objs, drawing=1, category="constructive", **kwargs):
+        self.set_values(drawing)
+        return super().__init__(self, *objs, category=category, **kwargs)
 
-    @classmethod
-    def specify_desc_ids(cls):
-        cls.desc_ids = {
+    def specify_desc_ids(self):
+        self.desc_ids = {
             "drawing": c4d.DescID(c4d.DescLevel(c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_COMPLETE, c4d.DTYPE_REAL, 0))
         }
 
-    @classmethod
-    def set_values(cls, drawing):
-        cls.values = [drawing]
+    def set_values(self, drawing):
+        self.values = [drawing]
 
-    @classmethod
-    def set_initial_values(cls):
-        for obj in cls.objs:
+    def set_initial_values(self):
+        for obj in self.objs:
             obj.sketch_material.obj[c4d.OUTLINEMAT_ANIMATE_AUTODRAW] = True
             obj.sketch_material.obj[c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_TYPE] = 2
             obj.sketch_material.obj[c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_COMPLETE] = 0
 
-    @classmethod
-    def specify_xpression(cls):
-        cls.parameter_name = "DrawCompletion"
-        cls.interpolate = True
+    def specify_xpression(self):
+        self.parameter_name = "DrawCompletion"
+        self.interpolate = True
 
 
 class UnDraw(Draw):
 
-    def __new__(cls, *objs, drawing=0, **kwargs):
-        return super().__new__(cls, *objs, drawing=drawing, category="destructive", **kwargs)
+    def __init__(self, *objs, drawing=0, **kwargs):
+        return super().__init__(self, *objs, drawing=drawing, category="destructive", **kwargs)

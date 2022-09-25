@@ -1,4 +1,5 @@
-from pydeation.animation.animation import VectorAnimation, AnimationGroup
+from pydeation.animation.animation import ScalarAnimation, AnimationGroup, ProtoAnimation, VectorAnimation
+from pydeation.animation.abstract_animators import ProtoAnimator
 from pydeation.animation.object_animators import Show, Hide
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -65,11 +66,16 @@ class Scene(ABC):
             animations_grouped_by_obj[animation.target].append(animation)
         return animations_grouped_by_obj
 
-    def group_obj_animations_by_desc_id(self, obj_animations):
+    def group_obj_animations_by_descriptor(self, obj_animations):
         """sorts the animations by their description id"""
         obj_animations_grouped_by_desc_id = defaultdict(list)
         for obj_animation in obj_animations:
-            obj_animations_grouped_by_desc_id[obj_animation.param_id].append(
+            if type(obj_animation.descriptor) is c4d.DescID:
+                # desc id not natively hashable
+                key = obj_animation.descriptor.GetHashCode()
+            else:
+                key = obj_animation.descriptor
+            obj_animations_grouped_by_desc_id[key].append(
                 obj_animation)
         return obj_animations_grouped_by_desc_id
 
@@ -87,14 +93,14 @@ class Scene(ABC):
         animations_grouped_by_obj = self.group_animations_by_obj(
             animations)  # group animations by object
         for obj_animations in animations_grouped_by_obj.values():
-            obj_animations_grouped_by_desc_id = self.group_obj_animations_by_desc_id(
+            obj_animations_grouped_by_desc_id = self.group_obj_animations_by_descriptor(
                 obj_animations)  # group animations by desc id
             for desc_id_animations in obj_animations_grouped_by_desc_id.values():
                 desc_id_animations_chronological = self.sort_desc_id_animations_chronologically(
                     desc_id_animations)  # sort animations chronologically
                 for i, desc_id_animation in enumerate(desc_id_animations_chronological):
                     # only link vector animaitons
-                    if type(desc_id_animation) is VectorAnimation:
+                    if type(desc_id_animation) is ScalarAnimation:
                         # link chain according to type relative/absolute
                         previous_animations = desc_id_animations_chronological[:i]
                         # shift vector by all previous vectors
@@ -134,7 +140,7 @@ class Scene(ABC):
         c4d.EventAdd()  # update cinema
 
     def flatten(self, animations):
-        """flattens animations by wrapping them inside animation group"""
+        """flattens animations by wrapping them in animation group"""
         animation_group = AnimationGroup(*animations)
         flattened_animations = animation_group.animations
         return flattened_animations
@@ -175,18 +181,42 @@ class Scene(ABC):
                 animation_groups_with_visibility.append(animation)
         return animation_groups_with_visibility
 
-    def play(self, *animations, run_time=1):
+    def get_animation(self, animators):
+        """retreives the animations from the animators depending on type"""
+        animations = []
+        for animator in animators:
+            if issubclass(animator.__class__, ProtoAnimator):
+                animation = animator.animations
+                if issubclass(animation.__class__, VectorAnimation):
+                    vector_animation = animator
+                    scalar_animations = vector_animation.scalar_animations
+                    animations += scalar_animations
+                    continue
+            elif issubclass(animator.__class__, ProtoAnimation):
+                animation = animator
+            elif issubclass(animator.__class__, VectorAnimation):
+                vector_animation = animator
+                scalar_animations = vector_animation.scalar_animations
+                animations += scalar_animations
+                continue
+            else:
+                print("Unknown animator input!")
+            animations.append(animation)
+        return animations
+
+    def play(self, *animators, run_time=1):
         """handles several tasks for the animations:
             - handles visibility
             - flattens animations
             - links animation chains
             - feeds them the run time
             - executes the animations"""
+        animations = self.get_animation(animators)
         animations_with_visibility = self.handle_visibility(animations)
         flattened_animations = self.flatten(animations_with_visibility)
-        linked_animations = self.link_animation_chains(flattened_animations)
-        self.feed_run_time(linked_animations, run_time)
-        self.execute_animations(linked_animations)
+        #linked_animations = self.link_animation_chains(flattened_animations)
+        self.feed_run_time(flattened_animations, run_time)
+        self.execute_animations(flattened_animations)
         self.add_time(run_time)
 
     def wait(self, seconds=1):

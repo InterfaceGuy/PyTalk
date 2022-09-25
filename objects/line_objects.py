@@ -202,9 +202,15 @@ class PySpline(LineObject):
     """turns a c4d spline into a pydeation spline"""
 
     def __init__(self, input_spline, spline_type="bezier", **kwargs):
-        self.input_spline = input_spline
+        self.input_spline = self.get_spline(input_spline)
         self.spline_type = spline_type
         super().__init__(**kwargs)
+
+    def get_spline(self, input_spline):
+        # turns any primitive spline into a single editable spline
+        if type(input_spline) is not c4d.SplineObject:
+            pass
+        return input_spline
 
     def specify_object(self):
         self.obj = self.input_spline.GetClone()

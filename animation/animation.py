@@ -11,57 +11,56 @@ class KeyFrame:
         self.document = c4d.documents.GetActiveDocument()  # get document
         self.target = target
         self.desc_id = desc_id
-        self.time = self.check_time(time)
-        self.track = self.get_track()
-        self.curve = self.get_curve(self.track)
-        self.key = self.set_key(self.time)
-        self.value = self.set_value(value)
+        self.value = value
+        self.time = time
+        self.get_time()
+        self.get_track()
+        self.get_curve()
+        self.set_key()
+        self.set_value()
 
     def get_track(self):
         """finds or create the animation track for the given target"""
-        track = self.target.obj.FindCTrack(self.desc_id)
-        if track is None:
-            track = c4d.CTrack(self.target.obj, self.desc_id)
+        self.track = self.target.obj.FindCTrack(self.desc_id)
+        if self.track is None:
+            self.track = c4d.CTrack(self.target.obj, self.desc_id)
             # insert ctrack into objects timeline
-            self.target.obj.InsertTrackSorted(track)
-        return track
+            self.target.obj.InsertTrackSorted(self.track)
 
-    def get_curve(self, track):
+    def get_curve(self):
         """creates animation curve for the animation track"""
-        curve = track.GetCurve()
-        return curve
+        self.curve = self.track.GetCurve()
 
-    def set_key(self, time):
+    def set_key(self):
         """creates a key on the curve at a given time"""
-        key = self.curve.AddKey(time)["key"]
-        return key
+        self.key = self.curve.AddKey(self.time)["key"]
 
-    def check_time(self, time):
+    def get_time(self):
         """returns document's current time if time is None"""
-        if time is None:
-            time = self.document.GetTime()
-        return time
+        if self.time is None:
+            self.time = self.document.GetTime()
 
-    def set_value(self, value):
+    def set_value(self):
         """sets the value of the key"""
-        if type(value) in (bool, int, c4d.Vector):  # used for state changing keyframes like visibility
-            self.key.SetGeData(self.curve, value)
+        if type(self.value) in (bool, int):  # used for state changing keyframes like visibility
+            self.key.SetGeData(self.curve, self.value)
         else:  # general case
-            self.key.SetValue(self.curve, value)
+            self.key.SetValue(self.curve, self.value)
 
 
-class Animation(ABC):
+class ProtoAnimation(ABC):
     """an animation object is responsible for setting keyframes for a single description id for a single object"""
 
-    def __init__(self, target, desc_id, value_type, name=None):
+    def __init__(self, target=None, descriptor=None, name=None):
         self.document = c4d.documents.GetActiveDocument()  # get document
-        self.abs_run_time = 1  # set default to 1 second
-        self.target = target  # the target that is animated on
-        self.desc_id = desc_id  # holds the description id of the animation
-        # the param id is needed to receive the current value
-        self.param_id = self.get_param_id()
-        self.value_type = value_type  # enforces the correct data type for the value
-        self.name = name  # sets the name of the animation for printing
+        self.target = target
+        self.descriptor = descriptor
+        self.name = name
+        self.abs_run_time = 1
+
+        self.get_current_value()
+        self.get_value_type()
+        self.get_desc_id()
 
     @abstractmethod
     def __repr__(self):
@@ -83,22 +82,30 @@ class Animation(ABC):
         """rescales the current relative run time using the superordinate relative run time"""
         pass
 
-    def get_param_id(self):
-        """returns the parameter id from the description id to use for setting parameter values of objects"""
-        if self.desc_id.GetDepth() == 1:
-            param_id = (self.desc_id[0].id)
-        elif self.desc_id.GetDepth() == 2:
-            param_id = (self.desc_id[0].id, self.desc_id[1].id)
-        elif self.desc_id.GetDepth() == 3:
-            param_id = (self.desc_id[0].id,
-                        self.desc_id[1].id, self.desc_id[2].id)
-        return param_id
-
     def get_current_value(self):
         """returns the value of the objects parameter"""
-        param_id = self.get_param_id()
-        current_value = self.target.obj[param_id]
-        return current_value
+        self.current_value = self.target.obj[self.descriptor]
+
+    def get_value_type(self):
+        """automatically gets the value type by reading the current values type"""
+        self.value_type = type(self.current_value)
+
+    def get_desc_id(self):
+        """derives the desc id from the descriptor and the value type"""
+        dtypes = {
+            bool: c4d.DTYPE_BOOL,
+            int: c4d.DTYPE_LONG,
+            float: c4d.DTYPE_REAL,
+            c4d.Vector: c4d.DTYPE_VECTOR,
+        }
+        dtype = dtypes[self.value_type]
+        if type(self.descriptor) is tuple:
+            self.desc_id = c4d.DescID(c4d.DescLevel(self.descriptor[0], c4d.DTYPE_VECTOR, 0),
+                                      c4d.DescLevel(self.descriptor[1], c4d.DTYPE_REAL, 0))
+        elif type(self.descriptor) is c4d.DescID:
+            self.desc_id = self.descriptor
+        else:
+            self.desc_id = c4d.DescID(c4d.DescLevel(self.descriptor, dtype, 0))
 
     def global_time(self, time: c4d.BaseTime):
         """adds the current document time to the scaled run time"""
@@ -107,26 +114,26 @@ class Animation(ABC):
         return global_time
 
 
-class VectorAnimation(Animation):
+class ScalarAnimation(ProtoAnimation):
     """a vector animation object is responsible for setting an initial and final keyframe for a single description id for a single object
     the keyframes are spaced internally only on a relative scale and have to be scaled by the absolute run time provided by the Scene.play() function"""
 
-    def __init__(self, target, desc_id, value_fin=None, value_ini=None, value_type=float, rel_start=0, rel_stop=1, relative=False, multiplicative=False, **kwargs):
-        super().__init__(target, desc_id, value_type, **kwargs)
-        # used for multiplicative relative animations like e.g. scale
-        self.multiplicative = multiplicative
-        self.relative = relative  # specifies whether animation is relative or absolute
+    def __init__(self, rel_start=0, rel_stop=1, value_fin=None, value_ini=None, relative=False, multiplicative=False, **kwargs):
+        super().__init__(**kwargs)
         self.rel_start = rel_start  # the relative start time depending on absolute run time
         self.rel_stop = rel_stop  # the relative stop time depending on absolute run time
+        self.relative = relative
+        self.multiplicative = multiplicative
+
         self.set_value_ini(value_ini)
         self.set_value_fin(value_fin)
 
     def __repr__(self):
         """sets the string representation for printing"""
         if self.name is None:
-            return f"VectorAnimation: {self.target}, {self.value_ini}, {self.value_fin}"
+            return f"ScalarAnimation: {self.target}, {self.value_ini}, {self.value_fin}"
         else:
-            return f"VectorAnimation: {self.name}, {self.target}, {self.value_ini}, {self.value_fin}"
+            return f"ScalarAnimation: {self.name}, {self.target}, {self.value_ini}, {self.value_fin}"
 
     def __iadd__(self, other):
         """adds a given value to both initial and final value of the animation simultaneously
@@ -176,7 +183,7 @@ class VectorAnimation(Animation):
     def set_value_ini(self, value):
         """sets the initial value of the animation"""
         if value is None:
-            value_ini = self.get_current_value()
+            value_ini = self.current_value
         else:
             value_ini = value
         # make sure it's correct data_type
@@ -187,9 +194,9 @@ class VectorAnimation(Animation):
         the ignore_relative parameter is used later in the Scene.link_animation_chains() method in case relative=True"""
         if self.relative and not ignore_relative:
             if self.multiplicative:
-                value *= self.get_current_value()
+                value *= self.current_value
             else:
-                value += self.get_current_value()
+                value += self.current_value
         # make sure it's correct data_type
         self.value_fin = self.value_type(value)
 
@@ -199,11 +206,45 @@ class VectorAnimation(Animation):
         return vector
 
 
-class CompletionAnimation(VectorAnimation):
-    """subclass used for differentiating completion animations when linking animation chains"""
+class VectorAnimation:
+    """a vector animation takes in a vector descriptor and derives the three respective scalar animations from it;
+    the scalar animations are stored in a list as an attribute and are unpacked by the scene.play() method"""
 
-    def __init__(self, target, desc_id, **kwargs):
-        super().__init__(target, desc_id, **kwargs)
+    def __init__(self, target=None, descriptor=None, vector=None, rel_start=0, rel_stop=1, relative=False, **kwargs):
+        self.target = target
+        self.descriptor = descriptor
+        self.vector = vector
+        self.rel_start = rel_start  # the relative start time depending on absolute run time
+        self.rel_stop = rel_stop  # the relative stop time depending on absolute run time
+        self.relative = relative
+
+        self.derive_values()
+        self.derive_sub_descriptors()
+        self.create_scalar_animations()
+
+    def derive_values(self):
+        """unpacks the vector in a tuple of values"""
+        self.values = (self.vector.x, self.vector.y, self.vector.z)
+
+    def derive_sub_descriptors(self):
+        """derives the three sub-descriptors from the vector descriptor"""
+        self.descriptor_x = (self.descriptor, c4d.VECTOR_X)
+        self.descriptor_y = (self.descriptor, c4d.VECTOR_Y)
+        self.descriptor_z = (self.descriptor, c4d.VECTOR_Z)
+        self.sub_descriptors = [self.descriptor_x,
+                                self.descriptor_y, self.descriptor_z]
+
+    def create_scalar_animations(self):
+        """creates three scalar animations for the respective components of the vector"""
+        self.scalar_animations = []
+        for descriptor, value in zip(self.sub_descriptors, self.values):
+            scalar_animation = ScalarAnimation(
+                target=self.target, descriptor=descriptor, value_fin=value, relative=self.relative)
+            self.scalar_animations.append(scalar_animation)
+
+
+class CompletionAnimation(ScalarAnimation):
+    """subclass used for differentiating completion animations when linking animation chains"""
 
     def __repr__(self):
         """sets the string representation for printing"""
@@ -213,21 +254,21 @@ class CompletionAnimation(VectorAnimation):
             return f"CompletionAnimation: {self.name}, {self.target}, {self.value_ini}, {self.value_fin}"
 
 
-class StateAnimation(Animation):
+class BoolAnimation(ProtoAnimation):
     """a state animation object is responsible for setting a single keyframe for a single (state like e.g. visibility) description id for a single object
     the keyframe is placed internally only on a relative scale and has to be scaled by the absolute run time provided by the Scene.play() function"""
 
-    def __init__(self, target, desc_id, value=None, value_type=bool, rel_start=0, **kwargs):
-        super().__init__(target, desc_id, value_type, **kwargs)
+    def __init__(self, rel_start=0, **kwargs):
+        super().__init__(**kwargs)
         self.rel_start = rel_start
-        self.set_value(value)
+        self.get_value(value)
 
     def __repr__(self):
         """sets the string representation for printing"""
         if self.name is None:
-            return f"StateAnimation: {self.target}, {self.value}"
+            return f"BoolAnimation: {self.target}, {self.value}"
         else:
-            return f"StateAnimation: {self.name}, {self.target}, {self.value}"
+            return f"BoolAnimation: {self.name}, {self.target}, {self.value}"
 
     def execute(self):
         """sets the actual keyframes of the animation"""
@@ -236,7 +277,7 @@ class StateAnimation(Animation):
         self.key = KeyFrame(
             self.target, self.desc_id, value=self.value, time=self.global_time(self.abs_start))  # create initial keyframe
 
-    def set_value(self, value):
+    def get_value(self, value):
         """sets the value of the animation"""
         if value is None:
             value = self.get_current_value()
@@ -277,6 +318,18 @@ class AnimationGroup:
             strings += str(animation) + "; "
         return strings
 
+    def __iter__(self):
+        self.idx = 0
+        return self
+
+    def __next__(self):
+        if self.idx < len(self.animations):
+            aimation = self.animations[self.idx]
+            self.idx += 1
+            return aimation
+        else:
+            raise StopIteration
+
     def digest_input(self, animations):
         """applies all necessary transformations on the animations"""
         rescaled_animations = self.rescale_other(animations)
@@ -293,12 +346,16 @@ class AnimationGroup:
                 if type(animation) is AnimationGroup:
                     animation_group = animation  # is animaiton group
                     animation_group.rescale_self(rel_run_time)
-                elif type(animation) is Animation:
+                elif type(animation) is ScalarAnimation:
                     animation.rescale_relative_run_time(
                         rel_run_time)  # rescale relative run time
+                elif type(animation) is VectorAnimation:
+                    for scalar_animation in animation.scalar_animations:
+                        scalar_animation.rescale_relative_run_time(
+                            rel_run_time)  # rescale relative run time
                 # append to rescaled animations
                 rescaled_animations.append(animation)
-            elif issubclass(animation.__class__, (Animation, AnimationGroup)):
+            elif issubclass(animation.__class__, (ScalarAnimation, VectorAnimation, AnimationGroup)):
                 # append to rescaled animations
                 rescaled_animations.append(animation)
         return rescaled_animations
@@ -316,9 +373,13 @@ class AnimationGroup:
                 animation_group = animation  # is animation group
                 # append to flattned input
                 flattened_animations += animation_group.animations
-            elif issubclass(animation.__class__, Animation):
+            elif issubclass(animation.__class__, ScalarAnimation):
                 # append to flattened input
                 flattened_animations.append(animation)
+            elif issubclass(animation.__class__, VectorAnimation):
+                # append to flattened input
+                vector_animation = animation
+                flattened_animations += vector_animation.scalar_animations
         return flattened_animations
 
     def execute(self):
@@ -330,12 +391,7 @@ class AnimationGroup:
         """retreives the objects contained in the animation group"""
         objs = []
         for animation in self.animations:
-            target = animation.target
-            if target.__class__.__name__ in ("SketchMaterial", "FillMaterial"):
-                material = target  # is material
-                obj = material.linked_tag.linked_object
-            else:
-                obj = target  # is object
+            obj = animation.target
             objs.append(obj)
         return objs
 
@@ -343,9 +399,9 @@ class AnimationGroup:
         """retreives the relative stop value of the chronologically last animation of the group"""
         rel_stops = []
         for animation in self.animations:
-            if type(animation) is VectorAnimation:
+            if type(animation) is ScalarAnimation:
                 rel_stops.append(animation.rel_stop)
-            elif type(animation) is StateAnimation:
+            elif type(animation) is BoolAnimation:
                 # use relative start in case of state animation
                 rel_stops.append(animation.rel_start)
         max_rel_stop = max(rel_stops)  # get maximum of relative stops

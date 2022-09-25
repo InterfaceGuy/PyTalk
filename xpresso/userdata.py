@@ -172,7 +172,7 @@ class UCompletion(UReal):
 
     def specify_constraints(self):
         # set range
-        self.bc[c4d.DESC_MIN] = -1
+        self.bc[c4d.DESC_MIN] = 0
         self.bc[c4d.DESC_MAX] = 1
         # set unit to percent
         self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_PERCENT

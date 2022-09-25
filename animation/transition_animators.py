@@ -9,8 +9,9 @@ import c4d
 
 class TransitionAnimator(ProtoAnimator):
     """abstract animator for handling transition animations"""
-    def __new__(cls, obj_ini, obj_fin, transition_obj, **kwargs):
-        transition_animation = super().__new__(cls, obj_ini, **kwargs)
+
+    def __init__(self, obj_ini, obj_fin, transition_obj, **kwargs):
+        transition_animation = super().__init__(self, obj_ini, **kwargs)
         hide_obj_ini_animation = (Hide(obj_ini), (0, 1))
         show_obj_fin_animation = (Show(obj_fin), (1, 1))
         show_transition_obj_animation = (
@@ -20,53 +21,48 @@ class TransitionAnimator(ProtoAnimator):
         return AnimationGroup(transition_animation, hide_obj_ini_animation, show_obj_fin_animation, show_transition_obj_animation, hide_transition_obj_animation)
 
     @abstractmethod
-    def specify_desc_ids(cls):
+    def specify_desc_ids(self):
         """specifies the description ids addressed by the animator"""
         pass
 
     @abstractmethod
-    def set_values(cls):
+    def set_values(self):
         """sets values given by input and optionally performs logic on them"""
         pass
 
     @abstractmethod
-    def specify_target(cls, obj):
+    def specify_target(self, obj):
         """specifies the target to animate on"""
         pass
 
 
 class Morph(TransitionAnimator):
 
-    def __new__(cls, spline_ini: LineObject, spline_fin: LineObject, linear_field_length=50, **kwargs):
-        cls.spline_ini = spline_ini
-        cls.spline_fin = spline_fin
-        cls.linear_field_length = linear_field_length
-        cls.insert_helper_objects()
-        cls.set_values()
-        morph_animations = super().__new__(cls, spline_ini, spline_fin, cls.morpher, category="neutral",
-                                           animation_type="xvector", **kwargs)
+    def __init__(self, spline_ini: LineObject, spline_fin: LineObject, linear_field_length=50, **kwargs):
+        self.spline_ini = spline_ini
+        self.spline_fin = spline_fin
+        self.linear_field_length = linear_field_length
+        self.insert_helper_objects()
+        self.set_values()
+        morph_animations = super().__init__(self, spline_ini, spline_fin, self.morpher, category="neutral",
+                                            animation_type="xvector", **kwargs)
         return morph_animations
 
-    @classmethod
-    def insert_helper_objects(cls):
-        cls.morpher = Morpher(cls.spline_ini, cls.spline_fin,
-                              linear_field_length=cls.linear_field_length)
+    def insert_helper_objects(self):
+        self.morpher = Morpher(self.spline_ini, self.spline_fin,
+                               linear_field_length=self.linear_field_length)
 
-    @classmethod
-    def specify_target(cls, obj):
+    def specify_target(self, obj):
         target = obj
         return target
 
-    @classmethod
-    def set_values(cls):
-        cls.values = [1]
+    def set_values(self):
+        self.values = [1]
 
-    @classmethod
-    def specify_desc_ids(cls):
-        cls.desc_ids = {
-            "morph_completion": cls.morpher.morph_completion_parameter.desc_id
+    def specify_desc_ids(self):
+        self.desc_ids = {
+            "morph_completion": self.morpher.morph_completion_parameter.desc_id
         }
 
-    @classmethod
-    def create_xpression(cls):
+    def create_xpression(self):
         pass

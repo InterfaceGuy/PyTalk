@@ -1,7 +1,7 @@
 from pydeation.objects.abstract_objects import CustomObject
 from pydeation.objects.line_objects import SVG
 from pydeation.xpresso.userdata import UOptions, ULength, UAngle, UGroup
-from pydeation.xpresso.xpressions import XRelation, XIdentity
+from pydeation.xpresso.xpressions import XRelation, XIdentity, XAction, Movement
 from pydeation.constants import *
 import c4d
 
@@ -9,17 +9,30 @@ import c4d
 class Sketch(CustomObject):
     """gives useful additional parameters to SVG objects"""
 
-    def __init__(self, file_name, rel_x=0, rel_y=0, rel_z=0, rel_rot=0, plane="xy", **kwargs):
+    def __init__(self, file_name, rel_x=0, rel_y=0, rel_z=0, rel_rot=0, plane="xy", on_floor=False, color=WHITE, **kwargs):
         self.file_name = file_name
         self.plane = plane
         self.rel_x = rel_x
         self.rel_y = rel_y
         self.rel_z = rel_z
         self.rel_rot = rel_rot
+        self.on_floor = on_floor
+        self.color = color
         super().__init__(**kwargs)
+        self.set_to_floor()
+        self.inherit_parameters_from_svg()
+
+    def inherit_parameters_from_svg(self):
+        self.draw_parameter = self.svg.draw_parameter
+        self.opacity_parameter = self.svg.opacity_parameter
+        self.sketch_parameters = self.svg.sketch_parameters
+
+    def set_to_floor(self):
+        if self.on_floor:
+            self.move(y=self.height / 2)
 
     def specify_parts(self):
-        self.svg = SVG(self.file_name)
+        self.svg = SVG(self.file_name, color=self.color)
         self.parts.append(self.svg)
 
     def specify_parameters(self):
@@ -49,6 +62,35 @@ class Sketch(CustomObject):
             part=self.svg, whole=self, desc_ids=[POS_Z], parameter=self.relative_z_parameter)
         relative_rotation_relation = XIdentity(
             part=self.svg, whole=self, desc_ids=[ROT_B], parameter=self.relative_rotation_parameter)
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.svg.creation_parameter, (0, 1), part=self.svg),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def draw(self, completion=1):
+        """specifies the draw animation"""
+        return self.svg.draw(completion=completion)
+
+    def undraw(self, completion=0):
+        """specifies the undraw animation"""
+        return self.svg.undraw(completion=completion)
+
+    def fade_in(self, completion=1):
+        """specifies the fade in animation"""
+        return self.svg.fade_in(completion=completion)
+
+    def fade_out(self, completion=0):
+        """specifies the fade out animation"""
+        return self.svg.fade_out(completion=completion)
+
+    def create(self):
+        """set creation animation to Draw by default"""
+        return self.svg.create()
+
+    def un_create(self):
+        """set uncreation animation to UnDraw by default"""
+        return self.svg.un_create()
 
 
 class David(Sketch):
