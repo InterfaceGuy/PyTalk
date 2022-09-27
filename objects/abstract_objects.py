@@ -187,9 +187,12 @@ class VisibleObject(ProtoObject):  # visible objects
         self.specify_visual_position_parameter()
 
     def specify_action_parameters(self):
+        pass
+
+    def specify_creation_parameter(self):
         self.creation_parameter = UCompletion(
             name="Creation", default_value=self.creation)
-        self.action_parameters = [self.creation_parameter]
+        self.action_parameters += [self.creation_parameter]
 
     def insert_action_parameters(self):
         """inserts the specified action_parameters as userdata"""
@@ -342,6 +345,7 @@ class LineObject(VisibleObject):
         self.specify_relations()
         self.action_parameters = []
         self.specify_action_parameters()
+        self.specify_creation_parameter()
         self.insert_action_parameters()
         self.specify_actions()
         self.specify_creation()
@@ -450,6 +454,7 @@ class SolidObject(VisibleObject):
         self.specify_relations()
         self.action_parameters = []
         self.specify_action_parameters()
+        self.specify_creation_parameter()
         self.insert_action_parameters()
         self.specify_actions()
         self.specify_creation()
@@ -519,8 +524,10 @@ class CustomObject(VisibleObject):
         self.specify_relations()
         self.action_parameters = []
         self.specify_action_parameters()
+        self.specify_creation_parameter()
         self.insert_action_parameters()
         self.specify_actions()
+        self.specify_creation()
         self.diameter = diameter
         self.add_bounding_box_information()
         self.specify_bounding_box_parameters()
@@ -528,7 +535,6 @@ class CustomObject(VisibleObject):
         self.specify_bounding_box_relations()
         self.specify_visibility_inheritance_relations()
         self.specify_position_inheritance()
-        self.specify_creation()
 
     def specify_creation(self):
         """used to specify the unique creation animation for each individual custom object"""

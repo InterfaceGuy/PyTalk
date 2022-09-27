@@ -1,5 +1,5 @@
 from pydeation.objects.abstract_objects import CustomObject
-from pydeation.objects.solid_objects import Extrude
+from pydeation.objects.solid_objects import Extrude, Cylinder
 from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline
 from pydeation.objects.sketch_objects import Human, Fire, Footprint
 from pydeation.objects.helper_objects import *
@@ -195,13 +195,14 @@ class Eye(CustomObject):
 
 class PhysicalCampfire(CustomObject):
 
-    def __init__(self, distance_humans=1 / 2, border_radius=50, **kwargs):
+    def __init__(self, distance_humans=1 / 2, border_radius=50, synthesis_height=20, **kwargs):
         self.distance_humans = distance_humans
         self.border_radius = border_radius
+        self.synthesis_height = synthesis_height
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.circle_border = Circle(plane="xz")
+        self.circle_border = Circle(plane="xz", creation=True)
         self.circle_membrane = Membrane(
             self.circle_border, color=BLACK, fill=True)
         self.circle = Group(self.circle_border,
@@ -214,35 +215,75 @@ class PhysicalCampfire(CustomObject):
         self.fire = PhysicalFire()
         self.symbol = ProjectLiminality(
             p=-PI / 2, diameter=20, z=-30, show_label=False)
-        self.parts += [self.circle, self.humans, self.fire, self.symbol]
+        self.thesis = Circle(radius=2, color=BLUE, creation=True)
+        self.thesis.attach_to(self.left_human, direction="top", offset=6)
+        self.antithesis = Rectangle(
+            height=4, width=6, color=RED, creation=True)
+        self.antithesis.attach_to(self.right_human, direction="top", offset=6)
+        self.synthesis = Cylinder(
+            radius=2, height=6, orientation="x+", h=PI / 8)
+        self.synthesis.attach_to(self.fire)
+        self.parts += [self.circle, self.humans, self.fire, self.symbol,
+                       self.thesis, self.antithesis, self.synthesis]
 
     def specify_parameters(self):
         self.border_radius_parameter = ULength(
             name="BorderRadius", default_value=self.border_radius)
         self.distance_humans_parameter = UCompletion(
             name="DistanceHumans", default_value=self.distance_humans)
+        self.synthesis_height_parameter = ULength(
+            name="SynthesisHeightParameter", default_value=0)
         self.parameters += [self.border_radius_parameter,
-                            self.distance_humans_parameter]
+                            self.distance_humans_parameter,
+                            self.synthesis_height_parameter]
 
     def specify_relations(self):
         border_radius_relation = XIdentity(part=self.circle_border, whole=self, desc_ids=[self.circle_border.desc_ids["radius"]],
                                            parameter=self.border_radius_parameter)
+        synthesis_height_relation = XRelation(part=self.synthesis, whole=self, desc_ids=[POS_Y],
+                                              parameters=[self.synthesis_height_parameter], formula=f"{self.synthesis_height_parameter.name}+4.5")
         distance_left_human_relation = XRelation(part=self.left_human, whole=self, desc_ids=[POS_X],
                                                  parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"-{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
         distance_right_human_relation = XRelation(part=self.right_human, whole=self, desc_ids=[POS_X],
                                                   parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
 
+    def specify_action_parameters(self):
+        self.dialectic_parameter = UCompletion(
+            name="DialecticParameter", default_value=0)
+        self.action_parameters += [self.dialectic_parameter]
+
+    def specify_actions(self):
+        dialectic_action = XAction(
+            Movement(self.thesis.opacity_parameter,
+                     (0, 1 / 2), part=self.thesis),
+            Movement(self.antithesis.opacity_parameter,
+                     (0, 1 / 2), part=self.antithesis),
+            Movement(self.synthesis.fill_parameter,
+                     (1 / 2, 1), part=self.synthesis),
+            Movement(self.synthesis_height_parameter,
+                     (1 / 2, 1), output=(0, self.synthesis_height)),
+            target=self, completion_parameter=self.dialectic_parameter, name="Dialectic")
+
     def specify_creation(self):
         creation_action = XAction(
             Movement(self.fire.creation_parameter,
                      (1 / 4, 1), part=self.fire),
-            Movement(self.circle_border.creation_parameter,
+            Movement(self.circle_border.opacity_parameter,
                      (0, 2 / 3), part=self.circle_border),
             Movement(self.left_human.creation_parameter,
                      (1 / 3, 2 / 3), part=self.left_human),
             Movement(self.right_human.creation_parameter,
                      (1 / 3, 2 / 3), part=self.right_human),
+            Movement(self.distance_humans_parameter, (1 / 3, 2 / 3),
+                     output=(1, self.distance_humans)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def dialectic(self, completion=1):
+        """specifies the dialectic animation"""
+        desc_id = self.dialectic_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        return animation
 
 
 class PhysicalFire(CustomObject):
@@ -317,6 +358,8 @@ class DigitalCampfire(CustomObject):
                      (1 / 3, 2 / 3), part=self.left_human.svg),
             Movement(self.right_human.svg.draw_parameter,
                      (1 / 3, 2 / 3), part=self.right_human.svg),
+            Movement(self.distance_humans_parameter, (1 / 3, 2 / 3),
+                     output=(1, self.distance_humans)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 

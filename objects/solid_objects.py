@@ -18,15 +18,25 @@ class Sphere(SolidObject):
 
 class Cylinder(SolidObject):
 
-    def __init__(self, radius=50, height=150, **kwargs):
+    def __init__(self, radius=50, height=150, orientation="x+", **kwargs):
         self.radius = radius
         self.height = height
+        self.orientation = orientation
         super().__init__(**kwargs)
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Ocylinder)
 
     def set_object_properties(self):
+        orientations = {
+            "x+": 0,
+            "x-": 1,
+            "y+": 2,
+            "y-": 3,
+            "z+": 4,
+            "z-": 5
+        }
+        self.obj[c4d.PRIM_AXIS] = orientations[self.orientation]
         self.obj[c4d.PRIM_CYLINDER_RADIUS] = self.radius
         self.obj[c4d.PRIM_CYLINDER_HEIGHT] = self.height
 
