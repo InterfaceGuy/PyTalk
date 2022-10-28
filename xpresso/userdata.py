@@ -214,7 +214,7 @@ class ULength(UReal):
 
     def specify_constraints(self):
         # set unit to length
-        self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_LONG
+        self.bc[c4d.DESC_UNIT] = c4d.DESC_UNIT_METER
         # set step size
         self.bc[c4d.DESC_STEP] = 0.01
 
