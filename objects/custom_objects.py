@@ -1,14 +1,15 @@
 from pydeation.objects.abstract_objects import CustomObject
+import pydeation.objects.effect_objects as effect_objects
 from pydeation.objects.solid_objects import Extrude, Cylinder
-from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline
-from pydeation.objects.sketch_objects import Human, Fire, Footprint
+from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, EdgeSpline
+from pydeation.objects.sketch_objects import Human, Fire, Footprint, GitHub
 from pydeation.objects.helper_objects import *
 from pydeation.objects.light_objects import Light
 from pydeation.xpresso.userdata import *
 from pydeation.xpresso.xpressions import *
 from pydeation.animation.animation import ScalarAnimation
 from pydeation.constants import *
-from pydeation.utils import match_indices
+import random
 import c4d
 
 
@@ -39,16 +40,13 @@ class Group(CustomObject):
     def specify_parts(self):
         self.parts = self.children
 
-    """
-    def add_children(self):
-        for child in self.children[::-1]:
-            child.obj.InsertUnder(self.obj)
-    """
-
     def add(self, *children):
         for child in children:
             self.children.append(child)
             child.obj.InsertUnder(self.obj)
+
+    def sort(self, key=None):
+        return self.children.sort(key=key)
 
     def position_on_spline(self, spline):
         """positions the children the given spline"""
@@ -109,7 +107,7 @@ class Group(CustomObject):
                 edge = random.choice(
                     [(start_node, target_node), (target_node, start_node)])
                 all_edges.append(edge)
-        if not deterministic:
+        if deterministic:
             random.seed(random_seed)
         selected_edges = random.sample(
             all_edges, round(len(all_edges) * completeness))
@@ -122,20 +120,21 @@ class Group(CustomObject):
         return Group(*self.connections, name="Connections", visible=visible)
 
 
+
 class Director(CustomObject):
     """the director object takes multiple actors (objects) and drives a specified shared animation parameter using fields"""
 
-    def __init__(self, *actors, parameter=None, mode="domino", completion=0, field_length=30, **kwargs):
+    def __init__(self, *actors, parameter=None, mode="domino", completion=0, domino_zone=1/3, **kwargs):
         self.actors = actors
         self.parameter = parameter
         self.mode = mode
         self.completion = completion
-        self.field_length = field_length
+        self.domino_zone = domino_zone
         super().__init__(**kwargs)
 
     def specify_live_bounding_box_relation(self):
         """the bounding box of the director takes all targeted actors into account"""
-        live_bounding_box_relation = XBoundingBox(self, target=self, width_parameter=self.width_parameter, height_parameter=self.height_parameter,
+        live_bounding_box_relation = XBoundingBox(*self.actors, target=self, width_parameter=self.width_parameter, height_parameter=self.height_parameter,
                                                   depth_parameter=self.depth_parameter, center_parameter=self.center_parameter,
                                                   center_x_parameter=self.center_x_parameter, center_y_parameter=self.center_y_parameter, center_z_parameter=self.center_z_parameter)
 
@@ -149,8 +148,10 @@ class Director(CustomObject):
     def specify_parameters(self):
         if self.mode == "domino":
             self.field_length_parameter = ULength(
-                name="FieldLength", default_value=self.field_length)
-            self.parameters.append(self.field_length_parameter)
+                name="FieldLength")
+            self.domino_zone_parameter = UCompletion(
+                name="DominoZone", default_value=self.domino_zone)
+            self.parameters += [self.field_length_parameter, self.domino_zone_parameter]
         self.completion_parameter = type(self.parameter)(
             name=self.parameter.name, default_value=self.completion)
         self.bounding_box_max_x_parameter = ULength(name="BoundingBoxMaxX")
@@ -163,11 +164,21 @@ class Director(CustomObject):
             field_to_parameter_relation = XLinkParamToField(
                 field=self.field, target=self, part=child, parameter=self.parameter)
             field_to_parameter_relations.append(field_to_parameter_relation)
-        field_length_relation = XIdentity(part=self.field, whole=self, desc_ids=[self.field.desc_ids["length"]],
-                                          parameter=self.field_length_parameter)
+        field_length_inheritance = XIdentity(part=self.field, whole=self, desc_ids=[self.field.desc_ids["length"]], parameter=self.field_length_parameter)
+        field_length_relation = XRelation(part=self, whole=self, desc_ids=[self.field_length_parameter.desc_id],
+                                          parameters=[self.domino_zone_parameter, self.width_parameter], formula=f"{self.domino_zone_parameter.name} * {self.width_parameter.name}")
         if self.mode == "domino":
             self.completion_relation = XRelation(part=self.field, whole=self, desc_ids=[POS_X], parameters=[self.completion_parameter, self.width_parameter, self.field_length_parameter],
                                                  formula=f"-({self.width_parameter.name}/2+{self.field_length_parameter.name})+({self.width_parameter.name}+2*{self.field_length_parameter.name})*{self.completion_parameter.name}")
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.completion_parameter, (0, 1)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def specify_bounding_box_relations(self):
+        # the director does not need prescriptive bounding box
+        pass
 
 
 class Eye(CustomObject):
@@ -202,29 +213,34 @@ class PhysicalCampfire(CustomObject):
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.circle_border = Circle(plane="xz", creation=True)
+        self.border = Circle(plane="xz", creation=True, name="Border")
         self.circle_membrane = Membrane(
-            self.circle_border, color=BLACK, fill=True)
-        self.circle = Group(self.circle_border,
+            self.border, color=BLACK, fill=True)
+        self.circle = Group(self.border,
                             self.circle_membrane, name="Circle")
         self.left_human = Human(perspective="portrait",
-                                posture="standing", on_floor=True)
+                                posture="standing", on_floor=True, diameter=30)
         self.right_human = Human(
-            perspective="portrait", posture="standing", on_floor=True)
+            perspective="portrait", posture="standing", on_floor=True, diameter=30)
         self.humans = Group(self.left_human, self.right_human, name="Humans")
         self.fire = PhysicalFire()
-        self.symbol = ProjectLiminality(
-            p=-PI / 2, diameter=20, z=-30, show_label=False)
+        self.symbol = GitHub(plane="xz", z=-self.border_radius/2, diameter=20)
         self.thesis = Circle(radius=2, color=BLUE, creation=True)
         self.thesis.attach_to(self.left_human, direction="top", offset=6)
         self.antithesis = Rectangle(
             height=4, width=6, color=RED, creation=True)
         self.antithesis.attach_to(self.right_human, direction="top", offset=6)
-        self.synthesis = Cylinder(
-            radius=2, height=6, orientation="x+", h=PI / 8)
+        self.synthesis = SplineText("S", height=6, creation=True)
+        # self.synthesis = Cylinder(
+        #    radius=2, height=6, orientation="x+", h=PI / 8)
         self.synthesis.attach_to(self.fire)
+        self.thesis_morpher = effect_objects.Morpher(
+            self.thesis, self.synthesis, mode="constant")
+        self.antithesis_morpher = effect_objects.Morpher(
+            self.antithesis, self.synthesis, mode="constant")
         self.parts += [self.circle, self.humans, self.fire, self.symbol,
-                       self.thesis, self.antithesis, self.synthesis]
+                       self.thesis, self.antithesis, self.synthesis,
+                       self.thesis_morpher, self.antithesis_morpher]
 
     def specify_parameters(self):
         self.border_radius_parameter = ULength(
@@ -238,10 +254,10 @@ class PhysicalCampfire(CustomObject):
                             self.synthesis_height_parameter]
 
     def specify_relations(self):
-        border_radius_relation = XIdentity(part=self.circle_border, whole=self, desc_ids=[self.circle_border.desc_ids["radius"]],
+        border_radius_relation = XIdentity(part=self.border, whole=self, desc_ids=[self.border.desc_ids["radius"]],
                                            parameter=self.border_radius_parameter)
         synthesis_height_relation = XRelation(part=self.synthesis, whole=self, desc_ids=[POS_Y],
-                                              parameters=[self.synthesis_height_parameter], formula=f"{self.synthesis_height_parameter.name}+4.5")
+                                              parameters=[self.synthesis_height_parameter], formula=f"{self.synthesis_height_parameter.name}")
         distance_left_human_relation = XRelation(part=self.left_human, whole=self, desc_ids=[POS_X],
                                                  parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"-{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
         distance_right_human_relation = XRelation(part=self.right_human, whole=self, desc_ids=[POS_X],
@@ -250,26 +266,35 @@ class PhysicalCampfire(CustomObject):
     def specify_action_parameters(self):
         self.dialectic_parameter = UCompletion(
             name="DialecticParameter", default_value=0)
-        self.action_parameters += [self.dialectic_parameter]
+        self.sand_talk_parameter = UCompletion(
+            name="SandTalkParameter", default_value=0)
+        self.action_parameters += [self.dialectic_parameter,
+                                   self.sand_talk_parameter]
 
     def specify_actions(self):
         dialectic_action = XAction(
             Movement(self.thesis.opacity_parameter,
-                     (0, 1 / 2), part=self.thesis),
+                    (0, 1 / 2), part=self.thesis),
             Movement(self.antithesis.opacity_parameter,
-                     (0, 1 / 2), part=self.antithesis),
-            Movement(self.synthesis.fill_parameter,
-                     (1 / 2, 1), part=self.synthesis),
+                    (0, 1 / 2), part=self.antithesis),
             Movement(self.synthesis_height_parameter,
-                     (1 / 2, 1), output=(0, self.synthesis_height)),
+                     (1 / 3, 1), output=(0, self.synthesis_height)),
+            Movement(self.thesis_morpher.action_parameter,
+                     (0, 3 / 4), part=self.thesis_morpher),
+            Movement(self.antithesis_morpher.action_parameter,
+                     (0, 3 / 4), part=self.antithesis_morpher),
             target=self, completion_parameter=self.dialectic_parameter, name="Dialectic")
+        sand_talk_action = XAction(
+            Movement(self.symbol.creation_parameter,
+                     (0, 1), part=self.symbol),
+            target=self, completion_parameter=self.sand_talk_parameter, name="SandTalk")
 
     def specify_creation(self):
         creation_action = XAction(
             Movement(self.fire.creation_parameter,
                      (1 / 4, 1), part=self.fire),
-            Movement(self.circle_border.opacity_parameter,
-                     (0, 2 / 3), part=self.circle_border),
+            Movement(self.border.opacity_parameter,
+                     (0, 2 / 3), part=self.border),
             Movement(self.left_human.creation_parameter,
                      (1 / 3, 2 / 3), part=self.left_human),
             Movement(self.right_human.creation_parameter,
@@ -281,6 +306,13 @@ class PhysicalCampfire(CustomObject):
     def dialectic(self, completion=1):
         """specifies the dialectic animation"""
         desc_id = self.dialectic_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        return animation
+
+    def sand_talk(self, completion=1):
+        """specifies the sand_talk animation"""
+        desc_id = self.sand_talk_parameter.desc_id
         animation = ScalarAnimation(
             target=self, descriptor=desc_id, value_fin=completion)
         return animation
@@ -319,10 +351,10 @@ class DigitalCampfire(CustomObject):
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.circle_border = Circle(plane="xz")
+        self.border = Circle(plane="xz")
         self.circle_membrane = Membrane(
-            self.circle_border, color=BLACK, fill=True)
-        self.circle = Group(self.circle_border,
+            self.border, color=BLACK, fill=True)
+        self.circle = Group(self.border,
                             self.circle_membrane, name="Circle")
         self.left_human = Human(perspective="portrait",
                                 posture="standing", on_floor=True)
@@ -341,7 +373,7 @@ class DigitalCampfire(CustomObject):
                             self.distance_humans_parameter]
 
     def specify_relations(self):
-        border_radius_relation = XIdentity(part=self.circle_border, whole=self, desc_ids=[self.circle_border.desc_ids["radius"]],
+        border_radius_relation = XIdentity(part=self.border, whole=self, desc_ids=[self.border.desc_ids["radius"]],
                                            parameter=self.border_radius_parameter)
         distance_left_human_relation = XRelation(part=self.left_human, whole=self, desc_ids=[POS_X],
                                                  parameters=[self.distance_humans_parameter, self.border_radius_parameter], formula=f"-{self.distance_humans_parameter.name}*{self.border_radius_parameter.name}")
@@ -352,8 +384,8 @@ class DigitalCampfire(CustomObject):
         creation_action = XAction(
             Movement(self.digital_fire.creation_parameter,
                      (1 / 4, 1), part=self.digital_fire),
-            Movement(self.circle_border.draw_parameter,
-                     (0, 2 / 3), part=self.circle_border),
+            Movement(self.border.draw_parameter,
+                     (0, 2 / 3), part=self.border),
             Movement(self.left_human.svg.draw_parameter,
                      (1 / 3, 2 / 3), part=self.left_human.svg),
             Movement(self.right_human.svg.draw_parameter,
@@ -466,28 +498,28 @@ class DigitalFire(CustomObject):
 
 class ProjectLiminality(CustomObject):
 
-    def __init__(self, lines_distance_percent=0.22, lines_height=53.125, lines_completion=1, big_circle_radius=100, big_circle_opacity=1, small_circle_radius=62.5, small_circle_opacity=1, circle_gap=2, show_label=True, **kwargs):
+    def __init__(self, lines_distance_percent=0.22, focal_height=53.125, label=True, big_circle_radius=100, small_circle_radius=62.5, circle_gap=2, **kwargs):
         self.lines_distance_percent = lines_distance_percent
-        self.lines_height = lines_height
-        self.lines_completion = lines_completion
+        self.focal_height = focal_height
+        self.label = label
         self.big_circle_radius = big_circle_radius
-        self.big_circle_opacity = big_circle_opacity
         self.small_circle_radius = small_circle_radius
-        self.small_circle_opacity = small_circle_opacity
         self.circle_gap = circle_gap
-        self.show_label = show_label
+        self.specify_action_parameters()
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.big_circle = Circle(color=BLUE, b=PI / 2, name="BigCircle")
-        self.small_circle = Circle(color=RED, z=2, name="SmallCircle")
+        self.big_circle = Circle(
+            radius=self.big_circle_radius, color=BLUE, b=PI / 2, name="BigCircle", creation=True)
+        self.small_circle = Circle(
+            radius=self.small_circle_radius, color=RED, z=2, name="SmallCircle", creation=True)
         self.left_line = Line((0, 0, 0), (0, 0, 0), name="LeftLine")
         self.right_line = Line((0, 0, 0), (0, 0, 0), name="RigthLine")
         self.lines = Group(self.left_line, self.right_line, z=1, name="Lines")
         self.parts += [self.big_circle,
                        self.small_circle, self.lines]
-        if self.show_label:
-            self.label = Text("ProjectLiminality", y=-100)
+        if self.label:
+            self.label = Text("ProjectLiminality", y=-200)
             self.parts.append(self.label)
 
     def specify_parameters(self):
@@ -497,24 +529,15 @@ class ProjectLiminality(CustomObject):
             name="LeftLineDistancePercent")
         self.right_line_distance_percent_parameter = UCompletion(
             name="RightLineDistancePercent")
-        self.lines_height_parameter = ULength(
-            name="LinesHeight", default_value=self.lines_height)
-        self.lines_completion_parameter = UCompletion(
-            name="LinesCompletion", default_value=self.lines_completion)
-        self.big_circle_radius_parameter = ULength(
-            name="BigCircleRadius", default_value=self.big_circle_radius)
-        self.big_circle_opacity_parameter = UCompletion(
-            name="SmallCircleOpacity", default_value=self.big_circle_opacity)
+        self.focal_height_parameter = ULength(
+            name="FocalHeight", default_value=self.focal_height)
         self.small_circle_radius_parameter = ULength(
             name="SmallCircleRadius", default_value=self.small_circle_radius)
-        self.small_circle_opacity_parameter = UCompletion(
-            name="SmallCircleOpacity", default_value=self.small_circle_opacity)
-        self.circle_gap_parameter = ULength(
-            name="CircleGap", default_value=self.circle_gap)
-        self.parameters += [self.lines_distance_percent_parameter, self.lines_height_parameter, self.lines_completion_parameter,
-                            self.right_line_distance_percent_parameter, self.left_line_distance_percent_parameter, self.big_circle_radius_parameter,
-                            self.big_circle_opacity_parameter, self.small_circle_radius_parameter, self.small_circle_opacity_parameter,
-                            self.circle_gap_parameter]
+        self.small_circle_descend_parameter = UCompletion(
+            name="SmallCircleDescend")
+        self.parameters += [self.lines_distance_percent_parameter, self.focal_height_parameter,
+                            self.left_line_distance_percent_parameter, self.right_line_distance_percent_parameter,
+                            self.small_circle_radius_parameter, self.small_circle_descend_parameter]
 
     def specify_relations(self):
         lines_distance_percent_relation_left = XRelation(part=self, whole=self, parameters=[self.lines_distance_percent_parameter],
@@ -525,24 +548,14 @@ class ProjectLiminality(CustomObject):
                                                              spline=self.big_circle, completion_parameter=self.left_line_distance_percent_parameter)
         right_line_distance_percent_relation = XAlignToSpline(part=self.right_line.start_null, whole=self,
                                                               spline=self.big_circle, completion_parameter=self.right_line_distance_percent_parameter)
-        lines_height_relation_left = XIdentity(part=self.left_line.end_null, whole=self,
-                                               parameter=self.lines_height_parameter, desc_ids=[POS_Y])
-        lines_height_relation_right = XIdentity(part=self.right_line.end_null, whole=self,
-                                                parameter=self.lines_height_parameter, desc_ids=[POS_Y])
-        small_circle_height_relation = XRelation(part=self.small_circle, whole=self, parameters=[self.small_circle_radius_parameter, self.big_circle_radius_parameter, self.circle_gap_parameter],
-                                                 desc_ids=[POS_Y], formula=f"{self.big_circle_radius_parameter.name}-{self.small_circle_radius_parameter.name}-{self.circle_gap_parameter.name}")
+        focal_height_relation_left = XIdentity(part=self.left_line.end_null, whole=self,
+                                               parameter=self.focal_height_parameter, desc_ids=[POS_Y])
+        focal_height_relation_right = XIdentity(part=self.right_line.end_null, whole=self,
+                                                parameter=self.focal_height_parameter, desc_ids=[POS_Y])
         small_circle_radius_relation = XIdentity(part=self.small_circle, whole=self, parameter=self.small_circle_radius_parameter,
                                                  desc_ids=[self.small_circle.desc_ids["radius"]])
-        big_circle_radius_relation = XIdentity(part=self.big_circle, whole=self, parameter=self.big_circle_radius_parameter,
-                                               desc_ids=[self.big_circle.desc_ids["radius"]])
-        lines_completion_relation_left = XIdentity(part=self.left_line.connection.path.sketch_material, whole=self, parameter=self.lines_completion_parameter, desc_ids=[
-                                                   self.left_line.connection.path.sketch_material.desc_ids["draw_completion"]])
-        lines_completion_relation_right = XIdentity(part=self.right_line.connection.path.sketch_material, whole=self, parameter=self.lines_completion_parameter, desc_ids=[
-                                                    self.right_line.connection.path.sketch_material.desc_ids["draw_completion"]])
-        big_circle_opacity_relation = XIdentity(part=self.big_circle.sketch_material, whole=self, parameter=self.big_circle_opacity_parameter,
-                                                desc_ids=[self.big_circle.sketch_material.desc_ids["opacity"]])
-        small_circle_opacity_relation = XIdentity(part=self.small_circle.sketch_material, whole=self, parameter=self.small_circle_opacity_parameter,
-                                                  desc_ids=[self.small_circle.sketch_material.desc_ids["opacity"]])
+        small_circle_height_relation = XRelation(part=self.small_circle, whole=self, parameters=[self.focal_height_parameter, self.small_circle_descend_parameter],
+                                                 desc_ids=[POS_Y], formula=f"{self.focal_height_parameter.name}+(({self.big_circle_radius}-{self.circle_gap}-{self.small_circle_radius})-{self.focal_height_parameter.name})*{self.small_circle_descend_parameter.name}")
 
     def specify_action_parameters(self):
         self.creation_parameter = UCompletion(name="Creation", default_value=0)
@@ -550,11 +563,20 @@ class ProjectLiminality(CustomObject):
 
     def specify_actions(self):
         creation_action = XAction(
-            Movement(self.big_circle_opacity_parameter, (0, 1 / 3)),
-            Movement(self.lines_completion_parameter, (1 / 3, 2 / 3)),
-            Movement(self.small_circle_opacity_parameter, (2 / 3, 1)),
-            Movement(self.small_circle_radius_parameter,
-                     (2 / 3, 1), output=(48, 62)),
+            Movement(self.big_circle.opacity_parameter,
+                     (0, 1 / 3), part=self.big_circle),
+            Movement(self.left_line.creation_parameter,
+                     (1 / 3, 0.55), part=self.left_line, easing="in"),
+            Movement(self.right_line.creation_parameter,
+                     (1 / 3, 0.55), part=self.right_line, easing="in"),
+            Movement(self.small_circle.opacity_parameter,
+                     (0.5, 0.7), part=self.small_circle),
+            Movement(self.small_circle_radius_parameter, (0.5, 0.7),
+                     output=(0, 62.5), easing="strong_out"),
+            Movement(self.small_circle_descend_parameter,
+                     (0.5, 0.7), easing="strong_out"),
+            Movement(self.label.creation_parameter,
+                     (1 / 2, 1), part=self.label, easing=False),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
@@ -575,7 +597,7 @@ class Node(CustomObject):
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.border = Rectangle(name="Border", rounding=1)
+        self.border = Rectangle(name="Border", rounding=True, creation=True)
         self.parts.append(self.border)
         if self.text:
             self.label = Text(self.text)
@@ -612,21 +634,31 @@ class Node(CustomObject):
         rounding_relation = XRelation(part=self.border, whole=self, desc_ids=[self.border.desc_ids[
                                       "rounding_radius"]], parameters=[self.rounding_parameter, self.width_parameter, self.height_parameter], formula=f"min({self.width_parameter.name};{self.height_parameter.name})/2*Rounding")
         if self.text:
-            text_relation = XIdentity(
-                part=self.label, whole=self, desc_ids=[self.label.desc_ids["text"]], parameter=self.text_parameter)
             text_position_relation = XRelation(part=self.label, whole=self, desc_ids=[POS_Y], parameters=[
                 self.text_position_parameter, self.height_parameter, self.text_height_parameter], formula=f"if({self.text_position_parameter.name}==0;-{self.text_height_parameter.name}/2;if({self.text_position_parameter.name}==1;{self.height_parameter.name}/2+5;-{self.height_parameter.name}/2-5-{self.text_height_parameter.name}))")
-            text_size_relation = XIdentity(
-                part=self.label, whole=self, desc_ids=[self.label.desc_ids["text_height"]], parameter=self.text_height_parameter)
+            # text_size_relation = XIdentity(
+            #    part=self.label, whole=self, desc_ids=[self.label.desc_ids["text_height"]], parameter=self.text_height_parameter)
         if self.symbol:
             symbol_scale_relation = XRelation(part=self.symbol, whole=self, desc_ids=[self.symbol.diameter_parameter.desc_id], parameters=[self.width_parameter, self.height_parameter, self.symbol_border_parameter],
                                               formula=f"(1-{self.symbol_border_parameter.name})*min({self.width_parameter.name};{self.height_parameter.name})")
+
+    def specify_creation(self):
+        movements = [Movement(self.border.opacity_parameter,
+                              (0, 2 / 3), part=self.border)]
+        if self.label:
+            movements.append(
+                Movement(self.label.creation_parameter, (1 / 3, 1), part=self.label))
+        if self.symbol:
+            movements.append(
+                Movement(self.symbol.creation_parameter, (1 / 3, 1), part=self.symbol))
+            creation_action = XAction(
+                *movements, target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 class MonoLogosNode(Node):
 
     def __init__(self, text="MonoLogos", symbol=None, width=75, height=75, rounding=1, **kwargs):
-        self.symbol = symbol if symbol else ProjectLiminality()
+        self.symbol = symbol if symbol else ProjectLiminality(label=False)
         super().__init__(text=text, width=width, height=height,
                          rounding=rounding, symbol=self.symbol, **kwargs)
 
@@ -723,6 +755,47 @@ class Connection(CustomObject):
             field_between_points_relation = XScaleBetweenPoints(
                 scaled_object=self.spherical_field, point_a=point_a, point_b=point_b, target=self)
 
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.path.creation_parameter,
+                     (0, 1), part=self.path, easing=False),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+
+class BiConnection(CustomObject):
+    """creates a bidirectional connection using two connection objects and a middle point"""
+
+    def __init__(self, start_object, target_object, turbulence=False, turbulence_strength=1, turbulence_axis="x", turbulence_frequency=8, arrows=False, **kwargs):
+        self.start_object = start_object
+        self.target_object = target_object
+        self.turbulence = turbulence
+        self.turbulence_strength = turbulence_strength
+        self.turbulence_axis = turbulence_axis
+        self.turbulence_frequency = turbulence_frequency
+        self.arrows = arrows
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.middle_point = Null(name="MiddlePoint")
+        self.start_connection = Connection(self.middle_point, self.start_object, arrow_end=self.arrows, turbulence=self.turbulence,
+                                           turbulence_strength=self.turbulence_strength, turbulence_axis=self.turbulence_axis, turbulence_frequency=self.turbulence_frequency, name="StartConnection")
+        self.target_connection = Connection(self.middle_point, self.target_object, arrow_end=self.arrows, turbulence=self.turbulence,
+                                            turbulence_strength=self.turbulence_strength, turbulence_axis=self.turbulence_axis, turbulence_frequency=self.turbulence_frequency, name="TargetConnection")
+        self.parts += [self.middle_point,
+                       self.start_connection, self.target_connection]
+
+    def specify_relations(self):
+        self.middle_point_relation = XScaleBetweenPoints(
+            target=self, scaled_object=self.middle_point, point_a=self.start_object, point_b=self.target_object)
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.start_connection.creation_parameter,
+                     (0, 1), part=self.start_connection),
+            Movement(self.target_connection.creation_parameter,
+                     (0, 1), part=self.target_connection),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
 
 class Line(CustomObject):
 
@@ -739,6 +812,12 @@ class Line(CustomObject):
         self.connection = Connection(
             self.start_null, self.end_null, arrow_start=self.arrow_start, arrow_end=self.arrow_end)
         self.parts += [self.start_null, self.end_null, self.connection]
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.connection.creation_parameter,
+                     (0, 1), part=self.connection, easing=False),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 class Arrow(Line):
@@ -759,17 +838,19 @@ class Arrow(Line):
 
 class FootPath(CustomObject):
 
-    def __init__(self, path=None, left_foot=None, right_foot=None, foot_size=10, step_length=20, step_width=30, scale_zone_length=3, path_completion=1, **kwargs):
+    def __init__(self, path=None, left_foot=None, right_foot=None, foot_size=10, step_length=20, step_width=30, scale_zone_length=3, path_completion=1, offset_start=1 / 20, offset_end=1 / 20, **kwargs):
         self.path = path
         self.left_foot = left_foot if left_foot else Footprint(
-            side="left", plane="xz")
+            side="left", plane="xz", creation=True)
         self.right_foot = right_foot if right_foot else Footprint(
-            side="right", plane="xz")
+            side="right", plane="xz", creation=True)
         self.foot_size = foot_size
         self.step_length = step_length
         self.step_width = step_width
         self.scale_zone_length = scale_zone_length
         self.path_completion = path_completion
+        self.offset_start = offset_start
+        self.offset_end = offset_end
         super().__init__(**kwargs)
         # manually add clones to fix parts/clones conflict concerning visibility
         self.cloner.add_clones(self.right_foot, self.left_foot)
@@ -779,18 +860,18 @@ class FootPath(CustomObject):
                                          self.visual_position_parameter.desc_id], parameter=self.path.center_parameter)
 
     def specify_parts(self):
-        self.linear_field = LinearField(length=10, direction="z+")
-        self.plain_effector = PlainEffector(
-            fields=[self.linear_field], scale=-1)
-        self.cloner = Cloner(mode="object", target_object=self.path, offset=1 / 20, clones=[self.left_foot, self.right_foot],
+        self.plain_effector = PlainEffector(scale=-1, spline_field=self.path)
+        self.cloner = Cloner(mode="object", target_object=self.path, clones=[self.left_foot, self.right_foot],
                              effectors=[self.plain_effector])
-        self.parts += [self.linear_field, self.plain_effector,
+        self.parts += [self.plain_effector,
                        self.cloner, self.right_foot, self.left_foot]
 
     def specify_parameters(self):
         # TODO: use spherical field with plain effector to make offset work properly
-        self.offset_start_parameter = UCompletion(name="OffsetStart")
-        self.offset_end_parameter = UCompletion(name="OffsetEnd")
+        self.offset_start_parameter = UCompletion(
+            name="OffsetStart", default_value=self.offset_start)
+        self.offset_end_parameter = UCompletion(
+            name="OffsetEnd", default_value=self.offset_end)
         self.foot_size_parameter = ULength(
             name="FootSize", default_value=self.foot_size)
         self.step_length_parameter = ULength(
@@ -806,10 +887,6 @@ class FootPath(CustomObject):
         self.parameters += [self.offset_start_parameter, self.offset_end_parameter, self.step_length_parameter,
                             self.step_width_parameter, self.scale_zone_length_parameter,
                             self.path_completion_parameter, self.foot_size_parameter, self.path_length_parameter]
-        """
-        self.floor_plane_parameter = UOptions(
-            name="FloorPlane", options=["xy", "zy", "xz"], default_value=self.floor_plane)
-        """
 
     def specify_relations(self):
         step_width_left_foot_relation = XRelation(part=self.left_foot, whole=self, desc_ids=[self.left_foot.relative_x_parameter.desc_id],
@@ -826,73 +903,31 @@ class FootPath(CustomObject):
                                          self.cloner.desc_ids["step_size"]], parameter=self.step_length_parameter)
         offset_start_relation = XIdentity(part=self.cloner, whole=self, desc_ids=[
                                           self.cloner.desc_ids["offset_start"]], parameter=self.offset_start_parameter)
-        offset_end_relation = XRelation(part=self.cloner, whole=self, desc_ids=[self.cloner.desc_ids["offset_end"]], parameters=[
-                                        self.offset_end_parameter], formula=f"1-{self.offset_end_parameter.name}")
-        path_completion_relation = XAlignToSpline(part=self.linear_field, whole=self, spline=self.path,
-                                                  completion_parameter=self.path_completion_parameter)
-        scale_zone_length_relation = XIdentity(part=self.linear_field, whole=self, desc_ids=[self.linear_field.desc_ids["length"]],
-                                               parameter=self.scale_zone_length_parameter)
-        """
-        floor_plane_h_relation = XRelation(part=self.cloner, whole=self, desc_ids=[self.cloner.desc_ids["rotation_h"]],
-                                           parameters=[self.floor_plane_parameter], formula=f"if({self.floor_plane_parameter.name}==0;0;Pi/2)")
-        floor_plane_p_relation = XRelation(part=self.cloner, whole=self, desc_ids=[self.cloner.desc_ids["rotation_p"]],
-                                           parameters=[self.floor_plane_parameter], formula=f"if({self.floor_plane_parameter.name}==0;-Pi/2;0))")
-        floor_plane_b_relation = XRelation(part=self.cloner, whole=self, desc_ids=[self.cloner.desc_ids["rotation_b"]],
-                                           parameters=[self.floor_plane_parameter], formula=f"if({self.floor_plane_parameter.name}==0;0;Pi/2)")
-        """
+        path_completion_relation = XRelation(part=self.plain_effector, whole=self, desc_ids=[self.plain_effector.spline_field_desc_ids["spline_field_offset"]],
+                                             parameters=[self.path_completion_parameter, self.scale_zone_length_parameter, self.offset_end_parameter], formula=f"{self.scale_zone_length_parameter.name}/100-(1+{self.scale_zone_length_parameter.name}/100)*({self.path_completion_parameter.name}-{self.offset_end_parameter.name})")
+        scale_zone_length_relation = XRelation(part=self.plain_effector, whole=self, desc_ids=[self.plain_effector.spline_field_desc_ids["spline_field_range_end"]],
+                                               parameters=[self.scale_zone_length_parameter], formula=f"{self.scale_zone_length_parameter.name}/100")
 
     def specify_action_parameters(self):
         self.creation_parameter = UCompletion(name="Creation", default_value=0)
         self.action_parameters = [self.creation_parameter]
 
-    def specify_actions(self):
+    def specify_creation(self):
         creation_action = XAction(
-            Movement(self.path_completion_parameter, (0, 1)),
-            target=self, completion_parameter=self.creation_parameter, name="Creation")
-
-
-class SplineScreen(CustomObject):
-    """creates a spline at the intersection with a 2D screen"""
-
-    def __init__(self, orientation="z+", **kwargs):
-        self.orientation = orientation
-        super().__init__(**kwargs)
-
-    def specify_parts(self):
-        self.screen = Plane(orientation=self.orientation)
-        self.edge_spline = EdgeSpline(mode="intersection")
-        self.parts += [self.edge_spline]
-
-    def specify_parameters(self):
-        self.some_parameter = UCompletion(
-            name="SomeParameter", default_value=self.some_value)
-        self.parameters += [self.some_parameter]
-
-    def specify_relations(self):
-        screen_width_relation = XRelation(part=self.screen, whole=self, desc_ids=[self.screen.desc_ids["width"]],
-                                          parameters=[self.width_parameter], formula=f"{self.width_parameter.name}")
-        screen_height_relation = XRelation(part=self.screen, whole=self, desc_ids=[self.screen.desc_ids["height"]],
-                                           parameters=[self.height_parameter], formula=f"{self.height_parameter.name}")
-
-    def specify_action_parameters(self):
-        self.creation_parameter = UCompletion(name="Creation", default_value=0)
-        self.action_parameters = [self.creation_parameter]
-
-    def specify_actions(self):
-        creation_action = XAction(
-            Movement(self.some_parameter, (0, 1)),
+            Movement(self.path_completion_parameter, (0, 1), easing=False),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 class Text(CustomObject):
     """creates a text object holding individual letters which can be animated using a Director"""
 
-    def __init__(self, text, height=50, anchor="middle", writing_completion=1, fill=1, **kwargs):
+    def __init__(self, text, height=50, anchor="middle", writing_completion=1, fill=1, color=WHITE, **kwargs):
         self.text = text
         self.spline_text = SplineText(
             self.text, height=height, anchor=anchor, seperate_letters=True)
         self.writing_completion = writing_completion
         self.fill = fill
+        self.color = color
         self.convert_spline_text_to_spline_letters()
         self.convert_spline_letters_to_custom_letters()
         super().__init__(**kwargs)
@@ -914,7 +949,7 @@ class Text(CustomObject):
     def convert_spline_letters_to_custom_letters(self):
         self.custom_letters = []
         for spline_letter in self.spline_letters:
-            custom_letter = Letter(spline_letter)
+            custom_letter = Letter(spline_letter, color=self.color)
             self.custom_letters.append(custom_letter)
 
     def specify_parts(self):
@@ -934,15 +969,8 @@ class Text(CustomObject):
     def specify_relations(self):
         writing_completion_relation = XIdentity(part=self.writing_director, whole=self, desc_ids=[self.writing_director.completion_parameter.desc_id],
                                                 parameter=self.writing_completion_parameter)
-        # for custom_letter in self.custom_letters:
-        #    fill_inheritance = XIdentity(part=custom_letter, whole=self, desc_ids=[custom_letter.fill_parameter.desc_id],
-        #                                 parameter=self.fill_parameter)
 
-    def specify_action_parameters(self):
-        self.creation_parameter = UCompletion(name="Creation", default_value=0)
-        self.action_parameters = [self.creation_parameter]
-
-    def specify_actions(self):
+    def specify_creation(self):
         creation_action = XAction(
             Movement(self.writing_completion_parameter, (0, 1)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
@@ -951,15 +979,16 @@ class Text(CustomObject):
 class Letter(CustomObject):
     """a letter used to create text"""
 
-    def __init__(self, character=None, draw=1, fill=1, **kwargs):
+    def __init__(self, character=None, draw=1, fill=1, color=WHITE, **kwargs):
         self.character = character
         self.draw = draw
         self.fill = fill
+        self.color = color
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.spline = PySpline(self.character, name="Spline")
-        self.membrane = Membrane(self.spline)
+        self.spline = PySpline(self.character, color=self.color, name="Spline")
+        self.membrane = Membrane(self.spline, color=self.color)
         # set global matrices
         self.obj.SetMg(self.character.GetMg())
         self.parts += [self.spline, self.membrane]
@@ -979,11 +1008,7 @@ class Letter(CustomObject):
         fill_inheritance = XIdentity(part=self.membrane, whole=self,
                                      desc_ids=[self.membrane.fill_parameter.desc_id], parameter=self.fill_parameter)
 
-    def specify_action_parameters(self):
-        self.creation_parameter = UCompletion(name="Creation", default_value=0)
-        self.action_parameters = [self.creation_parameter]
-
-    def specify_actions(self):
+    def specify_creation(self):
         creation_action = XAction(
             Movement(self.draw_parameter, (0, 2 / 3)),
             Movement(self.fill_parameter, (1 / 2, 1)),
@@ -1019,13 +1044,16 @@ class Membrane(CustomObject):
         mospline_correction = XCorrectMoSplineTransform(
             self.mospline, target=self)
 
-    def specify_action_parameters(self):
-        pass
-        #self.creation_parameter = UCompletion(name="Creation", default_value=0)
-        #self.action_parameters = [self.creation_parameter]
 
-    def specify_actions(self):
-        pass
-        # creation_action = XAction(
-        #    Movement(self.some_parameter, (0, 1)),
-        #    target=self, completion_parameter=self.creation_parameter, name="Creation")
+class BoundingSpline(CustomObject):
+    """creates a (perspective dependent) bounding spline for any given solid object using the edge spline object"""
+
+    def __init__(self, solid_object, color=WHITE, **kwargs):
+        self.solid_object = solid_object
+        self.color = color
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.outline_spline = EdgeSpline(self.solid_object, mode="outline")
+        self.curvature_spline = EdgeSpline(self.outline_spline, mode="curvature")
+        self.parts += [self.outline_spline, self.curvature_spline]
