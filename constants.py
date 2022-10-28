@@ -24,6 +24,9 @@ PI = np.pi
 # paths
 SVG_PATH = "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/python39/libs/pydeation/assets/svg"
 
+# camera settings
+ASPECT_RATIO = 16/9
+
 # missing descIds xpresso ports
 REAL_DESCID_IN = c4d.DescID(c4d.DescLevel(1000019, 400007003, 1001144))
 REAL_DESCID_OUT = c4d.DescID(c4d.DescLevel(536870931, 400007003, 1001144))
