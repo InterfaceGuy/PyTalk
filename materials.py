@@ -59,15 +59,18 @@ class SketchMaterial(Material):
         self.obj[c4d.OUTLINEMAT_ENDCAP_WIDTH] = 7
         self.obj[c4d.OUTLINEMAT_ENDCAP_HEIGHT] = 5
         self.obj[c4d.OUTLINEMAT_ANIMATE_AUTODRAW] = True  # draw mode
+        self.obj[c4d.OUTLINEMAT_ANIMATE_STROKES] = 4  # draw order
         # draw speed to completion
         self.obj[c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_TYPE] = 2
         # strokes independent of screen
         self.obj[c4d.OUTLINEMAT_STOKECLIP_TOSCREEN] = False
 
+
     def set_unique_desc_ids(self):
         self.desc_ids = {
             "draw_completion": c4d.DescID(c4d.DescLevel(c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_COMPLETE, c4d.DTYPE_REAL, 0)),
-            "opacity": c4d.DescID(c4d.DescLevel(c4d.OUTLINEMAT_OPACITY, c4d.DTYPE_REAL, 0))
+            "opacity": c4d.DescID(c4d.DescLevel(c4d.OUTLINEMAT_OPACITY, c4d.DTYPE_REAL, 0)),
+            "color": c4d.DescID(c4d.DescLevel(c4d.OUTLINEMAT_COLOR, c4d.DTYPE_COLOR, 0))
         }
 
 
