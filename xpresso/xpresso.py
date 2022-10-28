@@ -10,6 +10,7 @@ class XNode:
         node_types = {
             "group": c4d.ID_GV_OPERATOR_GROUP,
             "bool": c4d.ID_OPERATOR_BOOL,
+            "not": c4d.ID_OPERATOR_NOT,
             "compare": c4d.ID_OPERATOR_CMP,
             "condition": c4d.ID_OPERATOR_CONDITION,
             "constant": c4d.ID_OPERATOR_CONST,
@@ -40,6 +41,7 @@ class XNode:
             "real": 1,
             "normal": 2,
             "vector": 3,
+            "color": 3,
             "matrix": 4
         }
         # set attributes
@@ -180,6 +182,13 @@ class XBool(XNode):
         self.obj[c4d.GV_BOOL_FUNCTION_ID] = modes[self.mode]  # set mode
 
 
+class XNot(XNode):
+    """creates a NOT node"""
+
+    def __init__(self, target, **kwargs):
+        super().__init__(target, "not", **kwargs)
+
+
 class XMemory(XNode):
     """creates a memory node"""
 
@@ -230,7 +239,7 @@ class XBBox(XPython):
         self.set_ports()
 
     def set_params(self):
-        self.obj[c4d.GV_PYTHON_CODE] = 'from typing import Optional\nimport c4d\n\nop: c4d.modules.graphview.GvNode # The Xpresso node\n\n\nObject: c4d.BaseList2D # In: The object to measure the bounding box for.\nCenter: c4d.Vector # Out: The bounding box center.\nDiameter: c4d.Vector # Out: The bounding box radius.\n\n\ndef get_bounding_box(obj):\n\n    center = obj.GetMp()*obj.GetMg()\n    radius = obj.GetRad()\n    \n    return center, radius\n\n \n# Recurses a hierarchy, starting from op\n# Returns number successful callbacks\ndef recurse_hierarchy(op, callback, local_bboxes):\n    count = 0\n    while op:\n        count += 1\n        center, radius = get_bounding_box(op)\n        if radius != c4d.Vector(0,0,0) or op.GetName() == "MoSpline":\n            local_bbox = (center, radius)\n            local_bboxes.append(local_bbox)\n        sub_count, local_bboxes = recurse_hierarchy(op.GetDown(), callback, local_bboxes)\n        count += sub_count\n        op = op.GetNext()\n    return count, local_bboxes\n\n\ndef get_global_bounding_box(local_bboxes):\n    """derives the global bounding box from a list of local ones"""\n    xs = []\n    ys = []\n    zs = []\n    for local_bbox in local_bboxes:\n        center, radius = local_bbox\n        max_x = center.x + radius.x\n        min_x = center.x - radius.x\n        max_y = center.y + radius.y\n        min_y = center.y - radius.y\n        max_z = center.z + radius.z\n        min_z = center.z - radius.z\n        xs += [min_x, max_x]\n        ys += [min_y, max_y]\n        zs += [min_z, max_z]\n\n    global_max_x = max(xs)\n    global_min_x = min(xs)\n    global_max_y = max(ys)\n    global_min_y = min(ys)\n    global_max_z = max(zs)\n    global_min_z = min(zs)\n\n    global_width = global_max_x - global_min_x\n    global_height = global_max_y - global_min_y\n    global_depth = global_max_z - global_min_z\n\n    global_center_x = global_min_x + global_width/2\n    global_center_y = global_min_y + global_height/2\n    global_center_z = global_min_z + global_depth/2\n\n    global_diameter = c4d.Vector(global_width, global_height, global_depth)\n    global_center = c4d.Vector(global_center_x, global_center_y, global_center_z)\n\n    return global_center, global_diameter\n\n\ndef main() -> None:\n    global Center, Diameter\n\n    local_bboxes = []\n\n    for port in op.GetInPorts():\n        obj = globals()[port.GetName(op)]\n        \n        count, local_bboxes = recurse_hierarchy(obj, get_bounding_box, local_bboxes)\n\n    global_bbox = get_global_bounding_box(local_bboxes)\n\n    Center, Diameter = global_bbox'
+        self.obj[c4d.GV_PYTHON_CODE] = 'from typing import Optional\nimport c4d\n\nop: c4d.modules.graphview.GvNode # The Xpresso node\n\n\nObject: c4d.BaseList2D # In: The object to measure the bounding box for.\nCenter: c4d.Vector # Out: The bounding box center.\nDiameter: c4d.Vector # Out: The bounding box radius.\n\n\ndef get_bounding_box(obj):\n\n    center = obj.GetMp()*obj.GetMg()\n    radius = obj.GetRad()\n    radius = c4d.Vector(abs(radius.x), abs(radius.y), abs(radius.z))\n\n    return center, radius\n\n\ndef recurse_hierarchy(op, callback, local_bboxes):\n# Recurses a hierarchy, starting from op\n    while op:\n        center, radius = callback(op)\n        if radius != c4d.Vector(0,0,0) and not op.GetName() == "MoSpline":\n            local_bbox = (center, radius)\n            local_bboxes.append(local_bbox)\n        local_bboxes = recurse_hierarchy(op.GetDown(), callback, local_bboxes)\n        op = op.GetNext()\n    return local_bboxes\n\n\ndef initial_step(op, callback):\n    # manually does the initial step for the parent of the hierarchy\n    # everything underneath it will be recursively crawled\n    center, radius = callback(op)\n    local_bbox = (center, radius)\n    return local_bbox\n\n\ndef get_global_bounding_box(local_bboxes):\n    """derives the global bounding box from a list of local ones"""\n    xs = []\n    ys = []\n    zs = []\n    for local_bbox in local_bboxes:\n        center, radius = local_bbox\n        max_x = center.x + radius.x\n        min_x = center.x - radius.x\n        max_y = center.y + radius.y\n        min_y = center.y - radius.y\n        max_z = center.z + radius.z\n        min_z = center.z - radius.z\n        xs += [min_x, max_x]\n        ys += [min_y, max_y]\n        zs += [min_z, max_z]\n\n    global_max_x = max(xs)\n    global_min_x = min(xs)\n    global_max_y = max(ys)\n    global_min_y = min(ys)\n    global_max_z = max(zs)\n    global_min_z = min(zs)\n\n    global_width = global_max_x - global_min_x\n    global_height = global_max_y - global_min_y\n    global_depth = global_max_z - global_min_z\n\n    global_center_x = global_min_x + global_width/2\n    global_center_y = global_min_y + global_height/2\n    global_center_z = global_min_z + global_depth/2\n\n    global_diameter = c4d.Vector(global_width, global_height, global_depth)\n    global_center = c4d.Vector(global_center_x, global_center_y, global_center_z)\n\n    return global_center, global_diameter\n\n\ndef main() -> None:\n    global Center, Diameter\n\n    local_bboxes = []\n\n    for port in op.GetInPorts():\n        obj = globals()[port.GetName(op)]\n\n        initial_bbox = initial_step(obj, get_bounding_box)\n        local_bboxes.append(initial_bbox)\n        local_bboxes = recurse_hierarchy(obj.GetDown(), get_bounding_box, local_bboxes)\n\n    global_bbox = get_global_bounding_box(local_bboxes)\n\n    Center, Diameter = global_bbox'
 
     def set_ports(self):
         self.obj.RemoveUnusedPorts()
@@ -317,12 +326,18 @@ class XRangeMapper(XNode):
                 0, 0, 0), vTangentRight=c4d.Vector(0.25, 0, 0))
             spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
                            vTangentLeft=c4d.Vector(-0.25, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
-        elif self.easing == "IN":
+        elif self.easing == "in":
             spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(
                 0, 0, 0), vTangentRight=c4d.Vector(0.25, 0, 0))
-        elif self.easing == "OUT":
+        elif self.easing == "strong_in":
+            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(
+                0, 0, 0), vTangentRight=c4d.Vector(0.5, 0, 0))
+        elif self.easing == "out":
             spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
                            vTangentLeft=c4d.Vector(-0.25, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
+        elif self.easing == "strong_out":
+            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
+                           vTangentLeft=c4d.Vector(-0.5, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
 
         self.obj[c4d.GV_RANGEMAPPER_SPLINE] = spline
 
