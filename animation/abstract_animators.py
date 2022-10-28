@@ -1,7 +1,9 @@
+from pydeation.objects.effect_objects import Morpher
 from abc import ABC, abstractmethod
 from pydeation.animation.animation import BoolAnimation, ScalarAnimation, CompletionAnimation, AnimationGroup
 from pydeation.xpresso.userdata import UParameter
 from pydeation.xpresso.xpressions import XAnimation, XAnimator, XComposition
+from pydeation.objects.custom_objects import Connection, BiConnection, Group
 from iteration_utilities import deepflatten  # used to flatten groups
 import c4d
 
@@ -10,25 +12,18 @@ class ProtoAnimator(ABC):
     """an animator is a very thin wrapper that accesses the respective animation methods of its input objects.
     it outputs only the necessary animations as an animation group and rescales them by the relative run time"""
 
-    def __init__(self, *objs, rel_start=0, rel_stop=1, relative=False, multiplicative=False, unpack_groups=True, animation_type="xvector", category=None, **kwargs):
+    def __init__(self, *objs, rel_start=0, rel_stop=1, unpack_groups=True, **kwargs):
         self.document = c4d.documents.GetActiveDocument()
         self.objs = objs
         self.rel_start = rel_start
         self.rel_stop = rel_stop
-        self.relative = relative
-        self.multiplicative = multiplicative
         self.unpack_groups = unpack_groups
-        self.animation_type = animation_type
-        self.category = category
         self.kwargs = kwargs
 
         self.specify_animation_method()
         self.flatten_input()
         self.build_animation_group()
-        self.rescale_animation_group()
-        # add category for visibility handling
-        self.animation_group.category = category
-        self.animations = self.animation_group
+        self.rescale_animations()
 
     def specify_animation_method(self):
         """specifies the method used for the animation"""
@@ -60,11 +55,11 @@ class ProtoAnimator(ABC):
             animations.append(animation)
         self.animation_group = AnimationGroup(*animations)
 
-    def rescale_animation_group(self):
+    def rescale_animations(self):
         """rescales the animations using relative start/stop"""
         animation_group_rescaled = AnimationGroup(
             (self.animation_group, (self.rel_start, self.rel_stop)))
-        self.animation_group = animation_group_rescaled
+        self.animations = animation_group_rescaled
 
 
 class Create(ProtoAnimator):
@@ -81,6 +76,18 @@ class Draw(ProtoAnimator):
 
 class UnDraw(ProtoAnimator):
     pass
+
+
+class FadeIn(ProtoAnimator):
+
+    def specify_animation_method(self):
+        self.animation_method = "fade_in"
+
+
+class FadeOut(ProtoAnimator):
+
+    def specify_animation_method(self):
+        self.animation_method = "fade_out"
 
 
 class Fill(ProtoAnimator):
@@ -101,6 +108,138 @@ class Scale(ProtoAnimator):
 
 class Rotate(ProtoAnimator):
     pass
+
+
+class Morph(ProtoAnimator):
+
+    def __init__(self, object_ini, object_fin, clone=False, rel_start=0, rel_stop=1, mode="constant", **kwargs):
+        self.object_ini = object_ini
+        self.object_fin = object_fin
+        self.clone = clone
+        self.rel_start = rel_start
+        self.rel_stop = rel_stop
+        self.mode = mode
+        self.kwargs = kwargs
+
+        self.morpher = Morpher(object_ini, object_fin,
+                               clone=self.clone, mode=self.mode)
+        self.objs = [self.morpher]  # morpher is obj to be animated
+
+        self.specify_animation_method()
+        self.build_animation_group()
+        self.rescale_animations()
+
+
+class Connect(ProtoAnimator):
+
+    def __init__(self, object_ini, object_fin, rel_start=0, rel_stop=1, turbulence=False, bidirectional=False, arrow=True, unpack_groups=True, **kwargs):
+        self.object_ini = object_ini
+        self.object_fin = object_fin
+        self.rel_start = rel_start
+        self.rel_stop = rel_stop
+        self.turbulence = turbulence
+        self.bidirectional = bidirectional
+        self.kwargs = kwargs
+        self.arrow = arrow
+        self.unpack_groups = unpack_groups
+
+        self.create_connections()
+        self.objs = self.connections  # connections are objs to be animated
+
+        self.register_connections()
+        self.specify_animation_method()
+        self.build_animation_group()
+        self.rescale_animations()
+
+    def create_connections(self):
+        self.connections = []
+        if type(self.object_ini) is Group and self.unpack_groups or type(self.object_ini) in (tuple, list):
+            group_ini = self.object_ini
+            if type(self.object_fin) is Group and self.unpack_groups or type(self.object_fin) in (tuple, list):
+                group_fin = self.object_fin
+                for object_ini in group_ini:
+                    for object_fin in group_fin:
+                        if self.bidirectional:
+                            connection = BiConnection(
+                                object_ini, object_fin, turbulence=self.turbulence, arrows=self.arrow)
+                            self.connections.append(connection)
+                        else:
+                            connection = Connection(
+                                object_ini, object_fin, turbulence=self.turbulence, arrow_end=self.arrow)
+                            self.connections.append(connection)
+            else:
+                for object_ini in group_ini:
+                    if self.bidirectional:
+                        connection = BiConnection(
+                            object_ini, self.object_fin, turbulence=self.turbulence, arrows=self.arrow)
+                        self.connections.append(connection)
+                    else:
+                        connection = Connection(
+                            object_ini, self.object_fin, turbulence=self.turbulence, arrow_end=self.arrow)
+                        self.connections.append(connection)
+        else:
+            if type(self.object_fin) is Group and self.unpack_groups or type(self.object_fin) in (tuple, list):
+                group_fin = self.object_fin
+                for object_fin in group_fin:
+                    if self.bidirectional:
+                        connection = BiConnection(
+                            self.object_ini, object_fin, turbulence=self.turbulence, arrows=self.arrow)
+                        self.connections.append(connection)
+                    else:
+                        connection = Connection(
+                            self.object_ini, object_fin, turbulence=self.turbulence, arrow_end=self.arrow)
+                        self.connections.append(connection)
+            else:
+                if self.bidirectional:
+                    connection = BiConnection(
+                        self.object_ini, self.object_fin, turbulence=self.turbulence, arrows=self.arrow)
+                    self.connections.append(connection)
+                else:
+                    connection = Connection(
+                        self.object_ini, self.object_fin, turbulence=self.turbulence, arrow_end=self.arrow)
+                    self.connections.append(connection)
+
+    def specify_animation_method(self):
+        self.animation_method = "create"
+
+    def register_connections(self):
+        # saves the connections for later functionality of UnConnect
+        if type(self.object_ini) is Group and self.unpack_groups or type(self.object_ini) in (tuple, list):
+            group_ini = self.object_ini
+            for object_ini, connection in zip(group_ini, self.connections):
+                object_ini.register_connections([connection])
+        else:
+            self.object_ini.register_connections(self.connections)
+        if type(self.object_fin) is Group and self.unpack_groups or type(self.object_fin) in (tuple, list):
+            group_fin = self.object_fin
+            for object_fin, connection in zip(group_fin, self.connections):
+                object_fin.register_connections([connection])
+        else:
+            self.object_fin.register_connections(self.connections)
+
+
+class UnConnect(Connect):
+
+    def __init__(self, object_ini, object_fin, rel_start=0, rel_stop=1, **kwargs):
+        self.object_ini = object_ini
+        self.object_fin = object_fin
+        self.rel_start = rel_start
+        self.rel_stop = rel_stop
+        self.kwargs = kwargs
+
+        if hasattr(self.object_ini, "connections"):
+            self.objs = self.object_ini.connections
+        else:
+            return
+        self.specify_animation_method()
+        self.build_animation_group()
+        self.rescale_animations()
+
+    def specify_animation_method(self):
+        self.animation_method = "uncreate"
+
+
+## DEPRECATED ##
 
 
 class ComposedAnimator(ProtoAnimator):
