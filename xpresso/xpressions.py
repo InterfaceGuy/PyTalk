@@ -8,17 +8,23 @@ import c4d
 class XPression(ABC):
     """creates xpressions for a given xpresso tag"""
 
-    def __init__(self, target, freeze_tag=False, composition_level=None):
+    def __init__(self, target, freeze_tag=False, composition_level=None, name=None):
         self.target = target
         self.freeze_tag = freeze_tag
         self.composition_level = composition_level
+        self.name = name
         self.nodes = []
+        self.set_name()
         self.construct()
 
     @abstractmethod
     def construct():
         """analogous to scene class this function constructs the xpression"""
         pass
+
+    def set_name(self):
+        if self.name is None:
+            self.name = self.__class__.__name__[1:]
 
 
 class XActiveRange(XPression):
@@ -39,7 +45,7 @@ class XActiveRange(XPression):
 
     def group_nodes(self):
         self.xgroup = XGroup(self.compare_node_0, self.compare_node_1,
-                             self.bool_node, name=self.__class__.__name__[1:])
+                             self.bool_node, name=self.name)
         self.obj = self.xgroup.obj
 
     def create_ports(self):
@@ -69,7 +75,7 @@ class XNotDescending(XPression):
 
         # group nodes
         self.xgroup = XGroup(memory_node, compare_node,
-                             constant_node, name=self.__class__.__name__[1:])
+                             constant_node, name=self.name)
         self.obj = self.xgroup.obj
 
         # create ports
@@ -581,27 +587,27 @@ class XAnimation(XPression):
 
 class CustomXPression(XPression):
 
-    def __init__(self, target):
-        super().__init__(target)
+    def __init__(self, target, **kwargs):
+        super().__init__(target, **kwargs)
         self.group_nodes()
         self.connect_ports()
 
     def group_nodes(self):
         self.xgroup = XGroup(*self.nodes, custom_tag=True,
-                             name=self.__class__.__name__)
+                             name=self.name)
         self.obj = self.xgroup.obj
 
 
 class XRelation(CustomXPression):
     """creates a relation between a parameter of a part and the whole of a CustomObject"""
 
-    def __init__(self, part=None, whole=None, desc_ids=[], parameters=None, formula=None):
+    def __init__(self, part=None, whole=None, desc_ids=[], parameters=None, formula=None, **kwargs):
         self.formula = formula
         self.desc_ids = desc_ids
         self.parameters = parameters
         self.part = part
         self.whole = whole
-        super().__init__(self.whole)
+        super().__init__(self.whole, **kwargs)
 
     def construct(self):
         self.create_whole_node()
@@ -724,7 +730,7 @@ class XClosestPointOnSpline(CustomXPression):
 
 
 class XScaleBetweenPoints(CustomXPression):
-    """creates a setup that scales adn positions an object such that it touches two points on its periphery"""
+    """creates a setup that scales and positions an object such that it touches two points on its periphery"""
 
     def __init__(self, scaled_object=None, point_a=None, point_b=None, target=None):
         self.scaled_object = scaled_object
@@ -1054,7 +1060,7 @@ class XInheritGlobalMatrix(CustomXPression):
 class Movement:
     """holds the information for a single movement which can be chained together by XAction into an action"""
 
-    def __init__(self, parameter, timing, output=(0, 1), part=None, easing=True):
+    def __init__(self, parameter, timing, output=(0, 1), part=None, easing=False):
         self.parameter = parameter
         self.timing = timing
         self.output = output
@@ -1150,16 +1156,18 @@ class XVisibilityControl(CustomXPression):
         if only initial objects are defined their visibility switches off and on again
         if final objects are defined the visibility transitions to them"""
 
-    def __init__(self, target=None, driving_parameter=None, initial_objects=[], final_objects=[], invisibility_interval=(0, 1)):
+    def __init__(self, target=None, driving_parameter=None, initial_objects=[], transition_objects=[], final_objects=[], invisibility_interval=(0, 1)):
         self.target = target
         self.driving_parameter = driving_parameter
         self.initial_objects = initial_objects
+        self.transition_objects = transition_objects
         self.final_objects = final_objects
         self.invisibility_interval = invisibility_interval
         super().__init__(self.target)
 
     def construct(self):
         self.create_initial_object_nodes()
+        self.create_transition_object_nodes()
         self.create_final_object_nodes()
         self.create_target_node()
         self.create_compare_nodes()
@@ -1168,7 +1176,6 @@ class XVisibilityControl(CustomXPression):
         self.initial_object_nodes = []
         self.initial_visibility_ports = []
         for initial_object in self.initial_objects:
-            print(1, initial_object)
             initial_object_node = XObject(
                 self.target, link_target=initial_object)
             visibility_port_in = initial_object_node.obj.AddPort(
@@ -1177,11 +1184,22 @@ class XVisibilityControl(CustomXPression):
             self.initial_visibility_ports.append(visibility_port_in)
         self.nodes += self.initial_object_nodes
 
+    def create_transition_object_nodes(self):
+        self.transition_object_nodes = []
+        self.transition_visibility_ports = []
+        for transition_object in self.transition_objects:
+            transition_object_node = XObject(
+                self.target, link_target=transition_object)
+            visibility_port_in = transition_object_node.obj.AddPort(
+                c4d.GV_PORT_INPUT, transition_object.visibility_parameter.desc_id)
+            self.transition_object_nodes.append(transition_object_node)
+            self.transition_visibility_ports.append(visibility_port_in)
+        self.nodes += self.transition_object_nodes
+
     def create_final_object_nodes(self):
         self.final_object_nodes = []
         self.final_visibility_ports = []
         for final_object in self.final_objects:
-            print(2, final_object)
             final_object_node = XObject(
                 self.target, link_target=final_object)
             visibility_port_in = final_object_node.obj.AddPort(
@@ -1201,18 +1219,84 @@ class XVisibilityControl(CustomXPression):
             self.target, mode="<=", comparison_value=self.invisibility_interval[0])
         self.compare_node_upper = XCompare(
             self.target, mode=">=", comparison_value=self.invisibility_interval[1])
-        self.nodes += [self.compare_node_lower, self.compare_node_upper]
+        self.not_node_lower = XNot(self.target)
+        self.not_node_upper = XNot(self.target)
+        self.bool_node = XBool(self.target, mode="AND")
+        self.nodes += [self.compare_node_lower, self.compare_node_upper,
+                       self.not_node_lower, self.not_node_upper, self.bool_node]
 
     def connect_ports(self):
         self.driving_parameter_port_out.Connect(
             self.compare_node_lower.obj.GetInPort(0))
         self.driving_parameter_port_out.Connect(
             self.compare_node_upper.obj.GetInPort(0))
+        self.compare_node_upper.obj.GetOutPort(0).Connect(
+            self.not_node_upper.obj.GetInPort(0))
+        self.compare_node_lower.obj.GetOutPort(0).Connect(
+            self.not_node_lower.obj.GetInPort(0))
+        self.not_node_upper.obj.GetOutPort(0).Connect(
+            self.bool_node.obj.GetInPort(0))
+        self.not_node_lower.obj.GetOutPort(0).Connect(
+            self.bool_node.obj.GetInPort(1))
         for initial_visibility_port in self.initial_visibility_ports:
-            print(1, initial_visibility_port)
             self.compare_node_lower.obj.GetOutPort(0).Connect(
                 initial_visibility_port)
+        for transition_visibility_port in self.transition_visibility_ports:
+            self.bool_node.obj.GetOutPort(0).Connect(
+                transition_visibility_port)
         for final_visibility_port in self.final_visibility_ports:
-            print(2, final_visibility_port)
             self.compare_node_upper.obj.GetOutPort(0).Connect(
                 final_visibility_port)
+
+
+class XColorBlend(CustomXPression):
+    """blends the color of the target object between two colors
+    the colors should be userdata of the target object"""
+
+    def __init__(self, target=None, blend_parameter=None, color_ini_parameter=None, color_fin_parameter=None):
+        self.target = target
+        self.blend_parameter = blend_parameter
+        self.color_ini_parameter = color_ini_parameter
+        self.color_fin_parameter = color_fin_parameter
+        super().__init__(self.target)
+
+    def construct(self):
+        self.create_mix_node()
+        self.create_color_node()
+        self.create_target_node()
+
+    def create_mix_node(self):
+        self.mix_node = XMix(self.target, data_type="color")
+        self.nodes.append(self.mix_node)
+
+    def create_color_node(self):
+        self.color_node = XObject(self.target)
+        self.color_ini_port = self.color_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.color_ini_parameter.desc_id)
+        self.color_fin_port = self.color_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.color_fin_parameter.desc_id)
+        self.blend_parameter_port = self.color_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.blend_parameter.desc_id)
+        self.nodes.append(self.color_node)
+
+    def create_target_node(self):
+        self.target_nodes = []
+        self.target_color_ports = []
+        for destination_spline in self.target.destination_splines:
+            target_node = XObject(self.target, link_target=destination_spline)
+            target_color_port = target_node.obj.AddPort(
+                c4d.GV_PORT_INPUT, destination_spline.color_parameter.desc_id)
+            self.target_color_ports.append(target_color_port)
+            self.target_nodes.append(target_node)
+        self.nodes += self.target_nodes
+
+    def connect_ports(self):
+        self.blend_parameter_port.Connect(
+            self.mix_node.obj.GetInPort(0))
+        self.color_ini_port.Connect(
+            self.mix_node.obj.GetInPort(1))
+        self.color_fin_port.Connect(
+            self.mix_node.obj.GetInPort(2))
+        for target_color_port in self.target_color_ports:
+            self.mix_node.obj.GetOutPort(0).Connect(
+                target_color_port)
