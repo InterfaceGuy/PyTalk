@@ -2,11 +2,13 @@ from pydeation.materials import FillMaterial, SketchMaterial
 from pydeation.tags import FillTag, SketchTag, XPressoTag
 from pydeation.constants import WHITE, SCALE_X, SCALE_Y, SCALE_Z
 from pydeation.animation.animation import VectorAnimation, ScalarAnimation
-from pydeation.animation.object_animators import Show, Hide
-from pydeation.xpresso.userdata import UGroup, ULength, UCheckBox, UVector, UCompletion
+from pydeation.xpresso.userdata import *
 from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength, XBoundingBox, XAction, Movement
+import pydeation.objects.effect_objects as effect_objects
 from abc import ABC, abstractmethod
+import c4d.utils
 import c4d
+
 
 
 class ProtoObject(ABC):
@@ -48,7 +50,7 @@ class ProtoObject(ABC):
         # self.freeze_tag = XPressoTag(
         #    target=self, name="FreezeTag", priority=0, priority_mode="animation")
         # inserts an xpresso tag used for custom xpressions
-        self.custom_tag = XPressoTag(target=self, name="CustomTag")
+        self.custom_tag = XPressoTag(target=self, name="CustomTag", priority_mode="expression")
 
     def add_composition_tag(self):
         """adds another layer to the composition hierarchy"""
@@ -120,15 +122,18 @@ class ProtoObject(ABC):
             scale = c4d.Vector(scale, scale, scale)
             self.obj[c4d.ID_BASEOBJECT_SCALE] = scale
 
-    def move(self, x=0, y=0, z=0, position=None):
+    def move(self, x=0, y=0, z=0, position=None, relative=True):
         if position is None:
             position = c4d.Vector(x, y, z)
         elif type(position) is not c4d.Vector:
             position = c4d.Vector(*position)
         descriptor = c4d.ID_BASEOBJECT_POSITION
         animation = VectorAnimation(
-            target=self, descriptor=descriptor, vector=position, relative=True)
-        self.obj[descriptor] += position
+            target=self, descriptor=descriptor, vector=position, relative=relative)
+        if relative:
+            self.obj[descriptor] += position
+        else:
+            self.obj[descriptor] = position
         return animation
 
     def rotate(self, h=0, p=0, b=0, rotation=None):
@@ -163,12 +168,32 @@ class ProtoObject(ABC):
             editable_obj = self.get_editable()
         if type(editable_obj) is c4d.PolygonObject:
             raise TypeError("method only works on spline objects")
-        segment_count = editable_obj.GetSegmentCount() + 1  # shift to natural count
+        segment_count = editable_obj.GetSegmentCount()
         return segment_count
+
+    def get_length(self, segment=None):
+        # returns the length of the spline or a specific segment
+        spline_help = c4d.utils.SplineHelp()
+        spline_help.InitSplineWith(self.obj)
+        
+        if segment:
+            segment_length = spline_help.GetSegmentLength(segment)
+            return segment_length
+        else:
+            spline_length = spline_help.GetSplineLength()
+            return spline_length
+
+    def get_spline_segment_lengths(self):
+        # get the length of each segment
+        segment_lengths = []
+        for i in range(self.get_segment_count()):
+            segment_lengths.append(self.get_length(segment=i))
+        return segment_lengths
 
     def set_object_properties(self):
         """used to set the unique properties of a specific object"""
         pass
+
 
 
 class VisibleObject(ProtoObject):  # visible objects
@@ -212,14 +237,6 @@ class VisibleObject(ProtoObject):  # visible objects
         self.visual_position_parameter = UVector(name="VisualPosition")
         self.visual_position_u_group = UGroup(
             self.visual_position_parameter, target=self.obj, name="VisualPosition")
-
-    def set_visibility(self):
-        if self.visible:
-            show_animation = Show(self)
-            show_animation.execute()
-        else:
-            hide_animation = Hide(self)
-            hide_animation.execute()
 
     def get_clone(self):
         """clones an object and inserts it into the scene"""
@@ -307,11 +324,26 @@ class VisibleObject(ProtoObject):  # visible objects
         self.depth = bounding_radius.z * 2
         self.center = bounding_box_center
 
+    def get_center(self):
+        # returns the center position from the live bounding box information
+        center_position = self.obj.GetMp()
+        return center_position
+
+    def get_radius(self):
+        # returns the radius from the live bounding box information
+        __, radius = c4d.utils.GetBBox(self.obj, self.obj.GetMg())
+        return radius
+
+    def register_connections(self, connections):
+        # saves the connections for later functionality of UnConnect
+        self.connections = connections
+
     def create(self, completion=1):
         """specifies the creation animation"""
         desc_id = self.creation_parameter.desc_id
         animation = ScalarAnimation(
             target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
         return animation
 
     def uncreate(self, completion=0):
@@ -319,6 +351,7 @@ class VisibleObject(ProtoObject):  # visible objects
         desc_id = self.creation_parameter.desc_id
         animation = ScalarAnimation(
             target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
         return animation
 
 
@@ -378,7 +411,10 @@ class LineObject(VisibleObject):
             name="Draw", default_value=self.draw_completion)
         self.opacity_parameter = UCompletion(
             name="Opacity", default_value=self.opacity)
-        self.sketch_parameters = [self.draw_parameter, self.opacity_parameter]
+        self.color_parameter = UColor(
+            name="Color", default_value=self.color)
+        self.sketch_parameters = [self.draw_parameter,
+                                  self.opacity_parameter, self.color_parameter]
 
     def insert_sketch_parameters(self):
         self.draw_u_group = UGroup(
@@ -389,6 +425,8 @@ class LineObject(VisibleObject):
                                   parameter=self.draw_parameter)
         opacity_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["opacity"]],
                                      parameter=self.opacity_parameter)
+        color_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["color"]],
+                                   parameter=self.color_parameter)
 
     def set_plane(self):
         planes = {"xy": 0, "zy": 1, "xz": 2}
@@ -508,10 +546,7 @@ class SolidObject(VisibleObject):
 
 class CustomObject(VisibleObject):
     """this class is used to create custom objects that are basically
-    groups with coupling of the childrens parameters through xpresso
-    GOALS:
-        - recursively combine custom objects --> chain xpresso animators somehow
-        - specify animation behaviour for Create/UnCreate animator"""
+    groups with coupling of the childrens parameters through xpresso"""
 
     def __init__(self, diameter=None, **kwargs):
         super().__init__(**kwargs)
@@ -564,9 +599,9 @@ class CustomObject(VisibleObject):
         """inherits visibility to parts"""
         visibility_relations = []
         for part in self.parts:
-            if hasattr(part, "visibility_parameter"):
+            if hasattr(part, "visibility_parameter") and not isinstance(part, effect_objects.Morpher):
                 visibility_relation = XIdentity(
-                    part=part, whole=self, desc_ids=[part.visibility_parameter.desc_id], parameter=self.visibility_parameter)
+                    part=part, whole=self, desc_ids=[part.visibility_parameter.desc_id], parameter=self.visibility_parameter, name="VisibilityInheritance")
                 visibility_relations.append(visibility_relation)
 
     def specify_bounding_box_parameters(self):
