@@ -1,6 +1,10 @@
+import pydeation
+import importlib
+importlib.reload(pydeation.objects.abstract_objects)
 from pydeation.objects.abstract_objects import LineObject
 from pydeation.objects.helper_objects import Null
 from pydeation.constants import *
+from pydeation.xpresso.xpressions import XIdentity
 import c4d
 import os
 
@@ -167,15 +171,20 @@ class SVG(Spline):  # takes care of importing svgs
 
 class EdgeSpline(LineObject):
 
-    def __init__(self, *children, mode="intersection", intersecting_objects=[], **kwargs):
+    def __init__(self, solid_object, mode="outline", **kwargs):
+        self.solid_object = solid_object
         self.mode = mode
-        self.intersecting_objects = intersecting_objects
         super().__init__(**kwargs)
+        self.insert_solid_object()
+        self.fix_visibility_behaviour()
 
-    def specify_intersecting_object(self):
+    def specify_object(self):
         self.obj = c4d.BaseObject(1057180)
 
-    def set_intersecting_object_properties(self):
+    def insert_solid_object(self):
+        self.solid_object.obj.InsertUnder(self.obj)
+
+    def set_object_properties(self):
         # set mode
         modes = {
             "standard": 0,
@@ -184,18 +193,16 @@ class EdgeSpline(LineObject):
             "outline": 3,
             "intersection": 4,
         }
-        self.obj[c4d.ID_MT_EDGETOSPLINE_MODE_CYCLE] = modes[mode]
-        """DOES NOT WORK DUE TO CUSTOM DATATYPE
-        # set intersecting_objects
-        intersecting_object_list = c4d.InExcludeData()
-        for intersecting_object in self.intersecting_objects:
-            intersecting_object_list.InsertObject(
-                intersecting_object.obj, 1)
-        self.obj[c4d.ID_MT_EDGETOSPLINE_EDGESPLINE_INTERSECT_OBJECTS] = intersecting_object_list
-        """
+        self.obj[c4d.ID_MT_EDGETOSPLINE_MODE_CYCLE] = modes[self.mode]
+        self.obj[c4d.ID_MT_EDGETOSPLINE_PHONG_ANGLE] = PI/9
+        # join spline segments within 5cm threshold
+        self.obj[c4d.ID_MT_EDGETOSPLINE_EDGESPLINE_JOIN] = True
+        self.obj[c4d.ID_MT_EDGETOSPLINE_EDGESPLINE_JOIN_THRESHOLD] = 5
 
-    def set_unique_desc_ids(self):
-        self.desc_ids = {}
+    def fix_visibility_behaviour(self):
+        """we link the visibility of the object to the sketch tag spline type fix the visibility behaviour"""
+        visibility_relation = XIdentity(
+            part=self.sketch_tag, whole=self, desc_ids=[self.sketch_tag.desc_ids["render_splines"]], parameter=self.visibility_parameter, name="VisibilityInheritance")
 
 
 class PySpline(LineObject):
@@ -252,64 +259,3 @@ class SplineText(LineObject):
             "text": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_TEXT, c4d.DTYPE_STRING, 0)),
             "text_height": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_HEIGHT, c4d.DTYPE_REAL, 0))
         }
-
-
-'''
-class Letters(Text):
-    """converts a text object into a group of separate letters"""
-
-    def __init__(self, text, height=50, anchor="middle", visible=False, **kwargs):
-        super().__init__(text=text, height=height,
-                         anchor=anchor, seperate_letters=True, **kwargs)
-        # specify visibility
-        self.visible = visible
-        # seperate letters and group them
-        self.seperate_letters(kwargs)
-
-    def seperate_letters(self, kwargs):
-        text_editable = c4d.utils.SendModelingCommand(command=c4d.MCOMMAND_MAKEEDITABLE, list=[
-            self.obj], mode=c4d.MODELINGCOMMANDMODE_ALL, doc=self.document)
-        # unpack letters
-        letters = self.unpack(text_editable[0])
-        pydeation_letters = []
-        # convert to pydeation letters
-        for letter in letters:
-            # get coordinates
-            # matrix
-            matrix = letter.GetMg()
-            # position
-            x, y, z = matrix.off.x, matrix.off.y, matrix.off.z
-            # rotation
-            h, p, b = c4d.utils.MatrixToHPB(matrix).x, c4d.utils.MatrixToHPB(
-                matrix).y, c4d.utils.MatrixToHPB(matrix).z
-            # scale
-            scale_x, scale_y, scale_z = matrix.GetScale(
-            ).x, matrix.GetScale().y, matrix.GetScale().z
-            # create pydeation letter
-            if "x" not in kwargs:
-                kwargs["x"] = 0
-            if "y" not in kwargs:
-                kwargs["y"] = 0
-            if "z" not in kwargs:
-                kwargs["z"] = 0
-            pydeation_letter = PySpline(letter, x=x - kwargs["x"], y=y, z=z - kwargs["z"], h=h, p=p, b=b, scale_x=scale_x, scale_y=scale_y,
-                                        scale_z=scale_z, visible=self.visible)
-            pydeation_letters.append(pydeation_letter)
-        # create text from letters
-        self = Group(*pydeation_letters, name=self.text, **kwargs)
-
-    @staticmethod
-    def unpack(parent):
-        """unpacks the children from the hierarchy"""
-        children = []
-        for child in parent.GetChildren():
-            children.append(child)
-        return children
-
-    def has_lines(self):
-        """check if new lines present"""
-        if "/n" in self.text:
-            return True
-        else:
-            return False
-'''
