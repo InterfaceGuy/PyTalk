@@ -39,6 +39,7 @@ class Cylinder(SolidObject):
         self.obj[c4d.PRIM_AXIS] = orientations[self.orientation]
         self.obj[c4d.PRIM_CYLINDER_RADIUS] = self.radius
         self.obj[c4d.PRIM_CYLINDER_HEIGHT] = self.height
+        self.obj[c4d.PRIM_CYLINDER_SEG] = 32
 
 
 class MetaBall(SolidObject):
