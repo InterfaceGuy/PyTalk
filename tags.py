@@ -11,6 +11,7 @@ class Tag():
         self.set_tag_properties()
         self.set_name(name)
         self.apply_to_object(target)
+        self.set_unique_desc_ids()
 
     def set_name(self, name):
         if name:
@@ -25,6 +26,9 @@ class Tag():
         self.linked_object = target
 
     def set_tag_properties(self):
+        pass
+
+    def set_unique_desc_ids(self):
         pass
 
 
@@ -59,7 +63,18 @@ class SketchTag(MaterialTag):
         material.linked_tag = self
 
     def set_tag_properties(self):
+        # enable spline rendering
         self.obj[c4d.OUTLINEMAT_LINE_SPLINES] = True
+        # disable non spline types
+        self.obj[c4d.OUTLINEMAT_LINE_FOLD] = False
+        self.obj[c4d.OUTLINEMAT_LINE_CREASE] = False
+        self.obj[c4d.OUTLINEMAT_LINE_BORDER] = False
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "render_splines": c4d.DescID(c4d.DescLevel(c4d.OUTLINEMAT_LINE_SPLINES, c4d.DTYPE_BOOL, 0))
+        }
+
 
 
 class FillTag(MaterialTag):
