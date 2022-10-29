@@ -1,3 +1,6 @@
+import pydeation
+import importlib
+importlib.reload(pydeation.objects.line_objects)
 from pydeation.objects.abstract_objects import CustomObject
 from pydeation.objects.line_objects import SVG
 from pydeation.xpresso.userdata import UOptions, ULength, UAngle, UGroup
@@ -29,7 +32,11 @@ class Sketch(CustomObject):
 
     def set_to_floor(self):
         if self.on_floor:
-            self.move(y=self.height / 2)
+            if self.diameter:
+                height = max(self.height, self.diameter)
+            else:
+                height = self.height
+            self.move(y=height / 2)
 
     def specify_parts(self):
         self.svg = SVG(self.file_name, color=self.color)
@@ -84,13 +91,10 @@ class Sketch(CustomObject):
         """specifies the fade out animation"""
         return self.svg.fade_out(completion=completion)
 
-    def create(self):
-        """set creation animation to Draw by default"""
-        return self.svg.create()
+    def get_length(self, segment=None):
+        """returns the length of the sketch"""
+        return self.svg.get_length(segment=segment)
 
-    def un_create(self):
-        """set uncreation animation to UnDraw by default"""
-        return self.svg.un_create()
 
 
 class David(Sketch):
@@ -129,3 +133,21 @@ class Footprint(Sketch):
     def __init__(self, side="right", **kwargs):
         description = f"{side}_foot"
         super().__init__(description, **kwargs)
+
+
+class Earth(Sketch):
+
+    def __init__(self, **kwargs):
+        super().__init__("world", **kwargs)
+
+
+class Money(Sketch):
+
+    def __init__(self, **kwargs):
+        super().__init__("cash", **kwargs)
+
+
+class Health(Sketch):
+
+    def __init__(self, **kwargs):
+        super().__init__("healthcare", **kwargs)
