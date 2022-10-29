@@ -106,6 +106,7 @@ class Cloner(MoGraphObject):
             self.obj[c4d.MG_SPLINE_OFFSET] = self.offset
             self.obj[c4d.MG_SPLINE_START] = self.offset_start
             self.obj[c4d.MG_SPLINE_END] = self.offset_end
+            self.obj[c4d.MG_SPLINE_LOOP] = False
 
     def insert_clones(self):
         for clone in self.clones:
@@ -235,22 +236,34 @@ class MoSpline(MoGraphObject):
 
 class Effector(ProtoObject):
 
-    def __init__(self, fields=[], position=None, rotation=None, scale=None, **kwargs):
+    def __init__(self, fields=[], spline_field=None, position=None, rotation=None, scale=None, **kwargs):
         self.fields = fields
+        self.spline_field = spline_field
         self.position = position
         self.rotation = rotation
         self.scale = scale
+        self.create_field_list()
         super().__init__(**kwargs)
-        self.insert_fields()
+        self.insert_field_list()
         self.set_transformation_data()
+        self.set_spline_field_desc_ids()
 
-    def insert_fields(self):
-        field_list = c4d.FieldList()
+    def create_field_list(self):
+        self.field_list = c4d.FieldList()
+        self.spline_field_layer_id = 10
+        if self.spline_field:
+            self.spline_field_layer = FieldLayer(c4d.FLspline)
+            self.spline_field_layer.SetLinkedObject(self.spline_field.obj)
+            self.spline_field_layer_id = self.spline_field_layer.GetUniqueID() + \
+                1  # very dirty solution for now
+            self.field_list.InsertLayer(self.spline_field_layer)
         for field in self.fields:
             field_layer = FieldLayer(c4d.FLfield)
             field_layer.SetLinkedObject(field.obj)
-            field_list.InsertLayer(field_layer)
-        self.obj[c4d.FIELDS] = field_list
+            self.field_list.InsertLayer(field_layer)
+
+    def insert_field_list(self):
+        self.obj[c4d.FIELDS] = self.field_list
 
     def set_transformation_data(self):
         # ensure position is off by default
@@ -274,10 +287,17 @@ class Effector(ProtoObject):
                 self.obj[c4d.ID_MG_BASEEFFECTOR_SCALE] = c4d.Vector(
                     *self.scale)
 
+    def set_spline_field_desc_ids(self):
+        self.spline_field_desc_ids = {
+            "spline_field_range_start": c4d.DescID(c4d.DescLevel(c4d.FIELDS, c4d.CUSTOMDATATYPE_FIELDLIST, 0), c4d.DescLevel(self.spline_field_layer_id, c4d.DTYPE_SUBCONTAINER, 0), c4d.DescLevel(c4d.FIELDLAYER_SPLINE_RANGE_START, 0, 0)),
+            "spline_field_range_end": c4d.DescID(c4d.DescLevel(c4d.FIELDS, c4d.CUSTOMDATATYPE_FIELDLIST, 0), c4d.DescLevel(self.spline_field_layer_id, c4d.DTYPE_SUBCONTAINER, 0), c4d.DescLevel(c4d.FIELDLAYER_SPLINE_RANGE_END, 0, 0)),
+            "spline_field_offset": c4d.DescID(c4d.DescLevel(c4d.FIELDS, c4d.CUSTOMDATATYPE_FIELDLIST, 0), c4d.DescLevel(self.spline_field_layer_id, c4d.DTYPE_SUBCONTAINER, 0), c4d.DescLevel(c4d.FIELDLAYER_SPLINE_OFFSET, 0, 0))
+        }
+
 
 class SplineEffector(Effector):
 
-    def __init__(self, spline=None, segment_mode="index", segment_index=0, transform_mode="absolute", position=True, rotation=(0, 0, 0), offset=0, offset_start=0, offset_end=0, **kwargs):
+    def __init__(self, spline=None, segment_mode="index", segment_index=None, transform_mode="absolute", position=True, rotation=(0, 0, 0), offset=0, offset_start=0, offset_end=0, effective_length=None, **kwargs):
         self.spline = spline
         self.segment_mode = segment_mode
         self.segment_index = segment_index
@@ -285,6 +305,8 @@ class SplineEffector(Effector):
         self.offset_start = offset_start
         self.offset_end = offset_end
         self.offset = offset
+        self.effective_length = effective_length
+        self.get_effective_length()
         super().__init__(position=position, rotation=rotation, **kwargs)
 
     def specify_object(self):
@@ -304,6 +326,10 @@ class SplineEffector(Effector):
         self.obj[c4d.MGSPLINEEFFECTOR_END] = 1 - self.offset_end
         self.obj[c4d.MGSPLINEEFFECTOR_OFFSET] = self.offset
 
+    def get_effective_length(self):
+        if self.effective_length is None:
+            self.effective_length =  self.spline.get_length(segment=self.segment_index) * (1 - self.offset_end - self.offset_start)
+
     def set_transformation_data(self):
         self.obj[c4d.MGSPLINEEFFECTOR_POSITION_ACTIVE] = self.position
         if self.rotation:
@@ -317,7 +343,8 @@ class SplineEffector(Effector):
             "offset_end": c4d.DescID(c4d.DescLevel(c4d.MGSPLINEEFFECTOR_END, c4d.DTYPE_REAL, 0)),
             "rotation_h": c4d.DescID(c4d.DescLevel(10000000, 400007003, 400001000)),
             "rotation_p": c4d.DescID(c4d.DescLevel(10000001, 400007003, 400001000)),
-            "rotation_b": c4d.DescID(c4d.DescLevel(10000002, 400007003, 400001000))
+            "rotation_b": c4d.DescID(c4d.DescLevel(10000002, 400007003, 400001000)),
+            "strength": c4d.DescID(c4d.DescLevel(c4d.MGSPLINEEFFECTOR_STRENGTH, c4d.DTYPE_REAL, 0))
         }
 
 
