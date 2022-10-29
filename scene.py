@@ -1,6 +1,9 @@
-from pydeation.animation.animation import ScalarAnimation, AnimationGroup, ProtoAnimation, VectorAnimation
-from pydeation.animation.abstract_animators import ProtoAnimator
-from pydeation.animation.object_animators import Show, Hide
+import importlib
+import pydeation.animation.animation
+importlib.reload(pydeation.animation.animation)
+from pydeation.animation.animation import ScalarAnimation, VectorAnimation
+from pydeation.animation.abstract_animators import ProtoAnimator, AnimationGroup
+from pydeation.objects.camera_objects import TwoDCamera
 from abc import ABC, abstractmethod
 from collections import defaultdict
 import c4d
@@ -11,21 +14,66 @@ class Scene(ABC):
 
     def __init__(self, resolution="default"):
         self.resolution = resolution
+        self.time_ini = None
+        self.time_fin = None
+        self.kill_old_document()
         self.create_new_document()
         self.set_scene_name()
         self.insert_document()
+        self.clear_console()
+        self.set_camera()
         self.construct()
         self.set_interactive_render_region()
         self.set_render_settings()
+        self.adjust_timeline()
+
+    def START(self):
+        # writes current time to variable for later use in finish method
+        self.time_ini = self.document.GetTime()
+
+    def STOP(self):
+        # writes current time to variable for later use in finish method
+        self.time_fin = self.document.GetTime()
+
+    def adjust_timeline(self):
+        # set minimum time
+        if self.time_ini is not None:
+            self.document[c4d.DOCUMENT_MINTIME] = self.time_ini
+            self.document[c4d.DOCUMENT_LOOPMINTIME] = self.time_ini
+
+        # set maximum time
+        if self.time_fin is None:
+            self.document[c4d.DOCUMENT_MAXTIME] = self.document.GetTime()
+            self.document[c4d.DOCUMENT_LOOPMAXTIME] = self.document.GetTime()
+        else:
+            self.document[c4d.DOCUMENT_MAXTIME] = self.time_fin
+            self.document[c4d.DOCUMENT_LOOPMAXTIME] = self.time_fin
 
     def set_render_settings(self):
         self.render_settings = RenderSettings()
         self.render_settings.set_resolution(self.resolution)
 
+    def set_camera(self):
+        self.camera = TwoDCamera()
+        # get basedraw of scene
+        bd = self.document.GetActiveBaseDraw()
+        # set camera of basedraw to scene camera
+        bd.SetSceneCamera(self.camera.obj)
+
     def create_new_document(self):
         """creates a new project and gets the active document"""
         self.document = c4d.documents.BaseDocument()
         c4d.documents.InsertBaseDocument(self.document)
+
+    def kill_old_document(self):
+        """kills the old document to always ensure only one document is active"""
+        old_document = c4d.documents.GetActiveDocument()
+        old_document.Remove()
+        c4d.documents.KillDocument(old_document)
+
+    def clear_console(self):
+        """clears the python console"""
+        c4d.CallCommand(13957)
 
     @abstractmethod
     def construct(self):
@@ -53,74 +101,10 @@ class Scene(ABC):
 
     def set_interactive_render_region(self):
         """creates an IRR window over the full size of the editor view"""
-        c4d.CallCommand(600000017)  # call IRR script by ID
-        c4d.EventAdd()
+        c4d.CallCommand(600000019)  # call IRR script by ID
         # workaround because script needs to be executed from main thread not pydeation library
         # ID changes depending on machine
         # CHANGE THIS IN FUTURE TO MORE ROBUST SOLUTION
-
-    def group_animations_by_obj(self, animations):
-        """sorts the animations by their target"""
-        animations_grouped_by_obj = defaultdict(list)
-        for animation in animations:
-            animations_grouped_by_obj[animation.target].append(animation)
-        return animations_grouped_by_obj
-
-    def group_obj_animations_by_descriptor(self, obj_animations):
-        """sorts the animations by their description id"""
-        obj_animations_grouped_by_desc_id = defaultdict(list)
-        for obj_animation in obj_animations:
-            if type(obj_animation.descriptor) is c4d.DescID:
-                # desc id not natively hashable
-                key = obj_animation.descriptor.GetHashCode()
-            else:
-                key = obj_animation.descriptor
-            obj_animations_grouped_by_desc_id[key].append(
-                obj_animation)
-        return obj_animations_grouped_by_desc_id
-
-    def sort_desc_id_animations_chronologically(self, desc_id_animations):
-        """sorts animations chronologically by the relative run times"""
-        desc_id_animations_chronological = sorted(
-            desc_id_animations, key=lambda x: x.rel_start)
-        return desc_id_animations_chronological
-
-    def link_animation_chains(self, animations):
-        """sorts the animation by target and description id to identify and link animation chains
-        (sets initial value of following animation equal to final value of preceding one)"""
-
-        linked_animations = []
-        animations_grouped_by_obj = self.group_animations_by_obj(
-            animations)  # group animations by object
-        for obj_animations in animations_grouped_by_obj.values():
-            obj_animations_grouped_by_desc_id = self.group_obj_animations_by_descriptor(
-                obj_animations)  # group animations by desc id
-            for desc_id_animations in obj_animations_grouped_by_desc_id.values():
-                desc_id_animations_chronological = self.sort_desc_id_animations_chronologically(
-                    desc_id_animations)  # sort animations chronologically
-                for i, desc_id_animation in enumerate(desc_id_animations_chronological):
-                    # only link vector animaitons
-                    if type(desc_id_animation) is ScalarAnimation:
-                        # link chain according to type relative/absolute
-                        previous_animations = desc_id_animations_chronological[:i]
-                        # shift vector by all previous vectors
-                        if desc_id_animation.relative:
-                            for previous_animation in previous_animations:
-                                desc_id_animation += previous_animation
-                        # shift initial value by all previous vectors
-                        else:
-                            vectors = []
-                            for previous_animation in previous_animations:
-                                vector = previous_animation.get_vector()  # get vector
-                                vectors.append(vector)  # collect vector
-                            value_ini = sum(vectors) + \
-                                desc_id_animation.value_ini
-                            desc_id_animation.set_value_ini(
-                                value_ini)  # set new value
-
-                linked_animations += desc_id_animations_chronological
-
-        return linked_animations
 
     def feed_run_time(self, animations, run_time):
         """feeds the run time to animations"""
@@ -141,66 +125,32 @@ class Scene(ABC):
 
     def flatten(self, animations):
         """flattens animations by wrapping them in animation group"""
-        animation_group = AnimationGroup(*animations)
+        animation_group = pydeation.animation.animation.AnimationGroup(*animations)
         flattened_animations = animation_group.animations
         return flattened_animations
-
-    def add_show_animation(self, animation_group):
-        """adds a show animator in the beginning of the animation group"""
-        objs = animation_group.get_objs()
-        min_rel_start = animation_group.get_min_rel_start()
-        animation_group_with_show = AnimationGroup(
-            (Show(*objs), (min_rel_start, min_rel_start)), animation_group)  # we use a zero length tuple to keep compatibility with vector animations
-        return animation_group_with_show
-
-    def add_hide_animation(self, animation_group):
-        """adds a show animator in the beginning of the animation group"""
-        objs = animation_group.get_objs()
-        max_rel_stop = animation_group.get_max_rel_stop()
-        animation_group_with_hide = AnimationGroup(
-            (Hide(*objs), (max_rel_stop, max_rel_stop)), animation_group)  # we use a zero length tuple to keep compatibility with vector animations
-        return animation_group_with_hide
-
-    def handle_visibility(self, animations):
-        """adds visibility animators depending on the category of the animation group"""
-        animation_groups_with_visibility = []
-        for animation in animations:
-            if type(animation) is AnimationGroup:
-                animation_group = animation  # is animation group
-                if animation_group.category == "constructive":
-                    animation_group_with_visibility = self.add_show_animation(
-                        animation_group)
-                elif animation_group.category == "destructive":
-                    animation_group_with_visibility = self.add_hide_animation(
-                        animation_group)
-                else:
-                    animation_group_with_visibility = animation_group
-                animation_groups_with_visibility.append(
-                    animation_group_with_visibility)
-            else:
-                animation_groups_with_visibility.append(animation)
-        return animation_groups_with_visibility
 
     def get_animation(self, animators):
         """retreives the animations from the animators depending on type"""
         animations = []
         for animator in animators:
-            if issubclass(animator.__class__, ProtoAnimator):
+            if isinstance(animator, pydeation.animation.abstract_animators.ProtoAnimator):
                 animation = animator.animations
-                if issubclass(animation.__class__, VectorAnimation):
+                if issubclass(animation.__class__, pydeation.animation.animation.VectorAnimation):
                     vector_animation = animator
                     scalar_animations = vector_animation.scalar_animations
                     animations += scalar_animations
                     continue
-            elif issubclass(animator.__class__, ProtoAnimation):
+            elif issubclass(animator.__class__, pydeation.animation.animation.ProtoAnimation):
                 animation = animator
-            elif issubclass(animator.__class__, VectorAnimation):
+            elif animator.__class__.__name__ == "AnimationGroup":
+                animation = animator
+            elif issubclass(animator.__class__, pydeation.animation.animation.VectorAnimation):
                 vector_animation = animator
                 scalar_animations = vector_animation.scalar_animations
                 animations += scalar_animations
                 continue
             else:
-                print("Unknown animator input!")
+                print("Unknown animator input!", animator.__class__)
             animations.append(animation)
         return animations
 
@@ -212,9 +162,7 @@ class Scene(ABC):
             - feeds them the run time
             - executes the animations"""
         animations = self.get_animation(animators)
-        animations_with_visibility = self.handle_visibility(animations)
-        flattened_animations = self.flatten(animations_with_visibility)
-        #linked_animations = self.link_animation_chains(flattened_animations)
+        flattened_animations = self.flatten(animations)
         self.feed_run_time(flattened_animations, run_time)
         self.execute_animations(flattened_animations)
         self.add_time(run_time)
