@@ -3,7 +3,7 @@ import pydeation.animation.animation
 importlib.reload(pydeation.animation.animation)
 from pydeation.animation.animation import ScalarAnimation, VectorAnimation
 from pydeation.animation.abstract_animators import ProtoAnimator, AnimationGroup
-from pydeation.objects.camera_objects import TwoDCamera
+from pydeation.objects.camera_objects import TwoDCamera, ThreeDCamera
 from abc import ABC, abstractmethod
 from collections import defaultdict
 import c4d
@@ -54,11 +54,7 @@ class Scene(ABC):
         self.render_settings.set_resolution(self.resolution)
 
     def set_camera(self):
-        self.camera = TwoDCamera()
-        # get basedraw of scene
-        bd = self.document.GetActiveBaseDraw()
-        # set camera of basedraw to scene camera
-        bd.SetSceneCamera(self.camera.obj)
+        pass
 
     def create_new_document(self):
         """creates a new project and gets the active document"""
@@ -230,3 +226,25 @@ class RenderSettings():
 
         self.settings.InsertVideoPost(
             sketch_vp)  # insert sketch settings
+
+
+class TwoDScene(Scene):
+    """a 2D scene uses a 2D camera setup"""
+
+    def set_camera(self):
+        self.camera = TwoDCamera()
+        # get basedraw of scene
+        bd = self.document.GetActiveBaseDraw()
+        # set camera of basedraw to scene camera
+        bd.SetSceneCamera(self.camera.camera.obj)
+
+
+class ThreeDScene(Scene):
+    """a 3D scene uses a 3D camera setup"""
+
+    def set_camera(self):
+        self.camera = ThreeDCamera()
+        # get basedraw of scene
+        bd = self.document.GetActiveBaseDraw()
+        # set camera of basedraw to scene camera
+        bd.SetSceneCamera(self.camera.camera.obj)
