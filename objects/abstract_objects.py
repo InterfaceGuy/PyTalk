@@ -162,13 +162,10 @@ class ProtoObject(ABC):
         self.document.InsertObject(self.obj)
 
     def get_segment_count(self):
-        if type(self.obj) is c4d.SplineObject:
-            editable_obj = self.obj
-        else:
-            editable_obj = self.get_editable()
-        if type(editable_obj) is c4d.PolygonObject:
-            raise TypeError("method only works on spline objects")
-        segment_count = editable_obj.GetSegmentCount()
+        # returns the length of the spline or a specific segment
+        spline_help = c4d.utils.SplineHelp()
+        spline_help.InitSplineWith(self.obj)
+        segment_count = spline_help.GetSegmentCount()
         return segment_count
 
     def get_length(self, segment=None):
@@ -326,7 +323,7 @@ class VisibleObject(ProtoObject):  # visible objects
 
     def get_center(self):
         # returns the center position from the live bounding box information
-        center_position = self.obj.GetMp()
+        center_position = self.obj.GetMp() * self.obj.GetMg()
         return center_position
 
     def get_radius(self):
