@@ -128,7 +128,6 @@ class Cloner(MoGraphObject):
             "rotation_b": c4d.DescID(c4d.DescLevel(10000002, 400007003, 400001000))
         }
 
-
 class Instance(VisibleObject):
 
     def __init__(self, target, inherit_global_matrix=True, **kwargs):
