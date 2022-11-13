@@ -130,3 +130,19 @@ class Loft(SolidObject):
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Oloft)
+
+
+class SweepNurbs(SolidObject):
+
+    def __init__(self, rail=None, profile=None, **kwargs):
+        self.rail = rail
+        self.profile = profile
+        super().__init__(**kwargs)
+        self.insert_children()
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Osweep)
+
+    def insert_children(self):
+        self.rail.obj.InsertUnder(self.obj)
+        self.profile.obj.InsertUnder(self.obj)
