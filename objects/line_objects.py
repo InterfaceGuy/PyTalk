@@ -114,7 +114,8 @@ class Spline(LineObject):
 
     def add_points_to_spline(self):
         if self.points:
-            c4d_points = [c4d.Vector(*point) for point in self.points]
+            # convert points to c4d vectors
+            c4d_points = [c4d.Vector(*point) if type(point) in (list, tuple) else point for point in self.points]
             point_count = len(self.points)
             self.obj.ResizeObject(point_count)
             self.obj.SetAllPoints(c4d_points)
