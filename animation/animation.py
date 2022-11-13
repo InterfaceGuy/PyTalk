@@ -224,15 +224,21 @@ class VectorAnimation:
 
     def derive_values(self):
         """unpacks the vector in a tuple of values"""
-        self.values = (self.vector.x, self.vector.y, self.vector.z)
+        if type(self.vector) in (tuple, list):
+            self.values = self.vector
+        else:
+            self.values = (self.vector.x, self.vector.y, self.vector.z)
 
     def derive_sub_descriptors(self):
         """derives the three sub-descriptors from the vector descriptor"""
-        self.descriptor_x = (self.descriptor, c4d.VECTOR_X)
-        self.descriptor_y = (self.descriptor, c4d.VECTOR_Y)
-        self.descriptor_z = (self.descriptor, c4d.VECTOR_Z)
-        self.sub_descriptors = [self.descriptor_x,
-                                self.descriptor_y, self.descriptor_z]
+        if type(self.descriptor) in (tuple, list):
+            self.sub_descriptors = self.descriptor
+        else:
+            self.descriptor_x = (self.descriptor, c4d.VECTOR_X)
+            self.descriptor_y = (self.descriptor, c4d.VECTOR_Y)
+            self.descriptor_z = (self.descriptor, c4d.VECTOR_Z)
+            self.sub_descriptors = [self.descriptor_x,
+                                    self.descriptor_y, self.descriptor_z]
 
     def create_scalar_animations(self):
         """creates three scalar animations for the respective components of the vector"""
