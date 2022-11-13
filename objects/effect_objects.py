@@ -79,8 +79,8 @@ class Morpher(EffectObject):
         self.obj.SetName(self.name)
 
     def get_segment_counts(self):
-        self.segment_count_ini = self.spline_ini.get_segment_count() + 1
-        self.segment_count_fin = self.spline_fin.get_segment_count() + 1
+        self.segment_count_ini = self.spline_ini.get_segment_count()
+        self.segment_count_fin = self.spline_fin.get_segment_count()
         self.segment_count = max(
             self.segment_count_ini, self.segment_count_fin)
 
@@ -134,6 +134,7 @@ class Morpher(EffectObject):
                     longest_segment_index = i
             return longest_segment_index
 
+
         if self.segment_count_ini <= self.segment_count_fin:
             # subdivide initial spline segments
             segment_lengths = self.spline_ini.get_spline_segment_lengths()
@@ -149,7 +150,6 @@ class Morpher(EffectObject):
         
         while number_segments < number_segments_other:
             longest_segment_idx = get_longest_segment_index(self.segments)
-            print(longest_segment_idx)
             self.segments[longest_segment_idx].sub_segments += 1
             number_segments += 1
 
