@@ -1,6 +1,6 @@
 from pydeation.objects.abstract_objects import CustomObject
 import pydeation.objects.effect_objects as effect_objects
-from pydeation.objects.solid_objects import Extrude, Cylinder
+from pydeation.objects.solid_objects import Extrude, Cylinder, SweepNurbs
 from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, EdgeSpline
 from pydeation.objects.sketch_objects import Human, Fire, Footprint, GitHub
 from pydeation.objects.helper_objects import *
@@ -60,12 +60,13 @@ class Group(CustomObject):
     def position_on_circle(self, radius=100, x=0, y=0, z=0, plane="xy", at_bottom=None, at_top=None):
         """positions the children on a circle"""
         def position(radius, phi, plane):
+            offset = c4d.Vector(x, y, z)
             if plane == "xy":
-                return c4d.Vector(radius * np.sin(phi), radius * np.cos(phi), 0)
+                return c4d.Vector(radius * np.sin(phi), radius * np.cos(phi), 0) + offset
             if plane == "zy":
-                return c4d.Vector(0, radius * np.cos(phi), radius * np.sin(phi))
+                return c4d.Vector(0, radius * np.cos(phi), radius * np.sin(phi)) + offset
             if plane == "xz":
-                return c4d.Vector(radius * np.sin(phi), 0, radius * np.cos(phi))
+                return c4d.Vector(radius * np.sin(phi), 0, radius * np.cos(phi)) + offset
 
         number_of_children = len(self.children)
         phi_offset = 0  # angle offset if necessary
@@ -118,7 +119,6 @@ class Group(CustomObject):
             self.connections.append(connection)
 
         return Group(*self.connections, name="Connections", visible=visible)
-
 
 
 class Director(CustomObject):
@@ -856,8 +856,9 @@ class FootPath(CustomObject):
         self.cloner.add_clones(self.right_foot, self.left_foot)
 
     def specify_position_inheritance(self):
-        position_inheritance = XIdentity(part=self, whole=self.path, desc_ids=[
-                                         self.visual_position_parameter.desc_id], parameter=self.path.center_parameter)
+        pass
+        #position_inheritance = XIdentity(part=self, whole=self.path, desc_ids=[
+        #                                 self.visual_position_parameter.desc_id], parameter=self.path.center_parameter)
 
     def specify_parts(self):
         self.plain_effector = PlainEffector(scale=-1, spline_field=self.path)
@@ -1057,3 +1058,59 @@ class BoundingSpline(CustomObject):
         self.outline_spline = EdgeSpline(self.solid_object, mode="outline")
         self.curvature_spline = EdgeSpline(self.outline_spline, mode="curvature")
         self.parts += [self.outline_spline, self.curvature_spline]
+
+
+class SolidSpline(CustomObject):
+    """creates a solid "wire" object from any given spline object"""
+
+    def __init__(self, spline_object, color=WHITE, **kwargs):
+        self.spline_object = spline_object
+        self.color = color
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.destination_spline = EmptySpline(name="DestinationSpline")
+        self.mospline = MoSpline(source_spline=self.spline_object, destination_spline=self.destination_spline)
+        self.profile_spline = Rectangle(height=2, width=2, name="ProfileSpline")
+        self.sweep_nurbs = SweepNurbs(rail=self.destination_spline, profile=self.profile_spline, creation=True)
+        self.parts = [self.sweep_nurbs, self.mospline, self.destination_spline, self.profile_spline]
+
+    def specify_parameters(self):
+        self.glow_parameter = UCompletion(name="Glow", default_value=1)
+        self.parameters += [self.glow_parameter]
+
+    def specify_relations(self):
+        glow_inheritance = XIdentity(part=self.sweep_nurbs.fill_material, whole=self, desc_ids=[self.sweep_nurbs.fill_material.desc_ids["glow_brightness"]],
+                                     parameter=self.glow_parameter)
+        spline_correction = XCorrectMoSplineTransform(
+            self.mospline, target=self)
+
+
+class CloneConnector(CustomObject):
+    """creates splines between clones of input matrices based on proximity"""
+
+    def __init__(self, *matrices, neighbour_count=5, max_distance=500, color=WHITE, **kwargs):
+        self.matrices = matrices
+        self.neighbour_count = neighbour_count
+        self.max_distance = max_distance
+        self.color = color
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.spline_cache = Spline(name="SplineCache")
+        self.parts += [self.spline_cache]
+
+    def specify_parameters(self):
+        self.neighbour_count_parameter = UCount(
+            name="NeighbourCount", default_value=self.neighbour_count)
+        self.max_distance_parameter = ULength(
+            name="MaxDistance", default_value=self.max_distance)
+        self.parameters += [self.neighbour_count_parameter, self.max_distance_parameter]
+
+    def specify_relations(self):
+        connect_nearest_clones = XConnectNearestClones(*self.matrices, neighbour_count_parameter=self.neighbour_count_parameter, max_distance_parameter=self.max_distance_parameter, target=self)
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.spline_cache.draw_parameter, (0, 1), part=self.spline_cache),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
