@@ -28,6 +28,7 @@ def rreload(module):
 import sys
 import importlib
 import pydeation.scene
+import pydeation.utils
 import pydeation.objects.helper_objects
 import pydeation.objects.camera_objects
 import pydeation.objects.custom_objects
@@ -48,6 +49,7 @@ if pydeation_path not in sys.path:
     sys.path.insert(0, pydeation_path)
 
 reload(pydeation.scene)
+reload(pydeation.utils)
 reload(pydeation.objects.helper_objects)
 reload(pydeation.objects.camera_objects)
 reload(pydeation.objects.custom_objects)
