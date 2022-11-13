@@ -114,3 +114,17 @@ class XPressoTag(Tag):
         # set mode to initial
         priority_data.SetPriorityValue(c4d.PRIORITYVALUE_MODE, modes[mode])
         self.obj[c4d.EXPRESSION_PRIORITY] = priority_data
+
+
+class TargetTag(Tag):
+
+    def __init__(self, focus_point=None, **kwargs):
+        self.focus_point = focus_point
+        super().__init__(**kwargs)
+        self.set_target()
+    
+    def specify_tag_type(self):
+        self.obj = c4d.BaseTag(c4d.Ttargetexpression)
+
+    def set_target(self):
+        self.obj[c4d.TARGETEXPRESSIONTAG_LINK] = self.focus_point.obj
