@@ -1,3 +1,6 @@
+import importlib
+import pydeation.materials
+importlib.reload(pydeation.materials)
 from pydeation.materials import FillMaterial, SketchMaterial
 from pydeation.tags import FillTag, SketchTag, XPressoTag
 from pydeation.constants import WHITE, SCALE_X, SCALE_Y, SCALE_Z
@@ -206,7 +209,6 @@ class VisibleObject(ProtoObject):  # visible objects
         self.insert_live_bounding_box_parameters()
         self.specify_live_bounding_box_relation()
         self.add_bounding_box_information()
-        self.specify_visual_position_parameter()
 
     def specify_action_parameters(self):
         pass
@@ -229,11 +231,6 @@ class VisibleObject(ProtoObject):  # visible objects
     def specify_creation(self):
         """specifies the creation action"""
         pass
-
-    def specify_visual_position_parameter(self):
-        self.visual_position_parameter = UVector(name="VisualPosition")
-        self.visual_position_u_group = UGroup(
-            self.visual_position_parameter, target=self.obj, name="VisualPosition")
 
     def get_clone(self):
         """clones an object and inserts it into the scene"""
@@ -354,7 +351,6 @@ class VisibleObject(ProtoObject):  # visible objects
 
 class LineObject(VisibleObject):
     """line objects consist of splines and only require a sketch material"""
-    # TODO: add create membrane option that creates group with border and membrane object
 
     def __init__(self, color=WHITE, plane="xy", arrow_start=False, arrow_end=False, draw_completion=0, opacity=1, **kwargs):
         super().__init__(**kwargs)
@@ -476,8 +472,9 @@ class LineObject(VisibleObject):
 class SolidObject(VisibleObject):
     """solid objects only require a fill material"""
 
-    def __init__(self, filled=0, color=WHITE, **kwargs):
+    def __init__(self, filled=0, glow=0, color=WHITE, **kwargs):
         self.filled = filled
+        self.glow = glow
         self.color = color
         super().__init__(**kwargs)
         self.set_fill_material()
@@ -515,10 +512,12 @@ class SolidObject(VisibleObject):
     def specify_fill_parameter(self):
         self.fill_parameter = UCompletion(
             name="Fill", default_value=self.filled)
+        self.glow_parameter = UCompletion(
+            name="Glow", default_value=self.glow)
 
     def insert_fill_parameter(self):
         self.fill_u_group = UGroup(
-            self.fill_parameter, target=self.obj, name="Solid")
+            self.fill_parameter, self.glow_parameter, target=self.obj, name="Solid")
 
     def specify_fill_relation(self):
         self.fill_relation = XRelation(part=self.fill_material, whole=self, desc_ids=[self.fill_material.desc_ids["transparency"]],
