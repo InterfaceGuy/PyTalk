@@ -76,8 +76,9 @@ class SketchMaterial(Material):
 
 class FillMaterial(Material):
 
-    def __init__(self, fill=0, color=WHITE, **kwargs):
+    def __init__(self, fill=0, glow=0, color=WHITE, **kwargs):
         self.fill = fill
+        self.glow = glow
         self.color = color
         super().__init__(**kwargs)
         self.set_material_properties()
@@ -94,9 +95,14 @@ class FillMaterial(Material):
         self.obj[c4d.MATERIAL_USE_COLOR] = False
         self.obj[c4d.MATERIAL_USE_LUMINANCE] = True
         self.obj[c4d.MATERIAL_USE_TRANSPARENCY] = True
+        self.obj[c4d.MATERIAL_USE_GLOW] = True
+        self.obj[c4d.MATERIAL_GLOW_BRIGHTNESS] = self.glow
+        self.obj[c4d.MATERIAL_GLOW_USEMATERIALCOLOR] = False
+        self.obj[c4d.MATERIAL_GLOW_INNERSTRENGTH] = 0
         self.obj[c4d.MATERIAL_TRANSPARENCY_REFRACTION] = 1
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
-            "transparency": c4d.DescID(c4d.DescLevel(c4d.MATERIAL_TRANSPARENCY_BRIGHTNESS, c4d.DTYPE_REAL, 0))
+            "transparency": c4d.DescID(c4d.DescLevel(c4d.MATERIAL_TRANSPARENCY_BRIGHTNESS, c4d.DTYPE_REAL, 0)),
+            "glow_brightness": c4d.DescID(c4d.DescLevel(c4d.MATERIAL_GLOW_BRIGHTNESS, c4d.DTYPE_REAL, 0))
         }
