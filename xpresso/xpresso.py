@@ -230,6 +230,43 @@ class XDelta(XPython):
         self.obj[c4d.GV_PYTHON_CODE] = 'import c4d\n\ndef main():\n    global Output1\n    Output1 = 1\n    delta_t = Input1 - Input2\n    if delta_t:\n        Output1 = delta_t'
 
 
+class XProximityConnector(XPython):
+    """connects clones to their nearest clone"""
+
+    def __init__(self, target, matrix_count=None, name="ProximityConnector", **kwargs):
+        self.matrix_count = matrix_count
+        super().__init__(target, name=name, **kwargs)
+        self.add_parameter_ports()
+        self.add_matrix_ports()
+
+    def create_matrix_string(self):
+        matrix_string = ""
+        for i in range(self.matrix_count):
+            matrix_string += f"Matrix{i}"
+            if i < self.matrix_count - 1:
+                matrix_string += ", "
+        return matrix_string
+    
+    def set_params(self):
+        matrix_string = self.create_matrix_string()
+        self.obj[c4d.GV_PYTHON_CODE] = f"from pydeation.utils import connect_nearest_clones\n\ndef main() -> None:\n    connect_nearest_clones({matrix_string}, n=NeighbourCount, max_distance=MaxDistance)\n"
+
+    def add_matrix_ports(self):
+        for i in range(self.matrix_count):
+            new_matrix_port = self.obj.AddPort(
+                c4d.GV_PORT_INPUT, PYTHON_OBJECT_DESCID_IN)
+            new_matrix_port.SetName(f"Matrix{i}")
+        return new_matrix_port
+
+    def add_parameter_ports(self):
+        self.obj.RemoveUnusedPorts()
+        self.neighbour_count_port = self.obj.AddPort(
+            c4d.GV_PORT_INPUT, PYTHON_INTEGER_DESCID_IN)
+        self.neighbour_count_port.SetName("NeighbourCount")
+        self.max_distance_port = self.obj.AddPort(
+            c4d.GV_PORT_INPUT, PYTHON_REAL_DESCID_IN)
+        self.max_distance_port.SetName("MaxDistance")
+
 class XBBox(XPython):
     """a more robust python version of the bounding box node"""
 
@@ -418,8 +455,14 @@ class XMix(XNode):
         super().__init__(target, "mix", **kwargs)
 
     def set_params(self):
+        data_types = {
+            "real": 19,
+            "vector": 23,
+            "matrix": 25,
+            "color": 3
+        }
         self.obj[c4d.GV_MIX_INPUT_MIXINGFACTOR] = self.mixing_factor
-        self.obj[c4d.GV_DYNAMIC_DATATYPE] = self.data_types[self.data_type]
+        self.obj[c4d.GV_DYNAMIC_DATATYPE] = data_types[self.data_type]
 
 
 class XDistance(XNode):
