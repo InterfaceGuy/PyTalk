@@ -795,6 +795,58 @@ class XScaleBetweenPoints(CustomXPression):
             self.divide_node.obj.GetInPort(1))
 
 
+class XPlaceBetweenPoints(CustomXPression):
+    """creates a setup that scales and positions an object such that it touches two points on its periphery"""
+
+    def __init__(self, placed_object=None, point_a=None, point_b=None, interpolation_parameter=None, target=None):
+        self.placed_object = placed_object
+        self.point_a = point_a
+        self.point_b = point_b
+        self.interpolation_parameter = interpolation_parameter
+        super().__init__(target)
+
+    def construct(self):
+        self.create_mix_node()
+        self.create_point_nodes()
+        self.create_placed_object_node()
+        self.create_parameter_node()
+
+    def create_mix_node(self):
+        self.mix_node = XMix(self.target, data_type="matrix")
+        self.nodes.append(self.mix_node)
+
+    def create_point_nodes(self):
+        self.point_a_node = XObject(self.target, link_target=self.point_a)
+        self.point_a_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_GLOBAL_OUT)
+        self.point_b_node = XObject(self.target, link_target=self.point_b)
+        self.point_b_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_GLOBAL_OUT)
+        self.nodes += [self.point_a_node, self.point_b_node]
+
+    def create_placed_object_node(self):
+        self.placed_object_node = XObject(
+            self.target, link_target=self.placed_object)
+        self.placed_object_node_global_matrix_port = self.placed_object_node.obj.AddPort(
+            c4d.GV_PORT_INPUT, c4d.GV_OBJECT_OPERATOR_GLOBAL_IN)
+        self.nodes.append(self.placed_object_node)
+
+    def create_parameter_node(self):
+        self.parameter_node = XObject(self.target)
+        self.parameter_port = self.parameter_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.interpolation_parameter.desc_id)
+        self.nodes.append(self.parameter_node)
+
+    def connect_ports(self):
+        self.point_a_node.obj.GetOutPort(0).Connect(
+            self.mix_node.obj.GetInPort(1))
+        self.point_b_node.obj.GetOutPort(0).Connect(
+            self.mix_node.obj.GetInPort(2))
+        self.mix_node.obj.GetOutPort(0).Connect(
+            self.placed_object_node_global_matrix_port)
+        self.parameter_port.Connect(self.mix_node.obj.GetInPort(0))
+
+
 class XSplineLength(CustomXPression):
     """writes the length of a spline to a specified parameter"""
 
@@ -928,12 +980,12 @@ class XLinkParamToField(CustomXPression):
 
     def create_part_node_out(self):
         self.part_node_out = XObject(self.target, link_target=self.part)
-        self.visual_position_port = self.part_node_out.obj.AddPort(
-            c4d.GV_PORT_OUTPUT, self.part.visual_position_parameter.desc_id)
+        self.center_port = self.part_node_out.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.part.center_parameter.desc_id)
         self.nodes.append(self.part_node_out)
 
     def connect_ports(self):
-        self.visual_position_port.Connect(self.falloff_node.obj.GetInPort(0))
+        self.center_port.Connect(self.falloff_node.obj.GetInPort(0))
         self.falloff_node.obj.GetOutPort(0).Connect(self.parameter_port)
 
 
@@ -1300,3 +1352,54 @@ class XColorBlend(CustomXPression):
         for target_color_port in self.target_color_ports:
             self.mix_node.obj.GetOutPort(0).Connect(
                 target_color_port)
+
+
+class XConnectNearestClones(CustomXPression):
+    """connects the nearest clones of the target object to the target object"""
+
+    def __init__(self, *matrices, neighbour_count_parameter=None, max_distance_parameter=None, target=None):
+        self.target = target
+        self.matrices = matrices
+        self.neighbour_count_parameter = neighbour_count_parameter
+        self.max_distance_parameter = max_distance_parameter
+        self.nodes = []
+        super().__init__(self.target)
+
+    def construct(self):
+        print("constructing")
+        self.create_matrix_nodes()
+        self.create_target_node()
+        self.create_proximity_connector_node()
+
+    def create_matrix_nodes(self):
+        self.matrix_nodes = []
+        self.matrix_ports = []
+        for matrix in self.matrices:
+            matrix_node = XObject(self.target, link_target=matrix)
+            matrix_port = matrix_node.obj.AddPort(
+                c4d.GV_PORT_OUTPUT, c4d.GV_OBJECT_OPERATOR_OBJECT_OUT)
+            self.matrix_nodes.append(matrix_node)
+            self.matrix_ports.append(matrix_port)
+        self.nodes += self.matrix_nodes
+
+    def create_target_node(self):
+        self.target_node = XObject(self.target)
+        self.target_neighbour_count_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.neighbour_count_parameter.desc_id)
+        self.target_max_distance_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.max_distance_parameter.desc_id)
+        self.nodes.append(self.target_node)
+
+    def create_proximity_connector_node(self):
+        self.proximity_connector_node = XProximityConnector(self.target, matrix_count=len(self.matrices))
+        self.nodes.append(self.proximity_connector_node)
+
+    def connect_ports(self):
+        for i, matrix_port in enumerate(self.matrix_ports):
+            print("connecting matrix port")
+            matrix_port.Connect(
+                self.proximity_connector_node.obj.GetInPort(i+2))  # skip first two ports
+        self.target_neighbour_count_port.Connect(
+            self.proximity_connector_node.neighbour_count_port)
+        self.target_max_distance_port.Connect(
+            self.proximity_connector_node.max_distance_port)
