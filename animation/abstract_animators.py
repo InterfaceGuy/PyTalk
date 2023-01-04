@@ -27,7 +27,10 @@ class ProtoAnimator(ABC):
 
     def specify_animation_method(self):
         """specifies the method used for the animation"""
-        self.animation_method = self.__class__.__name__.lower()
+        # convert camel case to snake case
+        class_name = self.__class__.__name__
+        snake_case = ''.join(['_' + i.lower() if i.isupper() else i for i in class_name]).lstrip('_')
+        self.animation_method = snake_case
 
     def insert_helper_objects(self):
         """inserts helper objects into the hierarchy if needed"""
@@ -79,15 +82,11 @@ class UnDraw(ProtoAnimator):
 
 
 class FadeIn(ProtoAnimator):
-
-    def specify_animation_method(self):
-        self.animation_method = "fade_in"
+    pass
 
 
 class FadeOut(ProtoAnimator):
-
-    def specify_animation_method(self):
-        self.animation_method = "fade_out"
+    pass
 
 
 class Fill(ProtoAnimator):
@@ -97,6 +96,8 @@ class Fill(ProtoAnimator):
 class UnFill(ProtoAnimator):
     pass
 
+class ChangeColor(ProtoAnimator):
+    pass
 
 class Move(ProtoAnimator):
     pass
@@ -109,6 +110,29 @@ class Scale(ProtoAnimator):
 class Rotate(ProtoAnimator):
     pass
 
+class Glow(ProtoAnimator):
+    pass
+
+class UnGlow(ProtoAnimator):
+    pass
+
+class Highlight(ProtoAnimator):
+    """the highlight animator makes the specified objects glow
+    since this effect is limited to solid objects it creates a solid spline for each spline object"""
+    def __init__(self, *objs, rel_start=0, rel_stop=1, **kwargs):
+        self.objs = objs
+        self.rel_start = rel_start
+        self.rel_stop = rel_stop
+        self.kwargs = kwargs
+        self.insert_helper_objects()
+
+    def insert_helper_objects(self):
+        """inserts helper objects into the hierarchy if needed"""
+        # we iterate over the objects and insert a solid spline for each spline object
+        for obj in self.objs:
+            if isinstance(obj, LineObject):
+                solid_spline = SolidSpline(obj)
+                self.objs.append(solid_spline)
 
 class Morph(ProtoAnimator):
 
@@ -236,7 +260,7 @@ class UnConnect(Connect):
         self.rescale_animations()
 
     def specify_animation_method(self):
-        self.animation_method = "uncreate"
+        self.animation_method = "un_create"
 
 
 ## DEPRECATED ##
