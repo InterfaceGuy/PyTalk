@@ -1,7 +1,7 @@
-from pydeation.objects.abstract_objects import CustomObject
+from pydeation.objects.abstract_objects import CustomObject, LineObject
 from pydeation.objects.custom_objects import Text, Group
 from pydeation.objects.solid_objects import Extrude
-from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline
+from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, VisibleMoSpline, SplineMask
 from pydeation.objects.sketch_objects import Human, Fire, Footprint, Sketch
 from pydeation.objects.helper_objects import *
 from pydeation.xpresso.userdata import UAngle, UGroup, ULength, UOptions, UCompletion, UText, UStrength, UCount
@@ -13,41 +13,213 @@ import c4d
 
 
 class EffectObject(CustomObject):
-    """an effect object has the additional ability to toggle the visibility of the objects it affects
-        (like a stuntman telling the actor to go off stage for the stunt)"""
+    """an effect object has the general task of impersonating another object using a mospline or instance object and
+    applying some sort effect to the impersonation such as deformation.
+    to return a smooth animation it has the ability to toggle the visibility of the target objects"""
 
-    def __init__(self, clone=False, **kwargs):
+    def __init__(self, object_ini=None, object_fin=None, clone=False, **kwargs):
         self.clone = clone
-        super().__init__(**kwargs)
         self.specify_action_interval()
-        self.create_visibility_control()
+        super().__init__(**kwargs)
 
     def specify_action_interval(self):
         self.action_interval = (0, 1)
 
+
+class TransitionObject(EffectObject):
+    """a transition object is an effect object that intermediates the transition from one object to another
+    so it has the ability to toggle the visibility of both the initial and the final object"""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.create_visibility_control()
+        self.sort_relations_by_priority()
+
     def create_visibility_control(self):
-        self.specify_driving_parameter()
-        self.specify_initial_objects()
-        self.specify_final_objects()
         if self.clone:
-            visibility_control = XVisibilityControl(target=self, driving_parameter=self.driving_parameter,
-                                                    initial_objects=[], transition_objects=[
+            visibility_control = XVisibilityControl(priority=100, target=self, driving_parameter=self.effect_parameter,
+                                                    initial_objects=[], effect_objects=[
                                                         self], final_objects=self.final_objects,
                                                     invisibility_interval=self.action_interval)
         else:
-            visibility_control = XVisibilityControl(target=self, driving_parameter=self.driving_parameter,
-                                                    initial_objects=self.initial_objects, transition_objects=[
-                                                        self], final_objects=self.final_objects,
+            visibility_control = XVisibilityControl(priority=100, target=self, driving_parameter=self.effect_parameter,
+                                                    initial_objects=[self.object_ini], effect_objects=[
+                                                        self], final_objects=[self.object_fin],
                                                     invisibility_interval=self.action_interval)
+        self.relations.append(visibility_control)
 
-    def specify_driving_parameter(self):
-        self.driving_parameter = self.action_parameter
 
-    def specify_initial_objects(self):
-        self.initial_objects = [self.object_ini]
+class ActionObject(EffectObject):
+    """an action object is an effect object that has no final object
+    so it has simply the ability to toggle the visibility of the initial object and behave exactly like a stuntman"""
 
-    def specify_final_objects(self):
-        self.final_objects = [self.object_fin]
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.create_visibility_control()
+        self.sort_relations_by_priority()
+
+    def create_visibility_control(self):
+        if not self.clone:
+            visibility_control = XVisibilityControl(priority=100, target=self, driving_parameter=self.effect_parameter,
+                                                    initial_objects=[self.object_ini], effect_objects=[self],
+                                                    invisibility_interval=self.action_interval)
+        self.relations.append(visibility_control)
+
+
+class Dicer(ActionObject):
+    # a dicer takes any object and slices it along a regular grid of specified length
+    # for splines this is achieved using spline masks and a grid of rectangles
+
+    def __init__(self, actor, grid_size=10, explosion_strength=1, **kwargs):
+        self.spline = self.get_spline(actor)
+        self.object_ini = self.spline
+        self.object_fin = self.spline
+        self.grid_size = grid_size
+        self.explosion_strength = explosion_strength
+        super().__init__(**kwargs)
+
+    def get_spline(self, actor):
+        if hasattr(actor, "svg"):  # quick and dirty way of identifying sketch objects
+            spline = actor.svg
+        else:
+            spline = actor
+        return spline
+
+    def specify_action_interval(self):
+        # by setting the interval out of bounds we make sure the actor remains hidden
+        # even when the explosion completion reaches 100%
+        self.action_interval = (0, 1.1)
+
+    def specify_parts(self):
+        self.grid = self.generate_grid()
+        self.parts += [self.grid]
+        self.parts += self.rectangles
+        self.parts += self.spline_masks
+        self.parts += self.mosplines
+
+    def generate_grid(self):
+        # generates a grid of rectangles based on the diameter of the spline
+        self.spline_diameter = self.spline.get_diameter()
+        self.spline_masks = []
+        self.rectangles = []
+        self.mosplines = []
+        self.grid_width = int(self.spline_diameter / self.grid_size) + 1
+        self.grid_height = int(self.spline_diameter / self.grid_size) + 1
+        for i in range(self.grid_width):
+            for j in range(self.grid_height):
+                x = (i + 1/2) * self.grid_size - self.grid_size * self.grid_width / 2
+                y = (j + 1/2) * self.grid_size - self.grid_size * self.grid_height / 2
+                rectangle = Rectangle(x=x, y=y, width=self.grid_size, height=self.grid_size, helper_mode=True)
+                mospline = MoSpline(source_spline=self.spline, generation_mode="vertex")
+                spline_mask = SplineMask(mospline, rectangle, mode="and")
+                self.spline_masks.append(spline_mask)
+                self.rectangles.append(rectangle)
+                self.mosplines.append(mospline)
+        grid = Group(*self.spline_masks, name="Grid")
+        return grid
+
+    def specify_creation(self):
+        movements = []
+        for spline_mask in self.grid:
+            movement = Movement(spline_mask.creation_parameter, (0, 1), part=spline_mask)
+            movements.append(movement)
+        creation_action = XAction(
+            *movements, target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def specify_parameters(self):
+        self.explosion_strength_parameter = UStrength(name="ExplosionStrength", default_value=self.explosion_strength)
+        self.explosion_completion_parameter = UCompletion(name="ExplosionCompletion", default_value=0)
+        self.parameters += [self.explosion_strength_parameter, self.explosion_completion_parameter]
+
+    def specify_relations(self):
+        explosion_relation = XExplosion(target=self, completion_parameter=self.explosion_completion_parameter, strength_parameter=self.explosion_strength_parameter, parts=self.grid, children=[spline_mask.input_splines[1] for spline_mask in self.grid])
+        self.relations.append(explosion_relation)
+
+    def specify_action_parameters(self):
+        self.effect_parameter = UCompletion(name="Explode", default_value=0)
+        self.action_parameters += [self.effect_parameter]
+
+    def specify_actions(self):
+        explosion_action = XAction(
+            Movement(self.creation_parameter, (0, 1/FPS)),
+            Movement(self.explosion_completion_parameter, (0, 1)),
+            target=self, completion_parameter=self.effect_parameter, name="Explode")
+        self.actions += [explosion_action]
+
+    def explode(self, completion=1):
+        # specifies the explode animation
+        desc_id = self.effect_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def implode(self, completion=0):
+        # specifies the implode animation
+        desc_id = self.effect_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+class Breather(ActionObject):
+    # a breather is an action object that creates a breathing effect
+
+    def __init__(self, actor, breathing_strength=1, breath_count=3, **kwargs):
+        self.actor = actor
+        self.object_ini = actor
+        self.object_fin = actor
+        self.breathing_strength = breathing_strength
+        self.breath_count = breath_count
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        if True:  # TODO: check if actor is a spline, isinstance doesn't work
+            if hasattr(self.actor, "svg"):  # quick and dirty way of identifying sketch objects
+                spline = self.actor.svg
+            else:
+                spline = self.actor
+            self.double = VisibleMoSpline(source_spline=spline, creation=True, generation_mode="vertex")
+        else:
+            self.double = Instance(self.actor)
+        self.squash_and_stretch = SquashAndStretch(self.double)
+        self.parts += [self.squash_and_stretch, self.double]
+
+    def specify_parameters(self):
+        self.breathing_completion_parameter = UCompletion(name="Breathing", default_value=0)
+        self.breathing_strength_parameter = UStrength(name="BreathingStrength", default_value=self.breathing_strength)
+        self.breath_count_parameter = UCount(name="BreathCount", default_value=self.breath_count)
+        self.deformer_height_parameter = ULength(name="DeformerHeight")
+        self.parameters += [self.breathing_completion_parameter, self.breathing_strength_parameter, self.breath_count_parameter, self.deformer_height_parameter]
+
+    def specify_relations(self):
+        breathing_relation = XRelation(whole=self, part=self.squash_and_stretch, desc_ids=[self.squash_and_stretch.desc_ids["factor"]],
+                                       parameters=[self.breathing_completion_parameter, self.breathing_strength_parameter, self.breath_count_parameter],
+                                       formula=f"1+Sin(2*Pi*{self.breath_count_parameter.name}*{self.breathing_completion_parameter.name})*0.03*{self.breathing_strength_parameter.name}")
+        deformer_height_inheritance = XIdentity(whole=self.double, part=self, desc_ids=[self.deformer_height_parameter.desc_id], parameter=self.height_parameter)
+        deformer_top_length_relation = XRelation(whole=self, part=self.squash_and_stretch, desc_ids=[self.squash_and_stretch.desc_ids["top_length"]],
+                                                 parameters=[self.deformer_height_parameter], formula=f"{self.deformer_height_parameter.name}/2")
+        deformer_bottom_length_relation = XRelation(whole=self, part=self.squash_and_stretch, desc_ids=[self.squash_and_stretch.desc_ids["bottom_length"]],
+                                                    parameters=[self.deformer_height_parameter], formula=f"-{self.deformer_height_parameter.name}/2")
+        self.relations += [breathing_relation, deformer_height_inheritance, deformer_top_length_relation, deformer_bottom_length_relation]
+
+    def specify_action_parameters(self):
+        self.effect_parameter = UCompletion(name="Breathing", default_value=0)
+        self.action_parameters += [self.effect_parameter]
+
+    def specify_actions(self):
+        breathing_action = XAction(
+            Movement(self.breathing_completion_parameter, (0, 1), easing="soft"),
+            target=self, completion_parameter=self.effect_parameter, name="Breathing")
+        self.actions += [breathing_action]
+
+    def breathe(self, completion=1):
+        # specifies the breathing animation
+        desc_id = self.effect_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
 
 
 class Segment:
@@ -60,7 +232,7 @@ class Segment:
         return self.length/self.sub_segments
 
 
-class Morpher(EffectObject):
+class Morpher(TransitionObject):
     """creates a (set of) spline(s) depending on segment count that morphs between any two spline objects"""
 
     def __init__(self, object_ini, object_fin, morph_completion=0, linear_field_length=50, mode="linear", **kwargs):
@@ -111,14 +283,13 @@ class Morpher(EffectObject):
             self.parts.append(self.linear_field)
         self.subdivide_segments()
         self.create_spline_effectors()
-        self.create_destination_splines()
+        #self.create_destination_splines()
         self.create_mosplines()
         self.parts += [self.spline_effectors_ini,
-                       self.spline_effectors_fin, self.mosplines, self.destination_splines]
+                       self.spline_effectors_fin, self.mosplines]
 
     def create_linear_field(self):
         self.linear_field = LinearField(direction="x-")
-        self.parts.append(self.linear_field)
 
 
     def subdivide_segments(self):
@@ -170,7 +341,7 @@ class Morpher(EffectObject):
                 for j in range(segment.sub_segments):
                     offset_start = 1/segment.sub_segments*j
                     offset_end = 1 - 1/segment.sub_segments*(j+1)
-                    self.spline_effectors_ini.add(SplineEffector(spline=self.spline_ini, segment_index=i, offset_start=offset_start, offset_end=offset_end, name=f"SplineEffector{i}.{j}"))
+                    self.spline_effectors_ini.add(SplineEffector(spline=self.spline_ini, fields=fields, segment_index=i, offset_start=offset_start, offset_end=offset_end, name=f"SplineEffector{i}.{j}"))
 
         elif self.segment_count_ini > self.segment_count_fin:
             # subdivide final spline segments
@@ -182,7 +353,7 @@ class Morpher(EffectObject):
                 for j in range(segment.sub_segments):
                     offset_start = 1/segment.sub_segments*j
                     offset_end = 1 - 1/segment.sub_segments*(j+1)
-                    self.spline_effectors_fin.add(SplineEffector(spline=self.spline_fin, segment_index=i, offset_start=offset_start, offset_end=offset_end, name=f"SplineEffector{i}.{j}"))
+                    self.spline_effectors_fin.add(SplineEffector(spline=self.spline_fin, fields=fields, segment_index=i, offset_start=offset_start, offset_end=offset_end, name=f"SplineEffector{i}.{j}"))
 
         else:
             self.spline_effectors_ini = Group(*[SplineEffector(spline=self.spline_ini, fields=fields, segment_index=i, name=f"SplineEffector{i}")
@@ -241,26 +412,31 @@ class Morpher(EffectObject):
                                                   formula=f"{self.object_ini_center_x_parameter.name}-({self.object_ini_width_parameter.name}/2+{self.linear_field_length_parameter.name})+({self.object_ini_width_parameter.name}+2*{self.linear_field_length_parameter.name})*{self.morph_completion_parameter.name}")
             linear_field_length_relation = XIdentity(part=self.linear_field, whole=self, desc_ids=[self.linear_field.desc_ids["length"]],
                                                      parameter=self.linear_field_length_parameter)
+            self.relations += [morph_completion_relation, linear_field_length_relation]
         elif self.mode == "constant":
             for spline_effector_fin in self.spline_effectors_fin:
                 morph_completion_relation = XIdentity(part=spline_effector_fin, whole=self, desc_ids=[spline_effector_fin.desc_ids["strength"]],
                                                       parameter=self.morph_completion_parameter)
+                self.relations += [morph_completion_relation]
         if hasattr(self.object_ini, "fill_parameter"):
             object_ini_fill_relation = XIdentity(part=self.object_ini, whole=self, desc_ids=[self.object_ini.fill_parameter.desc_id],
                                                  parameter=self.object_ini_fill_parameter)
+            self.relations += [object_ini_fill_relation]
         if hasattr(self.object_fin, "fill_parameter"):
             object_fin_fill_relation = XIdentity(part=self.object_fin, whole=self, desc_ids=[self.object_fin.fill_parameter.desc_id],
                                                  parameter=self.object_fin_fill_parameter)
+            self.relations += [object_fin_fill_relation]
         object_ini_width_inheritance = XIdentity(part=self, whole=self.object_ini, desc_ids=[self.object_ini_width_parameter.desc_id],
                                                  parameter=self.object_ini.width_parameter)
-        object_ini_center_x_inheritance = XIdentity(part=self, whole=self.object_ini, desc_ids=[self.object_ini_center_x_parameter.desc_id],
+        object_ini_center_x_inheritance = XIdentity(priority=10, part=self, whole=self.object_ini, desc_ids=[self.object_ini_center_x_parameter.desc_id],
                                                     parameter=self.object_ini.center_x_parameter)
         color_blend_relation = XColorBlend(target=self, blend_parameter=self.color_blend_parameter,
                                            color_ini_parameter=self.object_ini_color_parameter, color_fin_parameter=self.object_fin_color_parameter)
+        self.relations += [object_ini_width_inheritance, object_ini_center_x_inheritance, color_blend_relation]
 
     def specify_action_parameters(self):
-        self.action_parameter = UCompletion(name="Morph", default_value=0)
-        self.action_parameters = [self.action_parameter]
+        self.effect_parameter = UCompletion(name="Morph", default_value=0)
+        self.action_parameters = [self.effect_parameter]
 
     def specify_actions(self):
         if hasattr(self.object_ini, "fill_parameter") and hasattr(self.object_fin, "fill_parameter"):
@@ -270,29 +446,30 @@ class Morpher(EffectObject):
                 Movement(self.morph_completion_parameter, (1 / 3, 2 / 3)),
                 Movement(self.color_blend_parameter, (1 / 3, 2 / 3)),
                 Movement(self.object_fin.fill_parameter, (2 / 3, 1), part=self.object_fin),
-                target=self, completion_parameter=self.action_parameter, name="Morph")
+                target=self, completion_parameter=self.effect_parameter, name="Morph")
         elif hasattr(self.object_ini, "fill_parameter"):
             morph_action = XAction(
                 Movement(self.object_ini.fill_parameter,
                          (0, 1 / 3), output=(1, 0), part=self.object_ini),
                 Movement(self.morph_completion_parameter, (1 / 3, 1)),
                 Movement(self.color_blend_parameter, (1 / 3, 1)),
-                target=self, completion_parameter=self.action_parameter, name="Morph")
+                target=self, completion_parameter=self.effect_parameter, name="Morph")
         elif hasattr(self.object_fin, "fill_parameter"):
             morph_action = XAction(
                 Movement(self.morph_completion_parameter, (0, 2 / 3)),
                 Movement(self.color_blend_parameter, (0, 2 / 3)),
                 Movement(self.object_fin.fill_parameter, (2 / 3, 1), part=self.object_fin),
-                target=self, completion_parameter=self.action_parameter, name="Morph")
+                target=self, completion_parameter=self.effect_parameter, name="Morph")
         else:
             morph_action = XAction(
                 Movement(self.morph_completion_parameter, (0, 1)),
                 Movement(self.color_blend_parameter, (1 / 2, 1)),
-                target=self, completion_parameter=self.action_parameter, name="Morph")
+                target=self, completion_parameter=self.effect_parameter, name="Morph")
+        self.actions = [morph_action]
 
     def morph(self, completion=1):
         """specifies the morph animation"""
-        desc_id = self.action_parameter.desc_id
+        desc_id = self.effect_parameter.desc_id
         animation = ScalarAnimation(
             target=self, descriptor=desc_id, value_fin=completion)
         return animation
