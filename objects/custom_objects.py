@@ -1093,14 +1093,30 @@ class SolidSpline(CustomObject):
         self.parts = [self.sweep_nurbs, self.mospline, self.destination_spline, self.profile_spline]
 
     def specify_parameters(self):
-        self.glow_parameter = UCompletion(name="Glow", default_value=1)
+        self.glow_parameter = UCompletion(name="Glow", default_value=0)
         self.parameters += [self.glow_parameter]
 
     def specify_relations(self):
-        glow_inheritance = XIdentity(part=self.sweep_nurbs.fill_material, whole=self, desc_ids=[self.sweep_nurbs.fill_material.desc_ids["glow_brightness"]],
+        glow_inheritance = XIdentity(part=self.sweep_nurbs, whole=self, desc_ids=[self.sweep_nurbs.glow_parameter.desc_id],
                                      parameter=self.glow_parameter)
         spline_correction = XCorrectMoSplineTransform(
             self.mospline, target=self)
+
+    def glow(self, completion=1):
+        """specifies the glow animation"""
+        desc_id = self.glow_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def unglow(self, completion=0):
+        """specifies the unglow animation"""
+        desc_id = self.glow_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
 
 
 class CloneConnector(CustomObject):
