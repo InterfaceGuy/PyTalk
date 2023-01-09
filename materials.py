@@ -36,10 +36,11 @@ class Material(ABC):
 
 class SketchMaterial(Material):
 
-    def __init__(self, color=WHITE, arrow_start=False, arrow_end=False, **kwargs):
+    def __init__(self, color=WHITE, arrow_start=False, arrow_end=False, draw_order=None, **kwargs):
         self.color = color
         self.arrow_start = arrow_start
         self.arrow_end = arrow_end
+        self.draw_order = draw_order
         super().__init__(**kwargs)
         self.set_material_properties()
 
@@ -59,7 +60,16 @@ class SketchMaterial(Material):
         self.obj[c4d.OUTLINEMAT_ENDCAP_WIDTH] = 7
         self.obj[c4d.OUTLINEMAT_ENDCAP_HEIGHT] = 5
         self.obj[c4d.OUTLINEMAT_ANIMATE_AUTODRAW] = True  # draw mode
-        self.obj[c4d.OUTLINEMAT_ANIMATE_STROKES] = 4  # draw order
+        draw_orders = {
+            "long_to_short": 0,
+            "short_to_long": 1,
+            "top_to_bottom": 2,
+            "bottom_to_top": 3,
+            "left_to_right": 4,
+            "right_to_left": 5,
+            "random": 6
+        }
+        self.obj[c4d.OUTLINEMAT_ANIMATE_STROKES] = draw_orders[self.draw_order] # draw order
         # draw speed to completion
         self.obj[c4d.OUTLINEMAT_ANIMATE_STROKE_SPEED_TYPE] = 2
         # strokes independent of screen
