@@ -1045,6 +1045,17 @@ class Membrane(CustomObject):
         mospline_correction = XCorrectMoSplineTransform(
             self.mospline, target=self)
 
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.fill_parameter, (0, 1)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def fill(self, opacity):
+        return self.create(opacity)
+
+    def un_fill(self, opacity=0):
+        return self.create(opacity)
+
 
 class BoundingSpline(CustomObject):
     """creates a (perspective dependent) bounding spline for any given solid object using the edge spline object"""
@@ -1058,6 +1069,12 @@ class BoundingSpline(CustomObject):
         self.outline_spline = EdgeSpline(self.solid_object, mode="outline")
         self.curvature_spline = EdgeSpline(self.outline_spline, mode="curvature")
         self.parts += [self.outline_spline, self.curvature_spline]
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.outline_spline.draw_parameter, (0, 1), part=self.outline_spline),
+            Movement(self.curvature_spline.draw_parameter, (0, 1), part=self.curvature_spline),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 class SolidSpline(CustomObject):
