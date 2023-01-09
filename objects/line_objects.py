@@ -2,7 +2,7 @@ import pydeation
 import importlib
 importlib.reload(pydeation.objects.abstract_objects)
 from pydeation.objects.abstract_objects import LineObject
-from pydeation.objects.helper_objects import Null
+from pydeation.objects.helper_objects import Null, MoSpline
 from pydeation.constants import *
 from pydeation.xpresso.xpressions import XIdentity
 import c4d
@@ -238,25 +238,130 @@ class PySpline(LineObject):
 class SplineText(LineObject):
     """creates the native text object of c4d as opposed to the customized version which has additional structure"""
 
-    def __init__(self, text, height=50, anchor="middle", seperate_letters=False, **kwargs):
+    def __init__(self, text, height=50, anchor="center", seperate_letters=False, draw_order="left_to_right", **kwargs):
         self.text = text
         self.height = height
         self.anchor = anchor
         self.seperate_letters = seperate_letters
-        super().__init__(name=text, **kwargs)
+        super().__init__(name=text, draw_order=draw_order, **kwargs)
+
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Osplinetext)
 
     def set_object_properties(self):
-        anchors = {"left": 0, "middle": 1, "right": 0}
+        anchors = {"left": 0, "middle": 1, "center": 1, "right": 0}
         self.obj[c4d.PRIM_TEXT_TEXT] = self.text
         self.obj[c4d.PRIM_TEXT_HEIGHT] = self.height
         self.obj[c4d.PRIM_TEXT_ALIGN] = anchors[self.anchor]
         self.obj[c4d.PRIM_TEXT_SEPARATE] = self.seperate_letters
+        # optionally center object
+        if self.anchor == "center":
+            center = self.get_center()
+            self.move(position=-center)
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
             "text": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_TEXT, c4d.DTYPE_STRING, 0)),
             "text_height": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_HEIGHT, c4d.DTYPE_REAL, 0))
         }
+
+
+class SplineMask(LineObject):
+    """creates a spline mask"""
+
+    def __init__(self, *input_splines, mode="union", **kwargs):
+        self.input_splines = input_splines
+        self.mode = mode
+        super().__init__(**kwargs)
+        self.insert_input_splines()
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(1019396)
+
+    def set_object_properties(self):
+        modes = {
+            "union": 0,
+            "a-b": 1,
+            "b-a": 2,
+            "and": 3,
+            "or": 4,
+            "intersection": 5
+        }
+        self.obj[c4d.MGSPLINEMASKOBJECT_MODE] = modes[self.mode]
+
+    def insert_input_splines(self):
+        for spline in self.input_splines:
+            spline.obj.InsertUnder(self.obj)
+
+    def specify_relations(self):
+        for input_spline in self.input_splines:
+            if hasattr(input_spline, "visibility_parameter"):
+                visibility_relation = XIdentity(
+                        part=input_spline, whole=self, desc_ids=[input_spline.visibility_parameter.desc_id], parameter=self.visibility_parameter, name="VisibilityInheritance")
+
+class VisibleMoSpline(LineObject):
+    """creates a visible MoSpline"""
+
+    def __init__(self, mode="spline", generation_mode="even", point_count=100, source_spline=None, destination_spline=None, effectors=[], **kwargs):
+        self.mode = mode
+        self.generation_mode = generation_mode
+        self.point_count = point_count
+        self.source_spline = source_spline
+        self.effectors = effectors
+        self.destination_spline = destination_spline
+        super().__init__(**kwargs)
+        self.add_effectors()
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(440000054)
+
+    def set_object_properties(self):
+        # implicit properties
+        modes = {"simple": 0, "spline": 1, "turtle": 2}
+        generation_modes = {"vertex": 0, "count": 1, "even": 2, "step": 3}
+        # set properties
+        self.obj[c4d.MGMOSPLINEOBJECT_MODE] = modes[self.mode]
+        self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_MODE] = generation_modes[self.generation_mode]
+        self.obj[c4d.MGMOSPLINEOBJECT_SPLINE_COUNT] = self.point_count
+        # display as regular spline
+        self.obj[c4d.MGMOSPLINEOBJECT_DISPLAYMODE] = 0
+        if self.source_spline:
+            self.obj[c4d.MGMOSPLINEOBJECT_SOURCE_SPLINE] = self.source_spline.obj
+        if self.destination_spline:
+            self.obj[c4d.MGMOSPLINEOBJECT_DEST_SPLINE] = self.destination_spline.obj
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "point_count": c4d.DescID(c4d.DescLevel(c4d.MGMOSPLINEOBJECT_SPLINE_COUNT, c4d.DTYPE_LONG, 0))
+        }
+
+    def add_effectors(self):
+        self.effector_list = c4d.InExcludeData()
+        for effector in self.effectors:
+            self.effector_list.InsertObject(effector.obj, 1)
+        self.obj[c4d.ID_MG_MOTIONGENERATOR_EFFECTORLIST] = self.effector_list
+
+    def add_effector(self, effector):
+        self.effector_list.InsertObject(effector.obj, 1)
+        self.obj[c4d.MGMOSPLINEOBJECT_EFFECTORLIST] = self.effector_list
+
+class SplineSymmetry(LineObject):
+    """the symmetry object used to mirror spline geometry"""
+
+    def __init__(self, *input_splines, axis="x", **kwargs):
+        self.input_splines = input_splines
+        self.axis = axis
+        super().__init__(**kwargs)
+        self.insert_input_splines()
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(5142)
+
+    def set_object_properties(self):
+        axes = {"x": 1, "y": 2, "z": 0}
+        self.obj[c4d.SYMMETRYOBJECT_PLANE] = axes[self.axis]
+
+    def insert_input_splines(self):
+        for spline in self.input_splines:
+            spline.obj.InsertUnder(self.obj)
