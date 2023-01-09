@@ -499,13 +499,21 @@ class LineObject(VisibleObject):
         self.obj[desc_id] = completion
         return animation
 
+    def change_color(self, color):
+        """specifies the color change animation"""
+        desc_id = self.color_parameter.desc_id
+        animation = ColorAnimation(
+            target=self, descriptor=desc_id, vector=color)
+        self.obj[desc_id] = color
+        return animation
+
 
 class SolidObject(VisibleObject):
     """solid objects only require a fill material"""
 
-    def __init__(self, filled=0, glow=0, color=WHITE, **kwargs):
+    def __init__(self, filled=0, glowing=0, color=WHITE, **kwargs):
         self.filled = filled
-        self.glow = glow
+        self.glowing = glowing
         self.color = color
         super().__init__(**kwargs)
         self.set_fill_material()
