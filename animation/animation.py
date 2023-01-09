@@ -115,7 +115,7 @@ class ProtoAnimation(ABC):
 
 
 class ScalarAnimation(ProtoAnimation):
-    """a vector animation object is responsible for setting an initial and final keyframe for a single description id for a single object
+    """a scalar animation object is responsible for setting an initial and final keyframe for a single description id for a single object
     the keyframes are spaced internally only on a relative scale and have to be scaled by the absolute run time provided by the Scene.play() function"""
 
     def __init__(self, rel_start=0, rel_stop=1, value_fin=None, value_ini=None, relative=False, multiplicative=False, **kwargs):
@@ -247,6 +247,21 @@ class VectorAnimation:
             scalar_animation = ScalarAnimation(
                 target=self.target, descriptor=descriptor, value_fin=value, relative=self.relative)
             self.scalar_animations.append(scalar_animation)
+
+class ColorAnimation(VectorAnimation):
+    """a color animation takes in a color descriptor and derives the three respective scalar animations from it;
+    the scalar animations are stored in a list as an attribute and are unpacked by the scene.play() method"""
+
+    def derive_sub_descriptors(self):
+        """derives the three sub-descriptors from the vector descriptor"""
+        if type(self.descriptor) in (tuple, list):
+            self.sub_descriptors = self.descriptor
+        else:
+            self.descriptor_r = (self.descriptor, c4d.COLOR_R)
+            self.descriptor_g = (self.descriptor, c4d.COLOR_G)
+            self.descriptor_b = (self.descriptor, c4d.COLOR_B)
+            self.sub_descriptors = [self.descriptor_r,
+                                    self.descriptor_g, self.descriptor_b]
 
 
 class CompletionAnimation(ScalarAnimation):
