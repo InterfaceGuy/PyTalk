@@ -194,6 +194,36 @@ class ProtoObject(ABC):
         """used to set the unique properties of a specific object"""
         pass
 
+    def sort_relations_by_priority(self):
+        """sorts the relations by priority"""
+
+        # right now it oly ensures that the actions are inserted above the relations
+        # in the future we will implement priority and sorting by sub-xpression dependencies
+
+        # get node master
+        master = self.custom_tag.obj.GetNodeMaster()
+        parent = master.GetRoot()
+
+        """
+        # resort by parent reference
+        for relation in self.relations:
+            if relation.parent:
+                self.relations.remove(relation)
+                parent_idx = self.relations.index(relation.parent)
+                self.relations.insert(parent_idx, relation)
+        for action in self.actions:
+            if action.parent:
+                self.actions.remove(action)
+                parent_idx = self.actions.index(action.parent)
+                self.actions.insert(parent_idx, action)
+        """
+        if self.relations:
+            for relation in self.relations:
+                master.InsertFirst(parent, relation.obj)
+        if self.actions:
+            for action in self.actions:
+                master.InsertFirst(parent, action.obj)
+
 
 
 class VisibleObject(ProtoObject):  # visible objects
