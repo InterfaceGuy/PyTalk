@@ -587,7 +587,9 @@ class XAnimation(XPression):
 
 class CustomXPression(XPression):
 
-    def __init__(self, target, **kwargs):
+    def __init__(self, target, priority=0, parent=None, **kwargs):
+        self.priority = priority
+        self.parent = parent
         super().__init__(target, **kwargs)
         self.group_nodes()
         self.connect_ports()
