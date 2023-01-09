@@ -370,7 +370,7 @@ class VisibleObject(ProtoObject):  # visible objects
         self.obj[desc_id] = completion
         return animation
 
-    def uncreate(self, completion=0):
+    def un_create(self, completion=0):
         """specifies the uncreation animation"""
         desc_id = self.creation_parameter.desc_id
         animation = ScalarAnimation(
@@ -475,7 +475,7 @@ class LineObject(VisibleObject):
         self.obj[desc_id] = completion
         return animation
 
-    def undraw(self, completion=0):
+    def un_draw(self, completion=0):
         """specifies the undraw animation"""
         desc_id = self.draw_parameter.desc_id
         animation = ScalarAnimation(
@@ -573,7 +573,7 @@ class SolidObject(VisibleObject):
         self.obj[desc_id] = completion
         return animation
 
-    def unfill(self, completion=0):
+    def un_fill(self, completion=0):
         """specifies the unfill animation"""
         desc_id = self.fill_parameter.desc_id
         animation = ScalarAnimation(
