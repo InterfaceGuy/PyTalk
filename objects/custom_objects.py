@@ -215,7 +215,7 @@ class PhysicalCampfire(CustomObject):
     def specify_parts(self):
         self.border = Circle(plane="xz", creation=True, name="Border")
         self.circle_membrane = Membrane(
-            self.border, color=BLACK, fill=True)
+            self.border, color=BLACK, filled=True)
         self.circle = Group(self.border,
                             self.circle_membrane, name="Circle")
         self.left_human = Human(perspective="portrait",
@@ -279,9 +279,9 @@ class PhysicalCampfire(CustomObject):
                     (0, 1 / 2), part=self.antithesis),
             Movement(self.synthesis_height_parameter,
                      (1 / 3, 1), output=(0, self.synthesis_height)),
-            Movement(self.thesis_morpher.action_parameter,
+            Movement(self.thesis_morpher.effect_parameter,
                      (0, 3 / 4), part=self.thesis_morpher),
-            Movement(self.antithesis_morpher.action_parameter,
+            Movement(self.antithesis_morpher.effect_parameter,
                      (0, 3 / 4), part=self.antithesis_morpher),
             target=self, completion_parameter=self.dialectic_parameter, name="Dialectic")
         sand_talk_action = XAction(
@@ -326,7 +326,7 @@ class PhysicalFire(CustomObject):
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.fire = Fire(on_floor=True)
+        self.fire = Fire(on_floor=True, diameter=15)
         self.light_source = Light(
             temperature=0.1, brightness=self.brightness, visibility_type="visible", radius=30, y=4.5)
         self.parts += [self.fire, self.light_source]
@@ -337,7 +337,7 @@ class PhysicalFire(CustomObject):
 
     def specify_creation(self):
         creation_action = XAction(
-            Movement(self.fire.svg.draw_parameter, (0, 1), part=self.fire.svg),
+            Movement(self.fire.creation_parameter, (0, 1), part=self.fire),
             Movement(self.light_source.creation_parameter,
                      (1 / 2, 1), part=self.light_source),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
