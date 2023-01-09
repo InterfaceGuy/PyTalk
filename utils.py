@@ -66,9 +66,8 @@ def connect_nearest_clones(*matrices, n=5, max_distance=False):
     
     def create_connection_splines(clones, n, max_distance):
         # for every clone loops over other clones and finds the n closest clones
-        # (with optional max distance)then connects them with a spline
+        # (with optional max distance) then connects them with a spline
         for clone in clones:
-            nearest_clones = []
             other_clones = clones.copy()
             other_clones.remove(clone)
             other_clones.sort(key=lambda other_clone: (clone.off - other_clone.off).GetLength())
@@ -76,7 +75,8 @@ def connect_nearest_clones(*matrices, n=5, max_distance=False):
             for nearest_clone in nearest_clones:
                 # check max distance
                 if max_distance:
-                    if (clone.off - nearest_clone.off).GetLength() > max_distance:
+                    distance = (clone.off - nearest_clone.off).GetLength()
+                    if distance > max_distance:
                         break
                 # create spline
                 temp_spline = c4d.BaseObject(c4d.Ospline)
