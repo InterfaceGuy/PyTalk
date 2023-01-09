@@ -73,11 +73,12 @@ class Tracer(MoGraphObject):
 
 class Cloner(MoGraphObject):
 
-    def __init__(self, mode="object", clones=[], effectors=[], target_object=None, step_size=10, offset_start=0, offset_end=0, offset=0, **kwargs):
+    def __init__(self, mode="object", clones=[], effectors=[], target_object=None, use_instance=False, step_size=10, offset_start=0, offset_end=0, offset=0, **kwargs):
         self.mode = mode
         self.clones = clones
         self.effectors = effectors
         self.target_object = target_object
+        self.use_instance = use_instance
         self.step_size = step_size
         self.offset_start = offset_start
         self.offset_end = 1 - offset_end
@@ -109,12 +110,24 @@ class Cloner(MoGraphObject):
             self.obj[c4d.MG_SPLINE_LOOP] = False
 
     def insert_clones(self):
-        for clone in self.clones:
-            clone.obj.InsertUnder(self.obj)
+        if self.use_instance:
+            clone_instances = []
+            for clone in self.clones:
+                clone_instance = Instance(clone)
+                clone_instance.obj.InsertUnder(self.obj)
+        else:
+            for clone in self.clones:
+                clone.obj.InsertUnder(self.obj)
 
     def add_clones(self, *clones):
-        for clone in clones:
-            clone.obj.InsertUnder(self.obj)
+        if self.use_instance:
+            clone_instances = []
+            for clone in clones:
+                clone_instance = Instance(clone)
+                clone_instance.obj.InsertUnder(self.obj)
+        else:
+            for clone in clones:
+                clone.obj.InsertUnder(self.obj)
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
