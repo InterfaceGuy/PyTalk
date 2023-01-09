@@ -1346,10 +1346,10 @@ class XColorBlend(CustomXPression):
     def create_target_node(self):
         self.target_nodes = []
         self.target_color_ports = []
-        for destination_spline in self.target.destination_splines:
-            target_node = XObject(self.target, link_target=destination_spline)
+        for mospline in self.target.mosplines:
+            target_node = XObject(self.target, link_target=mospline)
             target_color_port = target_node.obj.AddPort(
-                c4d.GV_PORT_INPUT, destination_spline.color_parameter.desc_id)
+                c4d.GV_PORT_INPUT, mospline.color_parameter.desc_id)
             self.target_color_ports.append(target_color_port)
             self.target_nodes.append(target_node)
         self.nodes += self.target_nodes
