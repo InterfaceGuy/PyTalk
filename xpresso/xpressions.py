@@ -1275,6 +1275,9 @@ class XVisibilityControl(CustomXPression):
             self.target, mode=">=", comparison_value=self.invisibility_interval[1])
         self.not_node_lower = XNot(self.target)
         self.not_node_upper = XNot(self.target)
+        if not self.final_objects:  # is used by action object
+            self.not_node_final = XNot(self.target)
+            self.nodes.append(self.not_node_final)
         self.bool_node = XBool(self.target, mode="AND")
         self.nodes += [self.compare_node_lower, self.compare_node_upper,
                        self.not_node_lower, self.not_node_upper, self.bool_node]
