@@ -421,10 +421,11 @@ class LineObject(VisibleObject):
         creation_action = XAction(
             Movement(self.draw_parameter, (0, 1)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
+        self.actions.append(creation_action)
 
     def set_sketch_material(self):
         self.sketch_material = SketchMaterial(
-            name=self.__class__.__name__, color=self.color, arrow_start=self.arrow_start, arrow_end=self.arrow_end)
+            name=self.__class__.__name__, draw_order=self.draw_order, color=self.color, arrow_start=self.arrow_start, arrow_end=self.arrow_end)
 
     def set_sketch_tag(self):
         self.sketch_tag = SketchTag(target=self, material=self.sketch_material)
