@@ -583,22 +583,24 @@ class ProjectLiminality(CustomObject):
 class Node(CustomObject):
     """creates a node object with an optional label and symbol"""
 
-    def __init__(self, text=None, text_position="center", text_height=20, symbol=None, rounding=1 / 4, width=100, height=50, **kwargs):
-        self.rounding = rounding
-        self.width = width
-        self.height = height
+    def __init__(self, text=None, text_position="center", text_height=20, symbol=None, rounding=1 / 4, width=100, height=50, color=WHITE, **kwargs):
         self.text = text
-        self.text_height = text_height
         self.symbol = symbol
         if self.symbol:
             self.text_position = "bottom"
         else:
             self.text_position = text_position
+        self.text_height = text_height
+        self.rounding = rounding
+        self.width = width
+        self.height = height
+        self.color = color
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.border = Rectangle(name="Border", rounding=True, creation=True)
+        self.border = Rectangle(name="Border", rounding=True, color=self.color, creation=True)
         self.parts.append(self.border)
+        self.label = None
         if self.text:
             self.label = Text(self.text)
             self.parts.append(self.label)
