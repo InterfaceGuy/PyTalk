@@ -153,8 +153,10 @@ class ProtoObject(ABC):
     def scale(self, x=0, y=0, z=0, scale=None):
         if scale is None:
             scale = c4d.Vector(x, y, z)
-        elif type(scale) is not c4d.Vector:
+        elif type(scale) in (tuple, list):
             scale = c4d.Vector(*scale)
+        elif type(scale) in (int, float):
+            scale = c4d.Vector(scale, scale, scale)
         descriptor = c4d.ID_BASEOBJECT_SCALE
         animation = VectorAnimation(
             target=self, descriptor=descriptor, vector=scale, relative=True, multiplicative=True)
