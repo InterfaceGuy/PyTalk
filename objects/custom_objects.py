@@ -1147,3 +1147,138 @@ class CloneConnector(CustomObject):
         creation_action = XAction(
             Movement(self.spline_cache.draw_parameter, (0, 1), part=self.spline_cache),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+class P2PMembrane(CustomObject):
+    """creates a membrane with nodes symbolizing peers and edges symbolizing their communication"""
+    
+    def __init__(self, peer_symbol=None, peer_count=10, edge_count=5, split_distance=300, peer_color=WHITE, edge_color=WHITE, **kwargs):
+        self.peer_symbol = peer_symbol
+        self.peer_count = peer_count
+        self.edge_count = edge_count
+        self.split_distance = split_distance
+        self.peer_color = peer_color
+        self.edge_color = edge_color
+        super().__init__(**kwargs)
+    
+    def specify_parts(self):
+        self.unified_membrane = Circle(radius=100, b=-PI/2,  name="UnifiedMembrane")
+        self.split_membrane_left = Circle(radius=50, x=-50, name="SplitMembraneLeft")
+        self.split_membrane_right = Circle(radius=50, x=50, b=PI-0.01, name="SplitMembraneRight")  # slight offset in b to avoid mysterious bug
+        self.split_membrane = SplineMask(self.split_membrane_left, self.split_membrane_right, name="SplitMembrane")
+        self.dynamic_membrane = effect_objects.Morpher(self.unified_membrane, self.split_membrane, mode="constant", name="DynamicMembrane")
+        if self.peer_symbol is None:
+            self.peer_symbol = Circle(radius=5, color=self.peer_color, plane="xz", name="PeerSymbol")
+        step_size = self.unified_membrane.get_length() / self.peer_count
+        self.peers_left = Cloner(clones=[self.peer_symbol], target_object=self.dynamic_membrane.destination_splines[0], step_size=step_size, name="PeersLeft")
+        self.peers_right = Cloner(clones=[self.peer_symbol], target_object=self.dynamic_membrane.destination_splines[1], use_instance=True, step_size=step_size, name="PeersRight")
+        self.edges = CloneConnector(self.peers_left, self.peers_right, neighbour_count=self.edge_count, color=self.edge_color, max_distance=300, name="Edges")
+        self.parts += [self.unified_membrane, self.split_membrane, self.dynamic_membrane, self.peer_symbol, self.peers_left, self.peers_right, self.edges]
+    
+    def specify_parameters(self):
+        self.peer_count_parameter = UStrength(
+            name="PeerCount", default_value=self.peer_count)
+        self.dynamic_membrane_length_left_parameter = ULength(
+            name="DynamicMembraneLengthLeft")
+        self.dynamic_membrane_length_right_parameter = ULength(
+            name="DynamicMembraneLengthRight")
+        self.split_distance_parameter = ULength(
+            name="SplitDistance", default_value=150)
+        self.split_membrane_radii_parameter = ULength(
+            name="SplitMembraneRadii", default_value=50)
+        self.morph_parameter = UCompletion(
+            name="Morph", default_value=0)
+        self.edge_count_parameter = UCount(
+            name="EdgeCount", default_value=self.edge_count)
+        self.parameters += [self.peer_count_parameter, self.split_distance_parameter, self.split_membrane_radii_parameter, self.morph_parameter, self.dynamic_membrane_length_left_parameter, self.dynamic_membrane_length_right_parameter, self.edge_count_parameter]
+    
+    def specify_relations(self):
+        split_membrane_distance_left_relation = XRelation(priority=10, part=self.split_membrane_left, whole=self, desc_ids=[POS_X],
+                                                parameters=[self.split_distance_parameter], formula=f"-{self.split_distance_parameter.name}/2")
+        split_membrane_distance_right_relation = XRelation(priority=12, part=self.split_membrane_right, whole=self, desc_ids=[POS_X],
+                                                parameters=[self.split_distance_parameter], formula=f"{self.split_distance_parameter.name}/2")
+        split_membrane_radius_left_inheritance = XIdentity(priority=11, part=self.split_membrane_left, whole=self, desc_ids=[self.split_membrane_left.desc_ids["radius"]],
+                                                parameter=self.split_membrane_radii_parameter)
+        split_membrane_radius_right_inheritance = XIdentity(part=self.split_membrane_right, whole=self, desc_ids=[self.split_membrane_right.desc_ids["radius"]],
+                                                parameter=self.split_membrane_radii_parameter)
+        morph_inheritance = XIdentity(part=self.dynamic_membrane, whole=self, desc_ids=[self.dynamic_membrane.morph_completion_parameter.desc_id],
+                                                parameter=self.morph_parameter)
+        dynamic_membrane_length_left_inheritance = XIdentity(part=self, whole=self.dynamic_membrane, desc_ids=[self.dynamic_membrane_length_left_parameter.desc_id],
+                                                parameter=self.dynamic_membrane.destination_splines[0].spline_length_parameter)
+        dynamic_membrane_length_right_inheritance = XIdentity(part=self, whole=self.dynamic_membrane, desc_ids=[self.dynamic_membrane.destination_splines[1].spline_length_parameter.desc_id],
+                                                parameter=self.dynamic_membrane.destination_splines[1].spline_length_parameter)
+        peers_left_step_size_relation = XRelation(part=self.peers_left, whole=self, desc_ids=[self.peers_left.desc_ids["step_size"]],
+                                                parameters=[self.peer_count_parameter, self.dynamic_membrane_length_left_parameter], formula=f"{self.dynamic_membrane_length_left_parameter.name}/{self.peer_count_parameter.name}")
+        peers_right_step_size_relation = XRelation(part=self.peers_right, whole=self, desc_ids=[self.peers_right.desc_ids["step_size"]],
+                                                parameters=[self.peer_count_parameter, self.dynamic_membrane_length_right_parameter], formula=f"{self.dynamic_membrane_length_right_parameter.name}/{self.peer_count_parameter.name}")
+        edge_count_inheritance = XIdentity(priority=5, part=self.edges, whole=self, desc_ids=[self.edges.neighbour_count_parameter.desc_id],
+                                                parameter=self.edge_count_parameter)
+        self.relations += [split_membrane_distance_left_relation, split_membrane_distance_right_relation, split_membrane_radius_left_inheritance, split_membrane_radius_right_inheritance, morph_inheritance, dynamic_membrane_length_left_inheritance, dynamic_membrane_length_right_inheritance, peers_left_step_size_relation, peers_right_step_size_relation, edge_count_inheritance]
+    
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.peer_symbol.draw_parameter, (0, 1/2), part=self.peer_symbol),
+            Movement(self.edges.creation_parameter, (1/2, 1), part=self.edges),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def specify_action_parameters(self):
+        self.split_membrane_action_parameter = UCompletion(
+            name="SplitMembrane", default_value=0)
+        self.action_parameters += [self.split_membrane_action_parameter]
+
+    def specify_actions(self):
+        split_membrane_action = XAction(
+            Movement(self.morph_parameter, (0, 2/3)),
+            Movement(self.split_distance_parameter, (1/3, 1), output=(150, self.split_distance)),
+            Movement(self.split_membrane_radii_parameter, (1/2, 1), output=(50, 100)),
+            target=self, completion_parameter=self.split_membrane_action_parameter, name="SplitMembrane")
+
+    def split(self, completion=1):
+        """specifies the split animation"""
+        desc_id = self.split_membrane_action_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+        
+class FissionChain(CustomObject):
+    """creates a chain of fissions by recursively placing new objects where the old fission parts end up"""
+
+    def __init__(self, fission, **kwargs):
+        self.fission = fission
+        super().__init__(**kwargs)
+    
+    def specify_parts(self):
+        self.fission_parts = Cloner(clones=[self.fission], target_object=self.fission, step_size=150, name="FissionParts")
+        self.parts += [self.fission_parts]
+    
+    def specify_parameters(self):
+        self.fission_count_parameter = UCount(
+            name="FissionCount")
+        self.parameters += [self.fission_count_parameter]
+    
+    def specify_relations(self):
+        fission_count_inheritance = XIdentity(part=self.fission_parts, whole=self, desc_ids=[self.fission_parts.desc_ids["clones_count"]],
+                                                parameter=self.fission_count_parameter)
+    
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.fission_parts.creation_parameter, (0, 1/2), part=self.fission_parts),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def specify_action_parameters(self):
+        self.fission_action_parameter = UCompletion(
+            name="Fission", default_value=0)
+        self.action_parameters += [self.fission_action_parameter]
+
+    def specify_actions(self):
+        fission_action = XAction(
+            Movement(self.fission_count_parameter, (0, 1), output=(1, 10)),
+            target=self, completion_parameter=self.fission_action_parameter, name="Fission")
+
+    def fission(self, completion=1):
+        """specifies the fission animation"""
+        desc_id = self.fission_action_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
