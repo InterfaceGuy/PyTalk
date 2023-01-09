@@ -362,6 +362,12 @@ class VisibleObject(ProtoObject):  # visible objects
         __, radius = c4d.utils.GetBBox(self.obj, self.obj.GetMg())
         return radius
 
+    def get_diameter(self):
+        # returns the diameter from the longest radius dimension
+        radius = self.get_radius()
+        diameter = max(radius.x, radius.y, radius.z) * 2
+        return diameter
+
     def register_connections(self, connections):
         # saves the connections for later functionality of UnConnect
         self.connections = connections
