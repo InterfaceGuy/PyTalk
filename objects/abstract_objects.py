@@ -529,6 +529,7 @@ class SolidObject(VisibleObject):
         self.insert_action_parameters()
         self.specify_actions()
         self.specify_creation()
+        self.sort_relations_by_priority()
 
     def specify_creation(self):
         """specifies the creation action"""
@@ -624,6 +625,7 @@ class CustomObject(VisibleObject):
         self.specify_bounding_box_relations()
         self.specify_visibility_inheritance_relations()
         self.specify_position_inheritance()
+        self.sort_relations_by_priority()
 
     def specify_creation(self):
         """used to specify the unique creation animation for each individual custom object"""
