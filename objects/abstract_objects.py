@@ -296,6 +296,8 @@ class VisibleObject(ProtoObject):  # visible objects
             new_position.z -= bounding_box_target.z + bounding_box.z + offset
         if direction == "back":
             new_position.z += bounding_box_target.z + bounding_box.z + offset
+        if direction == "center":
+            new_position = bounding_box_position_target - bounding_box_position
         self.obj.InsertUnder(target.obj)
         self.set_position(position=new_position)
 
