@@ -666,11 +666,11 @@ class XInheritPosition(object):
 class XClosestPointOnSpline(CustomXPression):
     """creates a setup that positions a point on a spline such that the distance to a reference point is minimised"""
 
-    def __init__(self, reference_point=None, spline_point=None, target=None, spline=None):
+    def __init__(self, reference_point=None, spline_point=None, target=None, spline=None, **kwargs):
         self.spline = spline
         self.spline_point = spline_point
         self.reference_point = reference_point
-        super().__init__(target)
+        super().__init__(target, **kwargs)
 
     def construct(self):
         self.create_spline_node()
@@ -734,11 +734,11 @@ class XClosestPointOnSpline(CustomXPression):
 class XScaleBetweenPoints(CustomXPression):
     """creates a setup that scales and positions an object such that it touches two points on its periphery"""
 
-    def __init__(self, scaled_object=None, point_a=None, point_b=None, target=None):
+    def __init__(self, scaled_object=None, point_a=None, point_b=None, target=None, **kwargs):
         self.scaled_object = scaled_object
         self.point_a = point_a
         self.point_b = point_b
-        super().__init__(target)
+        super().__init__(target, **kwargs)
 
     def construct(self):
         self.create_distance_node()
@@ -800,12 +800,12 @@ class XScaleBetweenPoints(CustomXPression):
 class XPlaceBetweenPoints(CustomXPression):
     """creates a setup that scales and positions an object such that it touches two points on its periphery"""
 
-    def __init__(self, placed_object=None, point_a=None, point_b=None, interpolation_parameter=None, target=None):
+    def __init__(self, placed_object=None, point_a=None, point_b=None, interpolation_parameter=None, target=None, **kwargs):
         self.placed_object = placed_object
         self.point_a = point_a
         self.point_b = point_b
         self.interpolation_parameter = interpolation_parameter
-        super().__init__(target)
+        super().__init__(target, **kwargs)
 
     def construct(self):
         self.create_mix_node()
@@ -852,11 +852,11 @@ class XPlaceBetweenPoints(CustomXPression):
 class XSplineLength(CustomXPression):
     """writes the length of a spline to a specified parameter"""
 
-    def __init__(self, spline=None, whole=None, parameter=None):
+    def __init__(self, spline=None, whole=None, parameter=None, **kwargs):
         self.spline = spline
         self.whole = whole
         self.parameter = parameter
-        super().__init__(self.whole)
+        super().__init__(self.whole, **kwargs)
 
     def construct(self):
         self.create_spline_node()
@@ -890,12 +890,12 @@ class XSplineLength(CustomXPression):
 class XAlignToSpline(CustomXPression):
     """positions an object on a spline given the relative completion"""
 
-    def __init__(self, part=None, whole=None, spline=None, completion_parameter=None):
+    def __init__(self, part=None, whole=None, spline=None, completion_parameter=None, **kwargs):
         self.part = part
         self.whole = whole
         self.spline = spline
         self.completion_parameter = completion_parameter
-        super().__init__(self.whole)
+        super().__init__(self.whole, **kwargs)
 
     def construct(self):
         self.create_part_node()
@@ -958,12 +958,12 @@ class XAlignToSpline(CustomXPression):
 class XLinkParamToField(CustomXPression):
     """links a field to a userdata parameter"""
 
-    def __init__(self, field=None, target=None, part=None, parameter=None):
+    def __init__(self, field=None, target=None, part=None, parameter=None, **kwargs):
         self.field = field
         self.target = target
         self.part = part
         self.parameter = parameter
-        super().__init__(self.target)
+        super().__init__(self.target, **kwargs)
 
     def construct(self):
         self.create_part_node_out()
@@ -994,7 +994,7 @@ class XLinkParamToField(CustomXPression):
 class XBoundingBox(CustomXPression):
     """calculates the bounding box of a set of objects"""
 
-    def __init__(self, *elements, target=None, width_parameter=None, height_parameter=None, depth_parameter=None, center_parameter=None, center_x_parameter=None, center_y_parameter=None, center_z_parameter=None):
+    def __init__(self, *elements, target=None, width_parameter=None, height_parameter=None, depth_parameter=None, center_parameter=None, center_x_parameter=None, center_y_parameter=None, center_z_parameter=None, **kwargs):
         self.elements = elements
         self.width_parameter = width_parameter
         self.height_parameter = height_parameter
@@ -1004,7 +1004,7 @@ class XBoundingBox(CustomXPression):
         self.center_y_parameter = center_y_parameter
         self.center_z_parameter = center_z_parameter
         self.target = target
-        super().__init__(self.target)
+        super().__init__(self.target, **kwargs)
 
     def construct(self):
         self.create_element_nodes()
@@ -1086,10 +1086,10 @@ class XBoundingBox(CustomXPression):
 class XInheritGlobalMatrix(CustomXPression):
     """creates a simple setup which inherits the global matrix from the inheritor to the target object"""
 
-    def __init__(self, inheritor=None, target=None):
+    def __init__(self, inheritor=None, target=None, **kwargs):
         self.inheritor = inheritor
         self.target = target
-        super().__init__(self.target)
+        super().__init__(self.target, **kwargs)
 
     def construct(self):
         self.create_inheritor_node()
@@ -1125,11 +1125,11 @@ class Movement:
 class XAction(CustomXPression):
     """specifies a series of overlapping linear parameter movements"""
 
-    def __init__(self, *movements, completion_parameter=None, target=None, name=None):
+    def __init__(self, *movements, completion_parameter=None, target=None, name=None, priority=100, **kwargs):
         self.movements = list(movements)
         self.completion_parameter = completion_parameter
         self.target = target
-        super().__init__(self.target)
+        super().__init__(self.target, priority=priority, **kwargs)
 
     def construct(self):
         self.create_object_node_out()
@@ -1174,10 +1174,10 @@ class XAction(CustomXPression):
 class XCorrectMoSplineTransform(CustomXPression):
     """feeds the inverted global matrix of the parent null into the local matrix of the mospline to fix the transform behaviour"""
 
-    def __init__(self, mospline, target=None):
+    def __init__(self, mospline, target=None, **kwargs):
         self.mospline = mospline
         self.target = target
-        super().__init__(self.target)
+        super().__init__(self.target, **kwargs)
 
     def construct(self):
         self.create_target_node()
@@ -1210,18 +1210,18 @@ class XVisibilityControl(CustomXPression):
         if only initial objects are defined their visibility switches off and on again
         if final objects are defined the visibility transitions to them"""
 
-    def __init__(self, target=None, driving_parameter=None, initial_objects=[], transition_objects=[], final_objects=[], invisibility_interval=(0, 1)):
+    def __init__(self, target=None, driving_parameter=None, initial_objects=[], effect_objects=[], final_objects=[], invisibility_interval=(0, 1), **kwargs):
         self.target = target
         self.driving_parameter = driving_parameter
         self.initial_objects = initial_objects
-        self.transition_objects = transition_objects
+        self.effect_objects = effect_objects
         self.final_objects = final_objects
         self.invisibility_interval = invisibility_interval
-        super().__init__(self.target)
+        super().__init__(self.target, **kwargs)
 
     def construct(self):
         self.create_initial_object_nodes()
-        self.create_transition_object_nodes()
+        self.create_effect_object_nodes()
         self.create_final_object_nodes()
         self.create_target_node()
         self.create_compare_nodes()
@@ -1238,17 +1238,17 @@ class XVisibilityControl(CustomXPression):
             self.initial_visibility_ports.append(visibility_port_in)
         self.nodes += self.initial_object_nodes
 
-    def create_transition_object_nodes(self):
-        self.transition_object_nodes = []
-        self.transition_visibility_ports = []
-        for transition_object in self.transition_objects:
-            transition_object_node = XObject(
-                self.target, link_target=transition_object)
-            visibility_port_in = transition_object_node.obj.AddPort(
-                c4d.GV_PORT_INPUT, transition_object.visibility_parameter.desc_id)
-            self.transition_object_nodes.append(transition_object_node)
-            self.transition_visibility_ports.append(visibility_port_in)
-        self.nodes += self.transition_object_nodes
+    def create_effect_object_nodes(self):
+        self.effect_object_nodes = []
+        self.effect_visibility_ports = []
+        for effect_object in self.effect_objects:
+            effect_object_node = XObject(
+                self.target, link_target=effect_object)
+            visibility_port_in = effect_object_node.obj.AddPort(
+                c4d.GV_PORT_INPUT, effect_object.visibility_parameter.desc_id)
+            self.effect_object_nodes.append(effect_object_node)
+            self.effect_visibility_ports.append(visibility_port_in)
+        self.nodes += self.effect_object_nodes
 
     def create_final_object_nodes(self):
         self.final_object_nodes = []
@@ -1292,27 +1292,34 @@ class XVisibilityControl(CustomXPression):
             self.bool_node.obj.GetInPort(0))
         self.not_node_lower.obj.GetOutPort(0).Connect(
             self.bool_node.obj.GetInPort(1))
-        for initial_visibility_port in self.initial_visibility_ports:
-            self.compare_node_lower.obj.GetOutPort(0).Connect(
-                initial_visibility_port)
-        for transition_visibility_port in self.transition_visibility_ports:
+        for effect_visibility_port in self.effect_visibility_ports:
             self.bool_node.obj.GetOutPort(0).Connect(
-                transition_visibility_port)
-        for final_visibility_port in self.final_visibility_ports:
-            self.compare_node_upper.obj.GetOutPort(0).Connect(
-                final_visibility_port)
+                effect_visibility_port)
+        if self.final_objects:  # is used for transition object
+            for initial_visibility_port in self.initial_visibility_ports:
+                self.compare_node_lower.obj.GetOutPort(0).Connect(
+                    initial_visibility_port)
+            for final_visibility_port in self.final_visibility_ports:
+                self.compare_node_upper.obj.GetOutPort(0).Connect(
+                    final_visibility_port)
+        else:  # is used for action object
+            self.bool_node.obj.GetOutPort(0).Connect(
+                self.not_node_final.obj.GetInPort(0))
+            for initial_visibility_port in self.initial_visibility_ports:
+                self.not_node_final.obj.GetOutPort(0).Connect(
+                    initial_visibility_port)
 
 
 class XColorBlend(CustomXPression):
     """blends the color of the target object between two colors
     the colors should be userdata of the target object"""
 
-    def __init__(self, target=None, blend_parameter=None, color_ini_parameter=None, color_fin_parameter=None):
+    def __init__(self, target=None, blend_parameter=None, color_ini_parameter=None, color_fin_parameter=None, **kwargs):
         self.target = target
         self.blend_parameter = blend_parameter
         self.color_ini_parameter = color_ini_parameter
         self.color_fin_parameter = color_fin_parameter
-        super().__init__(self.target)
+        super().__init__(self.target, **kwargs)
 
     def construct(self):
         self.create_mix_node()
@@ -1359,16 +1366,15 @@ class XColorBlend(CustomXPression):
 class XConnectNearestClones(CustomXPression):
     """connects the nearest clones of the target object to the target object"""
 
-    def __init__(self, *matrices, neighbour_count_parameter=None, max_distance_parameter=None, target=None):
+    def __init__(self, *matrices, neighbour_count_parameter=None, max_distance_parameter=None, target=None, **kwargs):
         self.target = target
         self.matrices = matrices
         self.neighbour_count_parameter = neighbour_count_parameter
         self.max_distance_parameter = max_distance_parameter
         self.nodes = []
-        super().__init__(self.target)
+        super().__init__(self.target, **kwargs)
 
     def construct(self):
-        print("constructing")
         self.create_matrix_nodes()
         self.create_target_node()
         self.create_proximity_connector_node()
