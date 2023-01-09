@@ -1404,10 +1404,105 @@ class XConnectNearestClones(CustomXPression):
 
     def connect_ports(self):
         for i, matrix_port in enumerate(self.matrix_ports):
-            print("connecting matrix port")
             matrix_port.Connect(
                 self.proximity_connector_node.obj.GetInPort(i+2))  # skip first two ports
         self.target_neighbour_count_port.Connect(
             self.proximity_connector_node.neighbour_count_port)
         self.target_max_distance_port.Connect(
             self.proximity_connector_node.max_distance_port)
+
+class XExplosion(CustomXPression):
+    """takes a list of parts as input and multiplies the distance of a chosen child object from a given origin along that distance creating an explosion effect
+        e.g in the context of the dicer object we use the dicer as origin, the rectangle as child object and the splinemasks as input
+        if we would not use child objects we would run into an infinite loop"""
+
+    def __init__(self, target=None, parts=None, children=None, completion_parameter=None, strength_parameter=None, **kwargs):
+        self.target = target
+        self.parts = parts
+        self.children = children
+        self.completion_parameter = completion_parameter
+        self.strength_parameter = strength_parameter
+        super().__init__(self.target, **kwargs)
+
+    def construct(self):
+        self.create_children_nodes()
+        self.create_part_nodes()
+        self.create_target_node()
+        self.create_math_nodes()
+
+    def create_children_nodes(self):
+        self.children_nodes = []
+        self.child_positiion_ports= []
+        for child in self.children:
+            child_node = XObject(self.target, link_target=child)
+            child_position_port = child_node.obj.AddPort(
+                c4d.GV_PORT_OUTPUT, c4d.ID_BASEOBJECT_POSITION)
+            self.children_nodes.append(child_node)
+            self.child_positiion_ports.append(child_position_port)
+        self.nodes += self.children_nodes
+
+    def create_part_nodes(self):
+        self.part_nodes = []
+        self.part_positiion_ports = []
+        for part in self.parts:
+            part_node = XObject(self.target, link_target=part)
+            part_position_port = part_node.obj.AddPort(
+                c4d.GV_PORT_INPUT, c4d.ID_BASEOBJECT_POSITION)
+            self.part_nodes.append(part_node)
+            self.part_positiion_ports.append(part_position_port)
+        self.nodes += self.part_nodes
+
+    def create_target_node(self):
+        self.target_node = XObject(self.target)
+        self.target_completion_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.completion_parameter.desc_id)
+        self.target_strength_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, self.strength_parameter.desc_id)
+        self.target_origin_port = self.target_node.obj.AddPort(
+            c4d.GV_PORT_OUTPUT, c4d.ID_BASEOBJECT_GLOBAL_POSITION)
+        self.nodes.append(self.target_node)
+
+    def create_math_nodes(self):
+        # we use a subtraction node to get the vector from origin to child
+        # then we use two multiplication node to multiply the vector with the product of the strength and completion parameter and feed the result in the parts position
+        self.subtraction_nodes = []
+        self.vector_multiplication_nodes = []
+        self.real_multiplication_nodes = []
+        for i, child_node in enumerate(self.children_nodes):
+            subtraction_node = XMath(self.target, mode="-", data_type="vector")
+            vector_multiplication_node = XMath(self.target, mode="*", data_type="vector")
+            real_multiplication_node = XMath(self.target, mode="*", data_type="real")
+            self.subtraction_nodes.append(subtraction_node)
+            self.vector_multiplication_nodes.append(vector_multiplication_node)
+            self.real_multiplication_nodes.append(real_multiplication_node)
+        self.nodes += self.subtraction_nodes
+        self.nodes += self.vector_multiplication_nodes
+        self.nodes += self.real_multiplication_nodes
+
+    def connect_ports(self):
+        for i, child_node in enumerate(self.children_nodes):
+            self.child_positiion_ports[i].Connect(
+                self.subtraction_nodes[i].obj.GetInPort(0))
+            self.target_origin_port.Connect(
+                self.subtraction_nodes[i].obj.GetInPort(1))
+            self.subtraction_nodes[i].obj.GetOutPort(0).Connect(
+                self.vector_multiplication_nodes[i].obj.GetInPort(0))
+            self.target_strength_port.Connect(
+                self.real_multiplication_nodes[i].obj.GetInPort(0))
+            self.target_completion_port.Connect(
+                self.real_multiplication_nodes[i].obj.GetInPort(1))
+            self.real_multiplication_nodes[i].obj.GetOutPort(0).Connect(
+                self.vector_multiplication_nodes[i].obj.GetInPort(1))
+            self.vector_multiplication_nodes[i].obj.GetOutPort(0).Connect(
+                self.part_positiion_ports[i])
+
+class XVisiblityHandler(CustomXPression):
+    """handles multiple inputs of visibility controls, taking the min() function"""
+
+    def __init__(self, target=None, **kwargs):
+        self.target = target
+        super().__init__(self.target, **kwargs)
+
+    def construct(self):
+        self.create_python_node()
+        self.create_target_node()
