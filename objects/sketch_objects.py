@@ -95,6 +95,22 @@ class Sketch(CustomObject):
         """returns the length of the sketch"""
         return self.svg.get_length(segment=segment)
 
+    def change_color(self, color):
+        """changes the color of the sketch"""
+        return self.svg.change_color(color)
+
+
+class Man(Sketch):
+
+    def __init__(self, **kwargs):
+        super().__init__("man", **kwargs)
+
+
+class Tree(Sketch):
+
+    def __init__(self, resolution="medium", **kwargs):
+        description = f"tree_{resolution}_res"
+        super().__init__(description, **kwargs)
 
 
 class David(Sketch):
@@ -151,3 +167,9 @@ class Health(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("healthcare", **kwargs)
+
+
+class CropTalk(Sketch):
+
+    def __init__(self, **kwargs):
+        super().__init__("crop_talk", **kwargs)
