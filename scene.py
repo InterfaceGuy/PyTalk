@@ -6,6 +6,7 @@ from pydeation.animation.abstract_animators import ProtoAnimator, AnimationGroup
 from pydeation.objects.camera_objects import TwoDCamera, ThreeDCamera
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from pydeation.constants import *
 import c4d
 
 
@@ -162,6 +163,11 @@ class Scene(ABC):
         self.feed_run_time(flattened_animations, run_time)
         self.execute_animations(flattened_animations)
         self.add_time(run_time)
+
+    def set(self, *animators):
+        # the set method is just the play method reduced to two frames
+        # one for the initial, one for the final keyframe
+        self.play(*animators, run_time=2/FPS)
 
     def wait(self, seconds=1):
         """adds time without any animations"""
