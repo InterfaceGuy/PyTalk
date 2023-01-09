@@ -998,10 +998,6 @@ class Letter(CustomObject):
         self.obj.SetMg(self.character.GetMg())
         self.parts += [self.spline, self.membrane]
 
-    def specify_position_inheritance(self):
-        position_inheritance = XIdentity(part=self, whole=self, desc_ids=[
-                                         self.visual_position_parameter.desc_id], parameter=self.center_parameter)
-
     def specify_parameters(self):
         self.draw_parameter = UCompletion(name="Draw", default_value=self.draw)
         self.fill_parameter = UCompletion(name="Fill", default_value=self.fill)
@@ -1023,22 +1019,22 @@ class Letter(CustomObject):
 class Membrane(CustomObject):
     """creates a membrane for any given spline using the extrude and mospline object"""
 
-    def __init__(self, spline, thickness=0, fill=0, color=WHITE, **kwargs):
+    def __init__(self, spline, thickness=0, filled=0, color=WHITE, **kwargs):
         self.spline = spline
         self.thickness = thickness
-        self.fill = fill
+        self.filled = filled
         self.color = color
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.mospline = MoSpline(source_spline=self.spline)
+        self.mospline = MoSpline(source_spline=self.spline, generation_mode="vertex")
         self.extrude = Extrude(self.mospline, color=self.color)
         self.parts += [self.extrude, self.mospline]
 
     def specify_parameters(self):
         self.thickness_parameter = ULength(
             name="ThicknessParameter", default_value=self.thickness)
-        self.fill_parameter = UCompletion(name="Fill", default_value=self.fill)
+        self.fill_parameter = UCompletion(name="Fill", default_value=self.filled)
         self.parameters += [self.thickness_parameter, self.fill_parameter]
 
     def specify_relations(self):
