@@ -476,3 +476,34 @@ class RandomField(ProtoObject):
 
     def set_object_properties(self):
         pass
+
+class Deformer(ProtoObject):
+    
+    def __init__(self, target, **kwargs):
+        self.target = target
+        super().__init__(**kwargs)
+        self.insert_under_target()
+
+    def insert_under_target(self):
+        self.obj.InsertUnder(self.target.obj)
+
+class SquashAndStretch(Deformer):
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(1021280)
+
+    def set_object_properties(self):
+        # based on the vertical radius of the target we set the boundaries
+        if hasattr(self.target, "diameter"):
+            radius = self.target.diameter / 2
+        else:
+            radius = self.target.get_radius().y
+        self.obj[c4d.ID_CA_SQUASH_OBJECT_HIGH] = radius
+        self.obj[c4d.ID_CA_SQUASH_OBJECT_LOW] = -radius
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "factor": c4d.DescID(c4d.DescLevel(c4d.ID_CA_SQUASH_OBJECT_FACTOR, c4d.DTYPE_REAL, 0)),
+            "top_length": c4d.DescID(c4d.DescLevel(c4d.ID_CA_SQUASH_OBJECT_HIGH, c4d.DTYPE_REAL, 0)),
+            "bottom_length": c4d.DescID(c4d.DescLevel(c4d.ID_CA_SQUASH_OBJECT_LOW, c4d.DTYPE_REAL, 0)),
+        }
