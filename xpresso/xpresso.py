@@ -4,7 +4,7 @@ import c4d
 
 
 class XNode:
-    """creates a node inside a the xpresso tag of a given target"""
+    """creates a node inside the xpresso tag of a given target"""
 
     def __init__(self, target, node_type, parent=None, name=None, custom_tag=False, freeze_tag=False, composition_level=None):
         node_types = {
@@ -363,6 +363,16 @@ class XRangeMapper(XNode):
                 0, 0, 0), vTangentRight=c4d.Vector(0.25, 0, 0))
             spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
                            vTangentLeft=c4d.Vector(-0.25, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
+        elif self.easing == "strong":
+            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(
+                0, 0, 0), vTangentRight=c4d.Vector(0.5, 0, 0))
+            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
+                           vTangentLeft=c4d.Vector(-0.5, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
+        elif self.easing == "soft":
+            spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(
+                0, 0, 0), vTangentRight=c4d.Vector(0.125, 0, 0))
+            spline.SetKnot(1, knot_fin["vPos"], knot_fin["lFlagsSettings"],
+                           vTangentLeft=c4d.Vector(-0.125, 0, 0), vTangentRight=c4d.Vector(0, 0, 0))
         elif self.easing == "in":
             spline.SetKnot(0, knot_ini["vPos"], knot_ini["lFlagsSettings"], vTangentLeft=c4d.Vector(
                 0, 0, 0), vTangentRight=c4d.Vector(0.25, 0, 0))
