@@ -195,8 +195,8 @@ class Morpher(EffectObject):
             *[Spline(name=f"DestinationSpline{i}", creation=True) for i in range(self.segment_count)], name="DestinationSplines")
 
     def create_mosplines(self):
-        self.mosplines = Group(*[MoSpline(source_spline=self.spline_ini, destination_spline=destination_spline, name=f"MoSpline{i}")
-                                 for i, destination_spline in enumerate(self.destination_splines)], name="MoSplines")
+        self.mosplines = Group(*[VisibleMoSpline(source_spline=self.spline_ini, name=f"MoSpline{i}", creation=True)
+                                 for i in range(self.segment_count)], name="MoSplines")
         
         # we sort the spline effectors by effective length
         self.spline_effectors_ini.sort(key=lambda effector: effector.effective_length)
