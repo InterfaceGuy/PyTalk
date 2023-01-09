@@ -1112,7 +1112,7 @@ class XInheritGlobalMatrix(CustomXPression):
 class Movement:
     """holds the information for a single movement which can be chained together by XAction into an action"""
 
-    def __init__(self, parameter, timing, output=(0, 1), part=None, easing=False):
+    def __init__(self, parameter, timing, output=(0, 1), part=None, easing=True):
         self.parameter = parameter
         self.timing = timing
         self.output = output
