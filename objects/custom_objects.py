@@ -651,8 +651,8 @@ class Node(CustomObject):
         if self.symbol:
             movements.append(
                 Movement(self.symbol.creation_parameter, (1 / 3, 1), part=self.symbol))
-            creation_action = XAction(
-                *movements, target=self, completion_parameter=self.creation_parameter, name="Creation")
+        creation_action = XAction(
+            *movements, target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 class MonoLogosNode(Node):
@@ -754,6 +754,8 @@ class Connection(CustomObject):
         if self.turbulence:
             field_between_points_relation = XScaleBetweenPoints(
                 scaled_object=self.spherical_field, point_a=point_a, point_b=point_b, target=self)
+        mospline_correction = XCorrectMoSplineTransform(
+            self.path, target=self)
 
     def specify_creation(self):
         creation_action = XAction(
