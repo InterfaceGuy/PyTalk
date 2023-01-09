@@ -552,15 +552,18 @@ class SolidObject(VisibleObject):
         self.fill_parameter = UCompletion(
             name="Fill", default_value=self.filled)
         self.glow_parameter = UCompletion(
-            name="Glow", default_value=self.glow)
+            name="Glow", default_value=self.glowing)
+        self.fill_parameters = [self.fill_parameter, self.glow_parameter]
 
     def insert_fill_parameter(self):
         self.fill_u_group = UGroup(
-            self.fill_parameter, self.glow_parameter, target=self.obj, name="Solid")
+            *self.fill_parameters, target=self.obj, name="Solid")
 
     def specify_fill_relation(self):
         self.fill_relation = XRelation(part=self.fill_material, whole=self, desc_ids=[self.fill_material.desc_ids["transparency"]],
                                        parameters=[self.fill_parameter], formula=f"1-{self.fill_parameter.name}")
+        self.glow_relation = XRelation(part=self.fill_material, whole=self, desc_ids=[self.fill_material.desc_ids["glow_brightness"]],
+                                        parameters=[self.glow_parameter], formula=f"{self.glow_parameter.name}")
 
     def fill(self, completion=1):
         """specifies the fill animation"""
@@ -573,6 +576,22 @@ class SolidObject(VisibleObject):
     def unfill(self, completion=0):
         """specifies the unfill animation"""
         desc_id = self.fill_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def glow(self, completion=1):
+        """specifies the glow animation"""
+        desc_id = self.glow_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def un_glow(self, completion=0):
+        """specifies the unglow animation"""
+        desc_id = self.glow_parameter.desc_id
         animation = ScalarAnimation(
             target=self, descriptor=desc_id, value_fin=completion)
         self.obj[desc_id] = completion
