@@ -4,7 +4,7 @@ importlib.reload(pydeation.materials)
 from pydeation.materials import FillMaterial, SketchMaterial
 from pydeation.tags import FillTag, SketchTag, XPressoTag
 from pydeation.constants import WHITE, SCALE_X, SCALE_Y, SCALE_Z
-from pydeation.animation.animation import VectorAnimation, ScalarAnimation
+from pydeation.animation.animation import VectorAnimation, ScalarAnimation, ColorAnimation
 from pydeation.xpresso.userdata import *
 from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength, XBoundingBox, XAction, Movement
 import pydeation.objects.effect_objects as effect_objects
@@ -16,7 +16,7 @@ import c4d
 
 class ProtoObject(ABC):
 
-    def __init__(self, name=None, x=0, y=0, z=0, h=0, p=0, b=0, scale=1, position=None, rotation=None):
+    def __init__(self, name=None, x=0, y=0, z=0, h=0, p=0, b=0, scale=1, position=None, rotation=None, plane="xy"):
         self.document = c4d.documents.GetActiveDocument()  # get document
         self.specify_object()
         self.set_xpresso_tags()
@@ -27,6 +27,10 @@ class ProtoObject(ABC):
         self.set_rotation(h=h, p=p, b=b, rotation=rotation)
         self.set_scale(scale=scale)
         self.set_object_properties()
+        self.plane = plane
+        self.set_plane()
+        self.relations = []
+        self.actions = []
         self.xpressions = {}  # keeps track of animators, composers etc.
         self.accessed_parameters = {}  # keeps track which parameters have AccessControl
         self.helper_objects = {}  # keeps track of helper objects created by Animators
@@ -75,6 +79,15 @@ class ProtoObject(ABC):
         else:
             self.name = name
         self.obj.SetName(self.name)
+
+    def set_plane(self):
+        """sets the plane of the custom object"""
+        if self.plane == "xy":
+            self.rotate(rotation=(0, 0, 0))
+        elif self.plane == "yz":
+            self.rotate(rotation=(PI/2, 0, 0))
+        elif self.plane == "xz":
+            self.rotate(rotation=(0, -PI/2, 0))
 
     def specify_parameters(self):
         """specifies optional parameters for the custom object"""
@@ -392,7 +405,7 @@ class VisibleObject(ProtoObject):  # visible objects
 class LineObject(VisibleObject):
     """line objects consist of splines and only require a sketch material"""
 
-    def __init__(self, color=WHITE, plane="xy", arrow_start=False, arrow_end=False, draw_completion=0, opacity=1, **kwargs):
+    def __init__(self, color=WHITE, plane="xy", arrow_start=False, arrow_end=False, draw_completion=0, opacity=1, helper_mode=False, draw_order="long_to_short", filled=False,**kwargs):
         super().__init__(**kwargs)
         self.color = color
         self.plane = plane
@@ -400,21 +413,30 @@ class LineObject(VisibleObject):
         self.arrow_end = arrow_end
         self.draw_completion = draw_completion
         self.opacity = opacity
-        self.set_sketch_material()
-        self.set_sketch_tag()
-        self.sketch_parameter_setup()
-        self.set_plane()
-        self.spline_length_parameter_setup()
-        self.parameters = []
-        self.specify_parameters()
-        self.insert_parameters()
-        self.specify_relations()
-        self.action_parameters = []
-        self.specify_action_parameters()
-        self.specify_creation_parameter()
-        self.insert_action_parameters()
-        self.specify_actions()
-        self.specify_creation()
+        self.draw_order = draw_order
+        if not helper_mode:
+            self.set_sketch_material()
+            self.set_sketch_tag()
+            self.sketch_parameter_setup()
+            self.set_plane()
+            self.spline_length_parameter_setup()
+            self.parameters = []
+            self.specify_parameters()
+            self.insert_parameters()
+            self.specify_relations()
+            self.action_parameters = []
+            self.specify_action_parameters()
+            self.specify_creation_parameter()
+            self.insert_action_parameters()
+            self.specify_actions()
+            self.specify_creation()
+            self.sort_relations_by_priority()
+        self.filled = filled
+        if self.filled:
+            self.create_membrane()
+
+    def create_membrane(self):
+        self.membrane = Membrane(self, name=self.name + "Membrane")
 
     def spline_length_parameter_setup(self):
         self.specify_spline_length_parameter()
