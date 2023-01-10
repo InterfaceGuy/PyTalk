@@ -12,7 +12,7 @@ import c4d
 class Sketch(CustomObject):
     """gives useful additional parameters to SVG objects"""
 
-    def __init__(self, file_name, rel_x=0, rel_y=0, rel_z=0, rel_rot=0, plane="xy", on_floor=False, color=WHITE, **kwargs):
+    def __init__(self, file_name, rel_x=0, rel_y=0, rel_z=0, rel_rot=0, plane="xy", on_floor=False, color=WHITE, diameter=100, filled=False, **kwargs):
         self.file_name = file_name
         self.plane = plane
         self.rel_x = rel_x
@@ -21,7 +21,8 @@ class Sketch(CustomObject):
         self.rel_rot = rel_rot
         self.on_floor = on_floor
         self.color = color
-        super().__init__(**kwargs)
+        self.filled = filled
+        super().__init__(diameter=diameter, **kwargs)
         self.set_to_floor()
         self.inherit_parameters_from_svg()
 
@@ -39,7 +40,8 @@ class Sketch(CustomObject):
             self.move(y=height / 2)
 
     def specify_parts(self):
-        self.svg = SVG(self.file_name, color=self.color)
+        self.svg = SVG(self.file_name, color=self.color, filled=self.filled)
+        self.membrane = self.svg.membrane
         self.parts.append(self.svg)
 
     def specify_parameters(self):
@@ -173,3 +175,8 @@ class CropTalk(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("crop_talk", **kwargs)
+
+class RightEye(Sketch):
+
+    def __init__(self, **kwargs):
+        super().__init__("right_eye", **kwargs)
