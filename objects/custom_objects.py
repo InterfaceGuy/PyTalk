@@ -1,8 +1,8 @@
 from pydeation.objects.abstract_objects import CustomObject
 import pydeation.objects.effect_objects as effect_objects
 from pydeation.objects.solid_objects import Extrude, Cylinder, SweepNurbs
-from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, EdgeSpline
-from pydeation.objects.sketch_objects import Human, Fire, Footprint, GitHub
+from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, EdgeSpline, SplineSymmetry
+from pydeation.objects.sketch_objects import Human, Fire, Footprint, GitHub, RightEye
 from pydeation.objects.helper_objects import *
 from pydeation.objects.light_objects import Light
 from pydeation.xpresso.userdata import *
@@ -1282,3 +1282,30 @@ class FissionChain(CustomObject):
             target=self, descriptor=desc_id, value_fin=completion)
         self.obj[desc_id] = completion
         return animation
+
+
+class AangEyes(CustomObject):
+    """Aang's eyes when he enters avatar state which are used for the InterfaceGuy object"""
+
+    def specify_parts(self):
+        self.right_eye = RightEye(x=75, filled=True)
+        self.left_eye = RightEye(x=-75, filled=True)
+        self.left_eye.svg.scale(x=-2)  # mirror along the x axis
+        self.parts = [self.right_eye, self.left_eye]
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.left_eye.creation_parameter, (0, 1), part=self.left_eye),
+            Movement(self.right_eye.creation_parameter, (0, 1), part=self.right_eye),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def specify_parameters(self):
+        pass
+
+
+
+class InterfaceGuy(CustomObject):
+    """the interfaceguy object consists of Aangs eyes and the interface symbol where his arrow would be"""
+
+    def specify_parts(self):
+        self.eyes = AangEyes()
