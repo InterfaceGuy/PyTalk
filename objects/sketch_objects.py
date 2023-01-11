@@ -180,3 +180,8 @@ class RightEye(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("right_eye", **kwargs)
+
+class Wave(Sketch):
+    
+        def __init__(self, **kwargs):
+            super().__init__("wave", **kwargs)
