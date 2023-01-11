@@ -1,5 +1,5 @@
 from pydeation.objects.abstract_objects import CustomObject, LineObject
-from pydeation.objects.custom_objects import Text, Group
+from pydeation.objects.custom_objects import Text, Group, BoundingSpline
 from pydeation.objects.solid_objects import Extrude
 from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, VisibleMoSpline, SplineMask
 from pydeation.objects.sketch_objects import Human, Fire, Footprint, Sketch
@@ -256,13 +256,13 @@ class Morpher(TransitionObject):
         self.segment_count = max(
             self.segment_count_ini, self.segment_count_fin)
 
-
-
     def get_spline(self, input_object):
         if type(input_object) is Text:
             spline_object = input_object.spline_text
         elif issubclass(input_object.__class__, Sketch):
             spline_object = input_object.svg
+        elif type(input_object) is BoundingSpline:
+            spline_object = input_object.outline_spline
         else:
             spline_object = input_object
         return spline_object
