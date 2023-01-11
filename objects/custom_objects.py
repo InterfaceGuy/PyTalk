@@ -2,7 +2,7 @@ from pydeation.objects.abstract_objects import CustomObject
 import pydeation.objects.effect_objects as effect_objects
 from pydeation.objects.solid_objects import Extrude, Cylinder, SweepNurbs
 from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, EdgeSpline, SplineSymmetry
-from pydeation.objects.sketch_objects import Human, Fire, Footprint, GitHub, RightEye
+from pydeation.objects.sketch_objects import Human, Fire, Footprint, GitHub, RightEye, Wave
 from pydeation.objects.helper_objects import *
 from pydeation.objects.light_objects import Light
 from pydeation.xpresso.userdata import *
@@ -1072,8 +1072,8 @@ class BoundingSpline(CustomObject):
 
     def specify_creation(self):
         creation_action = XAction(
-            Movement(self.outline_spline.draw_parameter, (0, 1), part=self.outline_spline),
-            Movement(self.curvature_spline.draw_parameter, (0, 1), part=self.curvature_spline),
+            Movement(self.outline_spline.creation_parameter, (0, 1), part=self.outline_spline),
+            Movement(self.curvature_spline.creation_parameter, (0, 1), part=self.curvature_spline),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
