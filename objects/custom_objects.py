@@ -1291,16 +1291,39 @@ class AangEyes(CustomObject):
         self.right_eye = RightEye(x=75, filled=True)
         self.left_eye = RightEye(x=-75, filled=True)
         self.left_eye.svg.scale(x=-2)  # mirror along the x axis
-        self.parts = [self.right_eye, self.left_eye]
+        self.parts = [self.right_eye, self.right_eye.membrane, self.left_eye, self.left_eye.membrane]
 
     def specify_creation(self):
         creation_action = XAction(
-            Movement(self.left_eye.creation_parameter, (0, 1), part=self.left_eye),
-            Movement(self.right_eye.creation_parameter, (0, 1), part=self.right_eye),
+            Movement(self.left_eye.creation_parameter, (0, 2/3), part=self.left_eye),
+            Movement(self.right_eye.creation_parameter, (0, 2/3), part=self.right_eye),
+            Movement(self.left_eye.membrane.creation_parameter, (1/3, 1), part=self.left_eye.membrane),
+            Movement(self.right_eye.membrane.creation_parameter, (1/3, 1), part=self.right_eye.membrane),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
     def specify_parameters(self):
         pass
+
+
+class InterfaceSymbol(CustomObject):
+    """The Interface symbol consisting of the daoist wave, a rectangle and a circle"""
+
+    def specify_parts(self):
+        self.wave = Wave(filled=True)
+        self.circle = Circle(radius=5, filled=True, x=25)
+        self.rectangle = Rectangle(width=10, height=10, filled=True, x=-25)
+        self.shapes = Group(self.circle, self.rectangle, name="Shapes", b=-PI/4)
+        self.parts = [self.wave, self.wave.membrane, self.circle.membrane, self.rectangle.membrane, self.shapes]
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.wave.creation_parameter, (0, 2/3), part=self.wave),
+            Movement(self.circle.creation_parameter, (0, 2/3), part=self.circle),
+            Movement(self.rectangle.creation_parameter, (0, 2/3), part=self.rectangle),
+            Movement(self.wave.membrane.creation_parameter, (1/3, 1), part=self.wave.membrane),
+            Movement(self.circle.membrane.creation_parameter, (1/3, 1), part=self.circle.membrane),
+            Movement(self.rectangle.membrane.creation_parameter, (1/3, 1), part=self.rectangle.membrane),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 
 
