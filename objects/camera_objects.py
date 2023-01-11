@@ -24,8 +24,16 @@ import c4d
 
 class Camera(ProtoObject):
 
-    def __init__(self, **kwargs):
+    def __init__(self, projection="perspective", **kwargs):
+        self.projection = projection
         super().__init__(**kwargs)
+
+    def set_object_properties(self):
+        projection_types = {
+            "perspective": 0,
+            "front": 4,
+        }
+        self.obj[c4d.CAMERA_PROJECTION] = projection_types[self.projection]
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Ocamera)
@@ -43,7 +51,7 @@ class TwoDCamera(CustomObject):
         super().__init__(**kwargs)
 
     def specify_parts(self):
-        self.camera = Camera()
+        self.camera = Camera(projection="front", z=-1000)  # the z offset avoids intersection with objects at z=0
         self.parts.append(self.camera)
 
     def specify_parameters(self):
@@ -53,9 +61,9 @@ class TwoDCamera(CustomObject):
 
     def specify_relations(self):
         # zooming is reduced to the width of the camera frame as a function of the cameras distance from the xy plane
-        distance_to_frame_width_ratio = -100/100
-        frame_width_relation = XRelation(part=self, whole=self, desc_ids=[POS_Z],
-                                        parameters=[self.frame_width_parameter], formula=f"{self.frame_width_parameter.name}*{distance_to_frame_width_ratio}")
+        zoom_to_frame_width_ratio = 1023
+        frame_width_relation = XRelation(part=self.camera, whole=self, desc_ids=[self.camera.desc_ids["zoom"]],
+                                        parameters=[self.frame_width_parameter], formula=f"{zoom_to_frame_width_ratio}/{self.frame_width_parameter.name}")
 
     def specify_creation_parameter(self):
         # camera object does not have a creation animation
