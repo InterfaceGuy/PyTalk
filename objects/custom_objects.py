@@ -1,7 +1,7 @@
 from pydeation.objects.abstract_objects import CustomObject
 import pydeation.objects.effect_objects as effect_objects
 from pydeation.objects.solid_objects import Extrude, Cylinder, SweepNurbs
-from pydeation.objects.line_objects import Arc, Circle, Rectangle, SplineText, Spline, PySpline, EdgeSpline, SplineSymmetry
+from pydeation.objects.line_objects import Helix, Arc, Circle, Rectangle, SplineText, Spline, PySpline, EdgeSpline, SplineSymmetry, VisibleMoSpline, Triangle
 from pydeation.objects.sketch_objects import Human, Fire, Footprint, GitHub, RightEye, Wave
 from pydeation.objects.helper_objects import *
 from pydeation.objects.light_objects import Light
@@ -120,7 +120,6 @@ class Group(CustomObject):
 
         return Group(*self.connections, name="Connections", visible=visible)
 
-
 class Director(CustomObject):
     """the director object takes multiple actors (objects) and drives a specified shared animation parameter using fields"""
 
@@ -180,7 +179,6 @@ class Director(CustomObject):
         # the director does not need prescriptive bounding box
         pass
 
-
 class Eye(CustomObject):
 
     def specify_parts(self):
@@ -202,7 +200,6 @@ class Eye(CustomObject):
             part=self.eyeball, whole=self, desc_ids=[self.eyeball.desc_ids["start_angle"]], parameters=[self.opening_angle], formula="-OpeningAngle/2")
         eyeball_end_angle_relation = XRelation(
             part=self.eyeball, whole=self, desc_ids=[self.eyeball.desc_ids["end_angle"]], parameters=[self.opening_angle], formula="OpeningAngle/2")
-
 
 class PhysicalCampfire(CustomObject):
 
@@ -317,7 +314,6 @@ class PhysicalCampfire(CustomObject):
             target=self, descriptor=desc_id, value_fin=completion)
         return animation
 
-
 class PhysicalFire(CustomObject):
     """the physical fire used in the physical campfire object consisting of the fire sketch and a glow light"""
 
@@ -342,7 +338,6 @@ class PhysicalFire(CustomObject):
                      (1 / 2, 1), part=self.light_source),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class DigitalCampfire(CustomObject):
 
     def __init__(self, distance_humans=1 / 2, border_radius=50, **kwargs):
@@ -353,7 +348,7 @@ class DigitalCampfire(CustomObject):
     def specify_parts(self):
         self.border = Circle(plane="xz")
         self.circle_membrane = Membrane(
-            self.border, color=BLACK, fill=True)
+            self.border, color=BLACK, filled=True)
         self.circle = Group(self.border,
                             self.circle_membrane, name="Circle")
         self.left_human = Human(perspective="portrait",
@@ -393,7 +388,6 @@ class DigitalCampfire(CustomObject):
             Movement(self.distance_humans_parameter, (1 / 3, 2 / 3),
                      output=(1, self.distance_humans)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
-
 
 class Laptop(CustomObject):
     """a minimalistic latop"""
@@ -447,7 +441,6 @@ class Laptop(CustomObject):
             Movement(self.body_draw_parameter, (0, 2 / 3)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class DigitalFire(CustomObject):
     """the digitial version of the fire used in the physical campfire object consisting of two laptops and a glow light"""
 
@@ -494,7 +487,6 @@ class DigitalFire(CustomObject):
             Movement(self.light_source.creation_parameter,
                      (1 / 2, 1), part=self.light_source),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
-
 
 class ProjectLiminality(CustomObject):
 
@@ -579,7 +571,6 @@ class ProjectLiminality(CustomObject):
                      (1 / 2, 1), part=self.label, easing=False),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class Node(CustomObject):
     """creates a node object with an optional label and symbol"""
 
@@ -656,7 +647,6 @@ class Node(CustomObject):
         creation_action = XAction(
             *movements, target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class MonoLogosNode(Node):
 
     def __init__(self, text="MonoLogos", symbol=None, width=75, height=75, rounding=1, **kwargs):
@@ -664,17 +654,15 @@ class MonoLogosNode(Node):
         super().__init__(text=text, width=width, height=height,
                          rounding=rounding, symbol=self.symbol, **kwargs)
 
-
 class DiaLogosNode(Node):
 
     def __init__(self, text="DiaLogos", **kwargs):
         super().__init__(text=text, **kwargs)
 
-
 class Connection(CustomObject):
     """creates a connection line between two given objects"""
 
-    def __init__(self, start_object, target_object, turbulence=False, turbulence_strength=1, turbulence_axis="x", turbulence_frequency=8, arrow_start=None, arrow_end=None, **kwargs):
+    def __init__(self, start_object, target_object, turbulence=False, turbulence_strength=1, turbulence_axis="x", turbulence_frequency=8, arrow_start=None, arrow_end=None, snap_start=False, snap_end=False, **kwargs):
         self.start_object = start_object
         self.start_object_has_border = hasattr(
             self.start_object, "border")
@@ -687,31 +675,31 @@ class Connection(CustomObject):
         self.turbulence_frequency = turbulence_frequency
         self.arrow_start = arrow_start
         self.arrow_end = arrow_end
+        self.snap_start = snap_start
+        self.snap_end = snap_end
         super().__init__(**kwargs)
 
     def specify_parts(self):
         trace_start = self.start_object
         trace_target = self.target_object
-        if self.start_object_has_border:
+        if self.start_object_has_border or self.snap_start:
             self.spline_point_start = Null(name="SplinePointStart")
             self.parts.append(self.spline_point_start)
             trace_start = self.spline_point_start
-        if self.target_object_has_border:
+        if self.target_object_has_border or self.snap_end:
             self.spline_point_target = Null(name="SplinePointTarget")
             self.parts.append(self.spline_point_target)
             trace_target = self.spline_point_target
         self.tracer = Tracer(trace_start, trace_target,
                              tracing_mode="objects", name="Tracer")
-        self.path = Spline(
-            name="Path", arrow_start=self.arrow_start, arrow_end=self.arrow_end)
-        self.mospline = MoSpline(
-            source_spline=self.tracer, point_count=self.turbulence_frequency, destination_spline=self.path)
-        self.parts += [self.tracer, self.path, self.mospline]
+        self.path = VisibleMoSpline(
+            source_spline=self.tracer, point_count=self.turbulence_frequency, arrow_start=self.arrow_start, arrow_end=self.arrow_end, name="Path")
+        self.parts += [self.tracer, self.path]
         if self.turbulence:
             self.spherical_field = SphericalField()
             self.random_effector = RandomEffector(
                 position=(0, 0, 0), fields=[self.spherical_field])
-            self.mospline.add_effector(self.random_effector)
+            self.path.add_effector(self.random_effector)
             self.parts += [self.spherical_field, self.random_effector]
 
     def specify_parameters(self):
@@ -747,11 +735,19 @@ class Connection(CustomObject):
         point_b = self.target_object
         if self.start_object_has_border:
             start_point_on_spline_relation = XClosestPointOnSpline(
-                spline_point=self.spline_point_start, reference_point=self.target_object, target=self, spline=self.start_object.border)
+                spline_point=self.spline_point_start, reference_point=self.target_object, target=self, spline=self.start_object.border, matrices=True)
+            point_a = self.spline_point_start
+        elif self.snap_start:
+            start_point_on_spline_relation = XClosestPointOnSpline(
+                spline_point=self.spline_point_start, reference_point=self.target_object, target=self, spline=self.start_object)
             point_a = self.spline_point_start
         if self.target_object_has_border:
             target_point_on_spline_relation = XClosestPointOnSpline(
-                spline_point=self.spline_point_target, reference_point=self.start_object, target=self, spline=self.target_object.border)
+                spline_point=self.spline_point_target, reference_point=self.start_object, target=self, spline=self.target_object.border, matrices=True)
+            point_b = self.spline_point_target
+        elif self.snap_end:
+            target_point_on_spline_relation = XClosestPointOnSpline(
+                spline_point=self.spline_point_target, reference_point=self.start_object, target=self, spline=self.target_object)
             point_b = self.spline_point_target
         if self.turbulence:
             field_between_points_relation = XScaleBetweenPoints(
@@ -764,7 +760,6 @@ class Connection(CustomObject):
             Movement(self.path.creation_parameter,
                      (0, 1), part=self.path, easing=False),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
-
 
 class BiConnection(CustomObject):
     """creates a bidirectional connection using two connection objects and a middle point"""
@@ -800,7 +795,6 @@ class BiConnection(CustomObject):
                      (0, 1), part=self.target_connection),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class Line(CustomObject):
 
     def __init__(self, start_point, end_point, arrow_start=False, arrow_end=False, **kwargs):
@@ -823,7 +817,6 @@ class Line(CustomObject):
                      (0, 1), part=self.connection, easing=False),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class Arrow(Line):
 
     def __init__(self, start_point, stop_point, direction="positive", **kwargs):
@@ -838,7 +831,6 @@ class Arrow(Line):
             self.arrow_end = True
         super().__init__(start_point, stop_point,
                          arrow_start=self.arrow_start, arrow_end=self.arrow_end, **kwargs)
-
 
 class FootPath(CustomObject):
 
@@ -922,7 +914,6 @@ class FootPath(CustomObject):
             Movement(self.path_completion_parameter, (0, 1), easing=False),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class Text(CustomObject):
     """creates a text object holding individual letters which can be animated using a Director"""
 
@@ -980,7 +971,6 @@ class Text(CustomObject):
             Movement(self.writing_completion_parameter, (0, 1)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
 class Letter(CustomObject):
     """a letter used to create text"""
 
@@ -1014,7 +1004,6 @@ class Letter(CustomObject):
             Movement(self.draw_parameter, (0, 2 / 3)),
             Movement(self.fill_parameter, (1 / 2, 1)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
-
 
 class Membrane(CustomObject):
     """creates a membrane for any given spline using the extrude and mospline object"""
@@ -1056,7 +1045,6 @@ class Membrane(CustomObject):
     def un_fill(self, opacity=0):
         return self.create(opacity)
 
-
 class BoundingSpline(CustomObject):
     """creates a (perspective dependent) bounding spline for any given solid object using the edge spline object"""
 
@@ -1075,7 +1063,6 @@ class BoundingSpline(CustomObject):
             Movement(self.outline_spline.creation_parameter, (0, 1), part=self.outline_spline),
             Movement(self.curvature_spline.creation_parameter, (0, 1), part=self.curvature_spline),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
-
 
 class SolidSpline(CustomObject):
     """creates a solid "wire" object from any given spline object"""
@@ -1117,7 +1104,6 @@ class SolidSpline(CustomObject):
             target=self, descriptor=desc_id, value_fin=completion)
         self.obj[desc_id] = completion
         return animation
-
 
 class CloneConnector(CustomObject):
     """creates splines between clones of input matrices based on proximity"""
@@ -1283,7 +1269,6 @@ class FissionChain(CustomObject):
         self.obj[desc_id] = completion
         return animation
 
-
 class AangEyes(CustomObject):
     """Aang's eyes when he enters avatar state which are used for the InterfaceGuy object"""
 
@@ -1303,7 +1288,6 @@ class AangEyes(CustomObject):
 
     def specify_parameters(self):
         pass
-
 
 class InterfaceSymbol(CustomObject):
     """The Interface symbol consisting of the daoist wave, a rectangle and a circle"""
@@ -1325,10 +1309,277 @@ class InterfaceSymbol(CustomObject):
             Movement(self.rectangle.membrane.creation_parameter, (1/3, 1), part=self.rectangle.membrane),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-
-
 class InterfaceGuy(CustomObject):
     """the interfaceguy object consists of Aangs eyes and the interface symbol where his arrow would be"""
 
     def specify_parts(self):
         self.eyes = AangEyes()
+
+class Trinity(CustomObject):
+    """the trinity symbol consisting of a circle, a rectangle, the tilde and an arrow connection"""
+
+    def __init__(self, relationship="right", **kwargs):
+        self.relationship = relationship
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.left_semi_circle = Arc(start_angle=PI, end_angle=2*PI, radius=50)
+        self.left_semi_circle.move(x=-self.left_semi_circle.radius)
+        self.left_semi_circle.rotate(h=PI, p=PI/2)
+        self.right_semi_circle = Arc(start_angle=0, end_angle=PI, radius=50)
+        self.right_semi_circle.move(x=self.right_semi_circle.radius)
+        self.right_semi_circle.rotate(h=PI, p=PI/2)
+        self.tilde = Group(self.left_semi_circle, self.right_semi_circle, h=PI/4, name="Tilde")
+        self.circle = Circle(radius=15, x=35, z=35, color=RED, plane="xz")
+        self.rectangle = Rectangle(width=25, height=25, x=-35, z=-35, color=BLUE, plane="xz")
+        self.parts = [self.tilde, self.circle, self.rectangle]
+        if self.relationship == "right":
+            self.arrow = Arrow(start_point=(-22, 0, -22), stop_point=(20, 0, 20))
+            self.parts.append(self.arrow)
+        elif self.relationship == "wrong":
+            self.arrow = Arrow(stop_point=(-20, 0, -20), start_point=(24, 0, 24))
+            self.parts.append(self.arrow)
+
+    def specify_creation(self):
+            creation_action = XAction(
+                Movement(self.right_semi_circle.creation_parameter, (0, 1), part=self.right_semi_circle),
+                Movement(self.left_semi_circle.creation_parameter, (0, 1), part=self.left_semi_circle),
+                Movement(self.circle.creation_parameter, (0, 1), part=self.circle),
+                Movement(self.rectangle.creation_parameter, (0, 1), part=self.rectangle),
+                target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def specify_parameters(self):
+        self.fold_parameter = UAngle(
+            name="FoldParameter", default_value=-PI)
+        self.parameters += [self.fold_parameter]
+
+    def specify_relations(self):
+        fold_relation = XRelation(part=self.left_semi_circle, whole=self, desc_ids=[ROT_H],
+                                  parameters=[self.fold_parameter],
+                                  formula=f"{self.fold_parameter.name}")
+
+    def specify_action_parameters(self):
+        self.fold_action_parameter = UCompletion(
+            name="Fold", default_value=0)
+        self.action_parameters += [self.fold_action_parameter]
+
+    def specify_actions(self):
+        fold_action = XAction(
+            Movement(self.fold_parameter, (0, 1), output=(-PI, 0)),
+            target=self, completion_parameter=self.fold_action_parameter, name="Fold")
+
+    def fold(self, completion=1):
+        """specifies the fold animation"""
+        desc_id = self.fold_action_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+class UpwardSpiral(CustomObject):
+    """the upward spiral object consists of the trinity notation in right relationship and the corresponding dual upward spiral movement"""
+
+    def specify_parts(self):
+        self.trinity = Trinity(relationship="right")
+        self.spirals = Group(
+            Helix(start_radius=100, start_angle=3*PI+PI/4, end_radius=250, end_angle=0, radial_bias=0.3, height=300, height_bias=0.3, plane="xz", arrow_end=True),
+            Helix(h=PI, start_radius=100, start_angle=3*PI+PI/4, end_radius=250, end_angle=0, radial_bias=0.3, height=300, height_bias=0.3, plane="xz", arrow_end=True),
+            name="Spirals")
+        self.parts = [self.trinity, self.spirals]
+
+class DownwardSpiral(CustomObject):
+    """the downward spiral object consists of the trinity notation in wrong relationship and the corresponding dual downward spiral movement"""
+
+    def specify_parts(self):
+        self.trinity = Trinity(relationship="wrong")
+        self.spirals = Group(
+            Helix(p=PI, start_radius=100, start_angle=-PI/4, end_radius=15, end_angle=3*PI, radial_bias=0.5, height=200, height_bias=0.4, plane="xz", arrow_end=True),
+            Helix(h=PI, p=PI, start_radius=100, start_angle=-PI/4, end_radius=15, end_angle=3*PI, radial_bias=0.5, height=200, height_bias=0.4, plane="xz", arrow_end=True),
+            name="Spirals")
+        self.parts = [self.trinity, self.spirals]
+
+class FlowerOfLife(CustomObject):
+
+    def __init__(self, radius=100, distance=100, **kwargs):
+        self.radius = radius
+        self.distance = distance 
+        super().__init__(**kwargs)
+        
+    def specify_parts(self):
+        self.center_circle = Circle(radius=self.radius)
+        self.outer_circles = [Circle(radius=self.radius) for _ in range(6)]
+        self.parts = [self.center_circle, *self.outer_circles]
+
+    def specify_parameters(self):
+        self.radius_parameter = ULength(name="Radius", default_value=self.radius)
+        self.distance_parameter = ULength(name="Distance", default_value=self.distance)
+        self.parameters = [self.radius_parameter, self.distance_parameter]
+    
+    def specify_relations(self):
+        radius_relation = XIdentity(part=self, whole=self.center_circle, 
+                                    desc_ids=[self.center_circle.desc_ids["radius"]],
+                                    parameter=self.radius_parameter)
+        
+        for i, circle in enumerate(self.outer_circles):
+            angle = i * 60  
+            x = self.distance_parameter.name * cos(radians(angle))
+            y = self.distance_parameter.name * sin(radians(angle))
+            formula = f"Vector({x}, {y}, 0)"
+            
+            position_relation = XRelation(part=circle, whole=self, 
+                                          desc_ids=[POS_X, POS_Y],
+                                          parameters=[self.distance_parameter],
+                                          formula=formula)
+            
+            radius_relation = XIdentity(part=circle, whole=self,
+                                        desc_ids=[circle.desc_ids["radius"]],  
+                                        parameter=self.radius_parameter)
+        
+    def specify_action_parameters(self):
+        self.creation_parameter = UCompletion(name="Creation", default_value=0)
+        self.fade_parameter = UCompletion(name="Fade", default_value=1)
+        self.action_parameters = [self.creation_parameter, self.fade_parameter]
+
+    def specify_actions(self):
+        fade_action = XAction(
+            Movement(self.fade_parameter, (0,1)), 
+            target=self,
+            completion_parameter=self.creation_parameter,
+            name="FadeIn")
+    
+    def specify_creation(self):
+        circles = [self.center_circle, *self.outer_circles]
+        creation_action = XAction(
+            *[Movement(circle.draw_parameter, (0,1), part=circle) for circle in circles],
+            target=self, 
+            completion_parameter=self.creation_parameter,
+            name="Creation")
+            
+    def create(self, completion=1):
+        desc_id = self.creation_parameter.desc_id
+        animation = ScalarAnimation(target=self, descriptor=desc_id, value_fin=completion)
+        return animation
+    
+    def fade_in(self, completion=1):
+        desc_id = self.fade_parameter.desc_id
+        animation = ScalarAnimation(target=self, descriptor=desc_id, value_fin=completion)  
+        return animation
+
+class FoldableCube(CustomObject):
+    """The foldable cube object consists of four individual rectangles forming the front, back, right, and left faces of a cube which can fold away using a specified parameter"""
+    
+    def __init__(self, color=BLUE, bottom=True, drive_opacity=True, **kwargs):
+        self.color = color
+        self.bottom = bottom
+        self.drive_opacity = drive_opacity
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        # Define the rectangles without positions
+        self.front_rectangle = Rectangle(z=50, plane="xz", creation=True, color=self.color, name="FrontRectangle")
+        self.back_rectangle = Rectangle(z=-50, plane="xz", creation=True, color=self.color, name="BackRectangle")
+        self.right_rectangle = Rectangle(x=50, plane="xz", creation=True, color=self.color, name="RightRectangle")
+        self.left_rectangle = Rectangle(x=-50, plane="xz", creation=True, color=self.color, name="LeftRectangle")
+        
+        # Define groups with position attributes for transformations
+        self.front_axis = Group(self.front_rectangle, z=50, name="FrontAxis")
+        self.back_axis = Group(self.back_rectangle, z=-50, name="BackAxis")
+        self.right_axis = Group(self.right_rectangle, x=50, name="RightAxis")
+        self.left_axis = Group(self.left_rectangle, x=-50, name="LeftAxis")
+        
+        # Add all parts to the parts list
+        self.parts += [self.front_axis, self.back_axis, self.right_axis, self.left_axis]
+
+        if self.bottom:
+            self.bottom_rectangle = Rectangle(plane="xz", creation=True, color=self.color, name="BottomRectangle")
+            self.parts.append(self.bottom_rectangle)
+
+    def specify_parameters(self):
+        self.fold_parameter = UCompletion(name="Fold", default_value=0)
+        self.parameters += [self.fold_parameter]
+
+    def specify_relations(self):
+        # Relations for folding the rectangles into position to form the cube sides
+        self.front_relation = XRelation(part=self.front_axis, whole=self, desc_ids=[ROT_P],
+                                        parameters=[self.fold_parameter], formula=f"PI/2 * {self.fold_parameter.name}")
+        self.back_relation = XRelation(part=self.back_axis, whole=self, desc_ids=[ROT_P],
+                                       parameters=[self.fold_parameter], formula=f"-PI/2 * {self.fold_parameter.name}")
+        self.right_relation = XRelation(part=self.right_axis, whole=self, desc_ids=[ROT_B],
+                                        parameters=[self.fold_parameter], formula=f"-PI/2 * {self.fold_parameter.name}")
+        self.left_relation = XRelation(part=self.left_axis, whole=self, desc_ids=[ROT_B],
+                                       parameters=[self.fold_parameter], formula=f"PI/2 * {self.fold_parameter.name}")
+
+    def specify_creation(self):
+        # Define the creation action for the foldable cube
+        if self.drive_opacity:
+            creation_action = XAction(
+                Movement(self.fold_parameter, (0, 1), output=(0, 1)),
+                Movement(self.front_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.front_rectangle),
+                Movement(self.back_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.back_rectangle),
+                Movement(self.right_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.right_rectangle),
+                Movement(self.left_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.left_rectangle),
+                target=self, completion_parameter=self.creation_parameter, name="Creation")
+        else:
+            creation_action = XAction(
+                Movement(self.fold_parameter, (0, 1), output=(0, 1)),
+                target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+class DomesticatedMind(CustomObject):
+
+    def specify_parts(self):
+        self.cube = FoldableCube(y=3, z=33, p=PI/2, color=BLUE, diameter=200, bottom=False)
+        self.head = Human(y=-10, filled=True, fill_color=BLACK)
+        self.parts = [self.cube, self.head]
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.cube.creation_parameter, (1/3, 1), part=self.cube),
+            Movement(self.head.creation_parameter, (0, 2/3), part=self.head),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+class MolochConsciousness(CustomObject):
+    
+    def specify_parts(self):
+        # Create instances of the components of this custom object.
+        self.domesticated_mind = DomesticatedMind(creation=True)
+        self.vector_of_domestication = Triangle(creation=True, plane="xy", radius=125, y=-5, color=BLUE)
+        
+        # Combine the parts into a single list to define the whole object.
+        self.parts = [self.domesticated_mind, self.vector_of_domestication]
+    
+    def specify_creation(self):
+        # Here you need to define how the MolochConsciousness is created.
+        # This example assumes similar creation actions as in the existing components.
+        # You'll need to adjust timing, etc., to suit your animation requirements.
+        creation_action = XAction(
+            Movement(self.domesticated_mind.creation_parameter, (0, 1/2), part=self.domesticated_mind),
+            Movement(self.vector_of_domestication.creation_parameter, (1/2, 1), part=self.vector_of_domestication),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+class MindVirus(CustomObject):
+
+    def specify_parts(self):
+        self.foldable_cube = FoldableCube(creation=True, z=-50, h=PI, p=PI/2, drive_opacity=False, color=BLUE)
+        self.moloch_eye = Circle(creation=True, radius=25, z=-50, color=BLUE)
+        self.parts = [self.foldable_cube, self.moloch_eye]
+
+    def specify_parameters(self):
+        self.forward_parameter = UCompletion(name="Forward", default_value=0)
+        self.parameters += [self.forward_parameter]
+
+    def specify_relations(self):
+        self.forward_relation_cube = XRelation(part=self.foldable_cube, whole=self, desc_ids=[POS_Z],
+                                    parameters=[self.forward_parameter], formula=f"-50 - 50 * {self.forward_parameter.name}")
+        self.forward_relation_eye = XRelation(part=self.moloch_eye, whole=self, desc_ids=[POS_Z],
+                                    parameters=[self.forward_parameter], formula=f"-50 - 50 * {self.forward_parameter.name}")
+
+    def specify_action_parameters(self):
+        self.thrust_parameter = UCompletion(name="Thrust", default_value=0)
+        self.action_parameters += [self.thrust_parameter]
+
+    def specify_actions(self):
+        # Define the thrust action for the foldable cube
+        thrust_action = XAction(
+            Movement(self.foldable_cube.fold_parameter, (0, 1), output=(0, 1), part=self.foldable_cube),
+            Movement(self.forward_parameter, (0, 1), output=(0, 1)),
+            target=self, completion_parameter=self.thrust_parameter, name="Thrust")
