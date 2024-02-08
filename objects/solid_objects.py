@@ -15,7 +15,6 @@ class Sphere(SolidObject):
         self.obj[c4d.PRIM_SPHERE_RAD] = self.radius
         self.obj[c4d.PRIM_SPHERE_TYPE] = 4  # set type to icosahedron
 
-
 class Cylinder(SolidObject):
 
     def __init__(self, radius=50, height=150, orientation="x+", **kwargs):
@@ -66,7 +65,6 @@ class Cone(SolidObject):
         self.obj[c4d.PRIM_CONE_HEIGHT] = self.height
         self.obj[c4d.PRIM_CONE_SEG] = 32
 
-
 class MetaBall(SolidObject):
 
     def __init__(self, *children, hull_value=1, subdivision=5, **kwargs):
@@ -87,7 +85,6 @@ class MetaBall(SolidObject):
     def insert_children(self):
         for child in self.children:
             child.obj.InsertUnder(self.obj)
-
 
 class Plane(SolidObject):
 
@@ -123,7 +120,6 @@ class Plane(SolidObject):
             "height": c4d.DescID(c4d.DescLevel(c4d.PRIM_PLANE_HEIGHT, c4d.DTYPE_REAL, 0))
         }
 
-
 class Extrude(SolidObject):
 
     def __init__(self, *children, offset=0, **kwargs):
@@ -147,7 +143,6 @@ class Extrude(SolidObject):
             "offset": c4d.DescID(c4d.DescLevel(c4d.EXTRUDEOBJECT_EXTRUSIONOFFSET, c4d.DTYPE_REAL, 0))
         }
 
-
 class Loft(SolidObject):
 
     def __init__(self, **kwargs):
@@ -155,7 +150,6 @@ class Loft(SolidObject):
 
     def specify_object(self):
         self.obj = c4d.BaseObject(c4d.Oloft)
-
 
 class SweepNurbs(SolidObject):
 
@@ -171,3 +165,27 @@ class SweepNurbs(SolidObject):
     def insert_children(self):
         self.rail.obj.InsertUnder(self.obj)
         self.profile.obj.InsertUnder(self.obj)
+
+
+class Cube(SolidObject):
+
+    def __init__(self, width=100, height=100, depth=100, **kwargs):
+        self.width = width
+        self.height = height
+        self.depth = depth
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Ocube)
+
+    def set_object_properties(self):
+        self.obj[c4d.PRIM_CUBE_LEN, c4d.VECTOR_X] = self.width
+        self.obj[c4d.PRIM_CUBE_LEN, c4d.VECTOR_Y] = self.height
+        self.obj[c4d.PRIM_CUBE_LEN, c4d.VECTOR_Z] = self.depth
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "width": c4d.DescID(c4d.DescLevel(c4d.PRIM_CUBE_LEN, c4d.DTYPE_REAL, 0)),
+            "height": c4d.DescID(c4d.DescLevel(c4d.PRIM_CUBE_LEN, c4d.DTYPE_REAL, 1)),
+            "depth": c4d.DescID(c4d.DescLevel(c4d.PRIM_CUBE_LEN, c4d.DTYPE_REAL, 2))
+        }
