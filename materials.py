@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pydeation.constants import WHITE
+from pydeation.constants import WHITE, SPLINE_THICKNESS
 import c4d
 
 
@@ -60,6 +60,7 @@ class SketchMaterial(Material):
         self.obj[c4d.OUTLINEMAT_ENDCAP_WIDTH] = 7
         self.obj[c4d.OUTLINEMAT_ENDCAP_HEIGHT] = 5
         self.obj[c4d.OUTLINEMAT_ANIMATE_AUTODRAW] = True  # draw mode
+        self.obj[c4d.OUTLINEMAT_THICKNESS] = SPLINE_THICKNESS
         draw_orders = {
             "long_to_short": 0,
             "short_to_long": 1,

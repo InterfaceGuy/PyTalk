@@ -85,18 +85,18 @@ class TwoDCamera(CustomObject):
         animation = AnimationGroup(move_animation, zoom_animation)
         return animation
 
-    def zoom(self, frame_width=None):
+    def zoom(self, frame_width=None, **kwargs):
         if frame_width is None:
             frame_width = self.frame_width
         desc_id = self.frame_width_parameter.desc_id
-        animation = ScalarAnimation(target=self, descriptor=desc_id, value_fin=frame_width)
+        animation = ScalarAnimation(target=self, descriptor=desc_id, value_fin=frame_width, **kwargs)
         self.obj[desc_id] = frame_width
         return animation
 
 
 class ThreeDCamera(CustomObject):
 
-    def __init__(self, frame_width=500, zoom_factor=0, phi=0, theta=PI/8, tilt=0, radius=500, focus_point_x=0, focus_point_y=0, focus_point_z=0, **kwargs):
+    def __init__(self, frame_width=500, zoom_factor=0, phi=0, theta=PI/8, tilt=0, radius=1000, focus_point_x=0, focus_point_y=0, focus_point_z=0, **kwargs):
         self.frame_width = frame_width  # the frame width at the focus point
         self.zoom_factor = zoom_factor  # the progression along the line between orbit and focus point
         self.phi = phi
@@ -165,7 +165,7 @@ class ThreeDCamera(CustomObject):
         focus_point_y_inheritance = XIdentity(part=self.focus_point, whole=self, desc_ids=[POS_Y], parameter=self.focus_point_y_parameter)
         focus_point_z_inheritance = XIdentity(part=self.focus_point, whole=self, desc_ids=[POS_Z], parameter=self.focus_point_z_parameter)
 
-    def move_focus(self, x=None, y=None, z=None):
+    def move_focus(self, x=None, y=None, z=None, **kwargs):
         if x is None:
             x = self.focus_point_x
         if y is None:
@@ -174,21 +174,21 @@ class ThreeDCamera(CustomObject):
             z = self.focus_point_z
         desc_ids = [self.focus_point_x_parameter.desc_id, self.focus_point_y_parameter.desc_id, self.focus_point_z_parameter.desc_id]
         values = [x, y, z]
-        animation = VectorAnimation(target=self, descriptor=desc_ids, vector=values)
+        animation = VectorAnimation(target=self, descriptor=desc_ids, vector=values, **kwargs)
         self.obj[desc_ids[0]] = x
         self.obj[desc_ids[1]] = y
         self.obj[desc_ids[2]] = z
         return animation
 
-    def zoom(self, frame_width=None):
+    def zoom(self, frame_width=None, **kwargs):
         if frame_width is None:
             frame_width = self.frame_width
         desc_id = self.frame_width_parameter.desc_id
-        animation = ScalarAnimation(target=self, descriptor=desc_id, value_fin=frame_width)
+        animation = ScalarAnimation(target=self, descriptor=desc_id, value_fin=frame_width, **kwargs)
         self.obj[desc_id] = frame_width
         return animation
 
-    def move_orbit(self, phi=None, theta=None, radius=None, tilt=None):
+    def move_orbit(self, phi=None, theta=None, radius=None, tilt=None, **kwargs):
         if phi is None:
             phi = self.phi
         if theta is None:
@@ -199,7 +199,7 @@ class ThreeDCamera(CustomObject):
             tilt = self.tilt
         desc_ids = [self.phi_parameter.desc_id, self.theta_parameter.desc_id, self.radius_parameter.desc_id, self.tilt_parameter.desc_id]
         values = [phi, theta, radius, tilt]
-        animation = VectorAnimation(target=self, descriptor=desc_ids, vector=values)
+        animation = VectorAnimation(target=self, descriptor=desc_ids, vector=values, **kwargs)
         self.obj[desc_ids[0]] = phi
         self.obj[desc_ids[1]] = theta
         self.obj[desc_ids[2]] = radius

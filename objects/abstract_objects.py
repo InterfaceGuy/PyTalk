@@ -8,6 +8,7 @@ from pydeation.animation.animation import VectorAnimation, ScalarAnimation, Colo
 from pydeation.xpresso.userdata import *
 from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength, XBoundingBox, XAction, Movement
 import pydeation.objects.effect_objects as effect_objects
+import pydeation.objects.custom_objects as custom_objects
 from abc import ABC, abstractmethod
 import c4d.utils
 import c4d
@@ -405,7 +406,7 @@ class VisibleObject(ProtoObject):  # visible objects
 class LineObject(VisibleObject):
     """line objects consist of splines and only require a sketch material"""
 
-    def __init__(self, color=WHITE, plane="xy", arrow_start=False, arrow_end=False, draw_completion=0, opacity=1, helper_mode=False, draw_order="long_to_short", filled=False,**kwargs):
+    def __init__(self, color=WHITE, plane="xy", arrow_start=False, arrow_end=False, draw_completion=0, opacity=1, helper_mode=False, draw_order="long_to_short", filled=False, fill_color=None, **kwargs):
         super().__init__(**kwargs)
         self.color = color
         self.plane = plane
@@ -432,11 +433,17 @@ class LineObject(VisibleObject):
             self.specify_creation()
             self.sort_relations_by_priority()
         self.filled = filled
+        self.fill_color = fill_color
         if self.filled:
             self.create_membrane()
 
     def create_membrane(self):
-        self.membrane = Membrane(self, name=self.name + "Membrane")
+        if self.fill_color:
+            color = self.fill_color
+        else:
+            color = self.color
+
+        self.membrane = custom_objects.Membrane(self, name=self.name + "Membrane", creation=True, color=color)
 
     def spline_length_parameter_setup(self):
         self.specify_spline_length_parameter()

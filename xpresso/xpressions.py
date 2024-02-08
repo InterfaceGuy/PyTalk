@@ -666,10 +666,11 @@ class XInheritPosition(object):
 class XClosestPointOnSpline(CustomXPression):
     """creates a setup that positions a point on a spline such that the distance to a reference point is minimised"""
 
-    def __init__(self, reference_point=None, spline_point=None, target=None, spline=None, **kwargs):
+    def __init__(self, reference_point=None, spline_point=None, target=None, spline=None, matrices=False, **kwargs):
         self.spline = spline
         self.spline_point = spline_point
         self.reference_point = reference_point
+        self.matrices = matrices
         super().__init__(target, **kwargs)
 
     def construct(self):
@@ -677,7 +678,8 @@ class XClosestPointOnSpline(CustomXPression):
         self.create_reference_point_node()
         self.create_spline_point_node()
         self.create_nearest_point_on_spline_node()
-        self.create_matrix_nodes()
+        if self.matrices:
+            self.create_matrix_nodes()
 
     def create_spline_node(self):
         self.spline_node = XObject(self.target, link_target=self.spline)
@@ -713,22 +715,30 @@ class XClosestPointOnSpline(CustomXPression):
                        self.right_matrix_node, self.invert_matrix_node]
 
     def connect_ports(self):
-        self.spline_node.obj.GetOutPort(0).Connect(
-            self.nearest_point_on_spline_node.obj.GetInPort(0))
-        self.spline_node.obj.GetOutPort(1).Connect(
-            self.invert_matrix_node.obj.GetInPort(0))
-        self.invert_matrix_node.obj.GetOutPort(0).Connect(
-            self.left_matrix_node.obj.GetInPort(0))
-        self.spline_node.obj.GetOutPort(1).Connect(
-            self.right_matrix_node.obj.GetInPort(0))
-        self.reference_point_node.obj.GetOutPort(0).Connect(
-            self.left_matrix_node.obj.GetInPort(1))
-        self.nearest_point_on_spline_node.obj.GetOutPort(1).Connect(
-            self.right_matrix_node.obj.GetInPort(1))
-        self.left_matrix_node.obj.GetOutPort(0).Connect(
-            self.nearest_point_on_spline_node.obj.GetInPort(1))
-        self.right_matrix_node.obj.GetOutPort(0).Connect(
-            self.spline_point_node.obj.GetInPort(0))
+        if self.matrices:
+            self.spline_node.obj.GetOutPort(0).Connect(
+                self.nearest_point_on_spline_node.obj.GetInPort(0))
+            self.spline_node.obj.GetOutPort(1).Connect(
+                self.invert_matrix_node.obj.GetInPort(0))
+            self.invert_matrix_node.obj.GetOutPort(0).Connect(
+                self.left_matrix_node.obj.GetInPort(0))
+            self.spline_node.obj.GetOutPort(1).Connect(
+                self.right_matrix_node.obj.GetInPort(0))
+            self.reference_point_node.obj.GetOutPort(0).Connect(
+                self.left_matrix_node.obj.GetInPort(1))
+            self.nearest_point_on_spline_node.obj.GetOutPort(1).Connect(
+                self.right_matrix_node.obj.GetInPort(1))
+            self.left_matrix_node.obj.GetOutPort(0).Connect(
+                self.nearest_point_on_spline_node.obj.GetInPort(1))
+            self.right_matrix_node.obj.GetOutPort(0).Connect(
+                self.spline_point_node.obj.GetInPort(0))
+        else:
+            self.spline_node.obj.GetOutPort(0).Connect(
+                self.nearest_point_on_spline_node.obj.GetInPort(0))
+            self.reference_point_node.obj.GetOutPort(0).Connect(
+                self.nearest_point_on_spline_node.obj.GetInPort(1))
+            self.nearest_point_on_spline_node.obj.GetOutPort(1).Connect(
+                self.spline_point_node.obj.GetInPort(0))
 
 
 class XScaleBetweenPoints(CustomXPression):

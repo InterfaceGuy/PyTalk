@@ -14,7 +14,13 @@
 			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/library/scripts/pydeation-horizon-border",
 		},
 		{
-			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/library/scripts/pytalk-interfaceguy-intro"
+			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/library/scripts/pytalk-interfaceguy-intro",
+		},
+		{
+			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/library/scripts/PyTalk-CustodianOfTheNoosphere",
+		},
+		{
+			"path": "/Users/davidrug/Library/Preferences/Maxon/Maxon Cinema 4D R26_8986B2D7/library/scripts/DreamTalkProjects",
 		},
 	],
 	"build_systems":

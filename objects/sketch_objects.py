@@ -12,7 +12,7 @@ import c4d
 class Sketch(CustomObject):
     """gives useful additional parameters to SVG objects"""
 
-    def __init__(self, file_name, rel_x=0, rel_y=0, rel_z=0, rel_rot=0, plane="xy", on_floor=False, color=WHITE, diameter=100, filled=False, **kwargs):
+    def __init__(self, file_name, rel_x=0, rel_y=0, rel_z=0, rel_rot=0, plane="xy", on_floor=False, color=WHITE, diameter=100, filled=False, fill_color=None, **kwargs):
         self.file_name = file_name
         self.plane = plane
         self.rel_x = rel_x
@@ -22,6 +22,7 @@ class Sketch(CustomObject):
         self.on_floor = on_floor
         self.color = color
         self.filled = filled
+        self.fill_color = fill_color
         super().__init__(diameter=diameter, **kwargs)
         self.set_to_floor()
         self.inherit_parameters_from_svg()
@@ -40,7 +41,7 @@ class Sketch(CustomObject):
             self.move(y=height / 2)
 
     def specify_parts(self):
-        self.svg = SVG(self.file_name, color=self.color, filled=self.filled)
+        self.svg = SVG(self.file_name, color=self.color, filled=self.filled, fill_color=self.fill_color)
         if self.filled:
             self.membrane = self.svg.membrane
         self.parts.append(self.svg)
@@ -102,12 +103,10 @@ class Sketch(CustomObject):
         """changes the color of the sketch"""
         return self.svg.change_color(color)
 
-
 class Man(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("man", **kwargs)
-
 
 class Tree(Sketch):
 
@@ -115,37 +114,31 @@ class Tree(Sketch):
         description = f"tree_{resolution}_res"
         super().__init__(description, **kwargs)
 
-
 class David(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("david", **kwargs)
-
 
 class GitHub(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("github", **kwargs)
 
-
 class DNA(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("dna", **kwargs)
 
-
 class Human(Sketch):
 
-    def __init__(self, perspective="portrait", posture="standing", **kwargs):
-        description = f"human_{perspective}_{posture}"
+    def __init__(self, perspective="front", **kwargs):
+        description = f"head_{perspective}"
         super().__init__(description, **kwargs)
-
 
 class Fire(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("fire", **kwargs)
-
 
 class Footprint(Sketch):
 
@@ -153,24 +146,20 @@ class Footprint(Sketch):
         description = f"{side}_foot"
         super().__init__(description, **kwargs)
 
-
 class Earth(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("world", **kwargs)
-
 
 class Money(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("cash", **kwargs)
 
-
 class Health(Sketch):
 
     def __init__(self, **kwargs):
         super().__init__("healthcare", **kwargs)
-
 
 class CropTalk(Sketch):
 

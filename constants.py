@@ -3,8 +3,8 @@ import numpy as np
 from pydeation.utils import average_color
 
 # colors
-BLUE = c4d.Vector(0, 153, 204) / 255
-RED = c4d.Vector(255, 126, 121) / 255
+BLUE = c4d.Vector(0, 162, 255) / 255
+RED = c4d.Vector(255, 100, 78) / 255
 PURPLE = average_color(RED, BLUE)
 YELLOW = c4d.Vector(218, 218, 88) / 255
 GREEN = c4d.Vector(71, 196, 143) / 255
@@ -13,9 +13,6 @@ BLACK = c4d.Vector(0, 0, 0) / 255
 
 # material constants
 FILLER_TRANSPARENCY = 0.93
-VG_THICKNESS = 5
-TEXT_THICKNESS = 5
-PRIM_THICKNESS = 5
 SPLINE_THICKNESS = 3
 
 # math
