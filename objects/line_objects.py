@@ -45,7 +45,6 @@ class Circle(LineObject):
             "radius": c4d.DescID(c4d.DescLevel(c4d.PRIM_CIRCLE_RADIUS, c4d.DTYPE_REAL, 0))
         }
 
-
 class Rectangle(LineObject):
 
     def __init__(self, width=100, height=100, rounding=False, **kwargs):
@@ -75,7 +74,6 @@ class Rectangle(LineObject):
             "rounding_radius": c4d.DescID(c4d.DescLevel(c4d.PRIM_RECTANGLE_RADIUS, c4d.DTYPE_REAL, 0))
         }
 
-
 class Arc(LineObject):
 
     def __init__(self, radius=150, start_angle=0, end_angle=PI / 2, **kwargs):
@@ -98,7 +96,6 @@ class Arc(LineObject):
             "start_angle": c4d.DescID(c4d.DescLevel(c4d.PRIM_ARC_START, c4d.DTYPE_REAL, 0)),
             "end_angle": c4d.DescID(c4d.DescLevel(c4d.PRIM_ARC_END, c4d.DTYPE_REAL, 0))
         }
-
 
 class Spline(LineObject):
     """creates a basic spline"""
@@ -130,7 +127,6 @@ class Spline(LineObject):
         }
         # set interpolation
         self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
-
 
 class SVG(Spline):  # takes care of importing svgs
 
@@ -169,7 +165,6 @@ class SVG(Spline):  # takes care of importing svgs
     def specify_object(self):
         self.obj = self.spline
 
-
 class EdgeSpline(LineObject):
 
     def __init__(self, solid_object, mode="outline", **kwargs):
@@ -205,7 +200,6 @@ class EdgeSpline(LineObject):
         visibility_relation = XIdentity(
             part=self.sketch_tag, whole=self, desc_ids=[self.sketch_tag.desc_ids["render_splines"]], parameter=self.visibility_parameter, name="VisibilityInheritance")
 
-
 class PySpline(LineObject):
     """turns a c4d spline into a pydeation spline"""
 
@@ -233,7 +227,6 @@ class PySpline(LineObject):
         }
         # set interpolation
         self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
-
 
 class SplineText(LineObject):
     """creates the native text object of c4d as opposed to the customized version which has additional structure"""
@@ -265,7 +258,6 @@ class SplineText(LineObject):
             "text": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_TEXT, c4d.DTYPE_STRING, 0)),
             "text_height": c4d.DescID(c4d.DescLevel(c4d.PRIM_TEXT_HEIGHT, c4d.DTYPE_REAL, 0))
         }
-
 
 class SplineMask(LineObject):
     """creates a spline mask"""
@@ -365,3 +357,64 @@ class SplineSymmetry(LineObject):
     def insert_input_splines(self):
         for spline in self.input_splines:
             spline.obj.InsertUnder(self.obj)
+
+class Helix(LineObject):
+    """the helix object"""
+
+    def __init__(self, start_radius=200, start_angle=0, end_radius=200, end_angle=2*PI, radial_bias=1/2, height=200, height_bias=1/2, subdivision=100, **kwargs):
+        self.start_radius = start_radius
+        self.start_angle = start_angle
+        self.end_radius = end_radius
+        self.end_angle = end_angle
+        self.radial_bias = radial_bias
+        self.height = height
+        self.height_bias = height_bias
+        self.subdivision = subdivision
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Osplinehelix)
+
+    def set_object_properties(self):
+        self.obj[c4d.PRIM_HELIX_RADIUS1] = self.start_radius
+        self.obj[c4d.PRIM_HELIX_RADIUS2] = self.end_radius
+        self.obj[c4d.PRIM_HELIX_START] = self.start_angle
+        self.obj[c4d.PRIM_HELIX_END] = self.end_angle
+        self.obj[c4d.PRIM_HELIX_RADIALBIAS] = self.radial_bias
+        self.obj[c4d.PRIM_HELIX_HEIGHT] = self.height
+        self.obj[c4d.PRIM_HELIX_HEIGHTBIAS] = self.height_bias
+        self.obj[c4d.PRIM_HELIX_SUB] = self.subdivision
+
+
+class NSide(LineObject):
+    def __init__(self, radius=100, point_count=3, **kwargs):
+        self.radius = radius
+        self.point_count = point_count
+        super().__init__(**kwargs)
+    
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Osplinenside)
+    
+    def set_object_properties(self):
+        self.obj[c4d.PRIM_NSIDE_RADIUS] = self.radius
+        self.obj[c4d.PRIM_NSIDE_SIDES] = self.point_count
+        # Additional properties like angle can be set here if necessary.
+    
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "radius": c4d.DescID(c4d.DescLevel(c4d.PRIM_NSIDE_RADIUS, c4d.DTYPE_REAL, 0)),
+            "point_count": c4d.DescID(c4d.DescLevel(c4d.PRIM_NSIDE_SIDES, c4d.DTYPE_LONG, 0)),
+            # Add DescIDs for additional properties here
+        }
+
+class Triangle(NSide):
+    def __init__(self, radius=100, **kwargs):
+        super().__init__(radius=radius, point_count=3, **kwargs)
+    
+    def set_object_properties(self):
+        super().set_object_properties()
+        self.obj[ROT_B] = -c4d.utils.Rad(90)  # Rotate by -90 degrees to make the triangle point upwards.
+    
+    def set_unique_desc_ids(self):
+        super().set_unique_desc_ids()
+        # Add DescID for the orientation and rotation if necessary for animation purposes.
