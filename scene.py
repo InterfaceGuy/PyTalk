@@ -8,13 +8,18 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from pydeation.constants import *
 import c4d
+import os
+import inspect
+from pprint import pprint
 
 
 class Scene(ABC):
     """abstract class acting as blueprint for scenes"""
 
-    def __init__(self, resolution="default"):
+    def __init__(self, resolution="default", alpha=True, save=False):
         self.resolution = resolution
+        self.alpha = alpha
+        self.save = save
         self.time_ini = None
         self.time_fin = None
         self.kill_old_document()
@@ -51,8 +56,10 @@ class Scene(ABC):
             self.document[c4d.DOCUMENT_LOOPMAXTIME] = self.time_fin
 
     def set_render_settings(self):
-        self.render_settings = RenderSettings()
+        self.render_settings = RenderSettings(alpha=self.alpha)
         self.render_settings.set_resolution(self.resolution)
+        if self.save:
+            self.render_settings.set_export_settings()
 
     def set_camera(self):
         pass
@@ -98,7 +105,7 @@ class Scene(ABC):
 
     def set_interactive_render_region(self):
         """creates an IRR window over the full size of the editor view"""
-        c4d.CallCommand(600000020)  # call IRR script by ID
+        c4d.CallCommand(600000021)  # call IRR script by ID
         # workaround because script needs to be executed from main thread not pydeation library
         # ID changes depending on machine
         # CHANGE THIS IN FUTURE TO MORE ROBUST SOLUTION
@@ -177,10 +184,29 @@ class Scene(ABC):
 class RenderSettings():
     """holds and writes the render settings to cinema"""
 
-    def __init__(self):
+    def __init__(self, alpha=True):
+        self.alpha = alpha
         self.document = c4d.documents.GetActiveDocument()  # get document
         self.set_base_settings()
         self.set_sketch_settings()
+
+    def set_export_settings(self):
+        """sets the export settings"""
+        # get the caller's directory
+        # get directory from path
+        directory = os.path.dirname(inspect.stack()[3].filename)
+        # get the caller's class name
+        frame = inspect.currentframe().f_back
+        class_name = frame.f_locals.get('self', None).__class__.__name__
+        # get the path
+        if self.alpha:
+            path = os.path.join(directory, class_name + "_alpha", class_name) # add folder for alpha channel pngs
+        else:
+            path = os.path.join(directory, class_name)
+        self.settings[c4d.RDATA_PATH] = path
+        if self.alpha:
+            self.settings[c4d.RDATA_ALPHACHANNEL] = True  # Enable alpha channel
+        self.settings[c4d.RDATA_SAVEIMAGE] = True # set to save image
 
     def set_base_settings(self):
         """sets the base settings"""
@@ -188,7 +214,12 @@ class RenderSettings():
 
         # set parameters
         self.settings[c4d.RDATA_FRAMESEQUENCE] = 3  # set range to preview
-        self.settings[c4d.RDATA_FORMAT] = 1125  # set to MP4
+        if self.alpha:
+            self.settings[c4d.RDATA_FORMAT] = 1023671 # Set to PNG
+        else:
+            self.settings[c4d.RDATA_FORMAT] = 1125  # set to MP4
+        self.settings[c4d.RDATA_ALPHACHANNEL] = False  # set alpha channel
+        self.settings[c4d.RDATA_SAVEIMAGE] = False  # set to not save image
 
     def set_resolution(self, resolution):
         """sets the resolution for the render"""
@@ -215,8 +246,7 @@ class RenderSettings():
         sketch_vp = c4d.documents.BaseVideoPost(
             1011015)  # add sketch render settings
         # set parameters
-        sketch_vp[c4d.OUTLINEMAT_SHADING_BACK_COL] = c4d.Vector(
-            0, 0, 0)  # set background to black
+        sketch_vp[c4d.OUTLINEMAT_SHADING_BACK] = False  # disable background color
         sketch_vp[c4d.OUTLINEMAT_SHADING_OBJECT] = False  # disable shading
         # set independent of pixel units
         sketch_vp[c4d.OUTLINEMAT_PIXELUNITS_INDEPENDENT] = True
