@@ -25,7 +25,6 @@ class EffectObject(CustomObject):
     def specify_action_interval(self):
         self.action_interval = (0, 1)
 
-
 class TransitionObject(EffectObject):
     """a transition object is an effect object that intermediates the transition from one object to another
     so it has the ability to toggle the visibility of both the initial and the final object"""
@@ -48,7 +47,6 @@ class TransitionObject(EffectObject):
                                                     invisibility_interval=self.action_interval)
         self.relations.append(visibility_control)
 
-
 class ActionObject(EffectObject):
     """an action object is an effect object that has no final object
     so it has simply the ability to toggle the visibility of the initial object and behave exactly like a stuntman"""
@@ -64,7 +62,6 @@ class ActionObject(EffectObject):
                                                     initial_objects=[self.object_ini], effect_objects=[self],
                                                     invisibility_interval=self.action_interval)
         self.relations.append(visibility_control)
-
 
 class Dicer(ActionObject):
     # a dicer takes any object and slices it along a regular grid of specified length
@@ -221,7 +218,6 @@ class Breather(ActionObject):
         self.obj[desc_id] = completion
         return animation
 
-
 class Segment:
 
     def __init__(self, length):
@@ -230,7 +226,6 @@ class Segment:
 
     def get_length(self):
         return self.length/self.sub_segments
-
 
 class Morpher(TransitionObject):
     """creates a (set of) spline(s) depending on segment count that morphs between any two spline objects"""
@@ -472,4 +467,63 @@ class Morpher(TransitionObject):
         desc_id = self.effect_parameter.desc_id
         animation = ScalarAnimation(
             target=self, descriptor=desc_id, value_fin=completion)
+        return animation
+
+class Spherifier(ActionObject):
+
+    def __init__(self, actor, strength=1, radius=200, **kwargs):
+        self.actor = actor
+        self.strength = strength
+        self.radius = radius
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.double = Instance(self.actor)
+        self.spherify = Spherify(target=self.double, strength=self.strength, radius=self.radius)
+        self.parts += [self.double, self.spherify]
+
+    def specify_parameters(self):
+        self.spherify_strength = UStrength(name="SpherifyStrength", default_value=self.strength)
+        self.spherify_radius = ULength(name="SpherifyRadius", default_value=self.radius) 
+        self.parameters += [self.spherify_strength, self.spherify_radius]
+
+    def specify_relations(self):
+        strength_relation = XRelation(
+          whole=self,
+          part=self.spherify,
+          desc_ids=[self.spherify.desc_ids['strength']],
+          parameters=[self.spherify_strength],
+          formula=f"{self.spherify_strength.name}"
+        )
+
+        radius_relation = XRelation(
+          whole=self,
+          part=self.spherify,
+          desc_ids=[self.spherify.desc_ids['radius']],
+          parameters=[self.spherify_radius],
+          formula=f"{self.spherify_radius.name}"
+        )
+    
+        self.relations += [strength_relation, radius_relation]
+
+    def specify_action_parameters(self):
+        self.effect_parameter = UCompletion(name="Spherify", default_value=0)
+        self.action_parameters += [self.effect_parameter]  
+
+    def specify_actions(self):
+        spherify_action = XAction(
+          Movement(self.spherify_strength, (0, 1)),
+          Movement(self.spherify_radius, (0, 1)), 
+          target=self,
+          completion_parameter=self.effect_parameter, 
+          name="Spherify"
+        )
+        self.actions += [spherify_action]
+
+    def spherify(self, completion=1):
+        # specifies the spherify animation
+        desc_id = self.effect_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
         return animation
