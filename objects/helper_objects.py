@@ -2,6 +2,7 @@ from pydeation.objects.abstract_objects import ProtoObject, VisibleObject
 from pydeation.xpresso.xpressions import XInheritGlobalMatrix
 from c4d.modules.mograph import FieldLayer
 import c4d
+from pydeation.constants import PI
 
 
 class Null(ProtoObject):
@@ -19,7 +20,6 @@ class Null(ProtoObject):
         # set properties
         self.obj[c4d.NULLOBJECT_DISPLAY] = shapes[self.display]
 
-
 class MoGraphObject(ProtoObject):
 
     def add_effectors(self):
@@ -31,7 +31,6 @@ class MoGraphObject(ProtoObject):
     def add_effector(self, effector):
         self.effector_list.InsertObject(effector.obj, 1)
         self.obj[c4d.MGMOSPLINEOBJECT_EFFECTORLIST] = self.effector_list
-
 
 class Tracer(MoGraphObject):
 
@@ -69,7 +68,6 @@ class Tracer(MoGraphObject):
         self.obj[c4d.SPLINEOBJECT_INTERPOLATION] = 1  # adaptive
         self.obj[c4d.MGTRACEROBJECT_USEPOINTS] = False  # no vertex tracing
         self.obj[c4d.MGTRACEROBJECT_SPACE] = False  # global space
-
 
 class Cloner(MoGraphObject):
 
@@ -159,7 +157,6 @@ class Instance(VisibleObject):
         global_matrix_inheritance = XInheritGlobalMatrix(
             inheritor=self.target, target=self)
 
-
 class EmptySpline(ProtoObject):
 
     def __init__(self, spline_type="bezier", **kwargs):
@@ -179,7 +176,6 @@ class EmptySpline(ProtoObject):
         }
         # set interpolation
         self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
-
 
 class HelperSpline(ProtoObject):
     """turns a c4d spline into a hidden pydeation spline"""
@@ -208,7 +204,6 @@ class HelperSpline(ProtoObject):
         }
         # set interpolation
         self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
-
 
 class MoSpline(MoGraphObject):
 
@@ -244,7 +239,6 @@ class MoSpline(MoGraphObject):
         self.desc_ids = {
             "point_count": c4d.DescID(c4d.DescLevel(c4d.MGMOSPLINEOBJECT_SPLINE_COUNT, c4d.DTYPE_LONG, 0))
         }
-
 
 class Effector(ProtoObject):
 
@@ -306,7 +300,6 @@ class Effector(ProtoObject):
             "spline_field_offset": c4d.DescID(c4d.DescLevel(c4d.FIELDS, c4d.CUSTOMDATATYPE_FIELDLIST, 0), c4d.DescLevel(self.spline_field_layer_id, c4d.DTYPE_SUBCONTAINER, 0), c4d.DescLevel(c4d.FIELDLAYER_SPLINE_OFFSET, 0, 0))
         }
 
-
 class SplineEffector(Effector):
 
     def __init__(self, spline=None, segment_mode="index", segment_index=None, transform_mode="absolute", position=True, rotation=(0, 0, 0), offset=0, offset_start=0, offset_end=0, effective_length=None, **kwargs):
@@ -359,7 +352,6 @@ class SplineEffector(Effector):
             "strength": c4d.DescID(c4d.DescLevel(c4d.MGSPLINEEFFECTOR_STRENGTH, c4d.DTYPE_REAL, 0))
         }
 
-
 class RandomEffector(Effector):
 
     def __init__(self, mode="random", **kwargs):
@@ -389,7 +381,6 @@ class RandomEffector(Effector):
                                      c4d.DescLevel(c4d.VECTOR_Z, c4d.DTYPE_REAL, 0))
         }
 
-
 class PlainEffector(Effector):
 
     def __init__(self, **kwargs):
@@ -403,8 +394,8 @@ class PlainEffector(Effector):
 
 
 class Deformer(ProtoObject):
-
-    def __init__(self, target=None, **kwargs):
+    
+    def __init__(self, target, **kwargs):
         self.target = target
         super().__init__(**kwargs)
         self.insert_under_target()
@@ -423,7 +414,6 @@ class CorrectionDeformer(Deformer):
 
     def set_object_properties(self):
         pass
-
 
 class LinearField(ProtoObject):
 
@@ -450,7 +440,6 @@ class LinearField(ProtoObject):
             "length": c4d.DescID(c4d.DescLevel(c4d.LINEAR_SIZE, c4d.DTYPE_REAL, 0))
         }
 
-
 class SphericalField(ProtoObject):
 
     def __init__(self, radius=100, inner_offset=1 / 2, **kwargs):
@@ -465,7 +454,6 @@ class SphericalField(ProtoObject):
         self.obj[c4d.FIELD_INNER_OFFSET] = self.inner_offset
         self.obj[c4d.LINEAR_SIZE] = self.radius
 
-
 class RandomField(ProtoObject):
 
     def __init__(self, **kwargs):
@@ -476,16 +464,6 @@ class RandomField(ProtoObject):
 
     def set_object_properties(self):
         pass
-
-class Deformer(ProtoObject):
-    
-    def __init__(self, target, **kwargs):
-        self.target = target
-        super().__init__(**kwargs)
-        self.insert_under_target()
-
-    def insert_under_target(self):
-        self.obj.InsertUnder(self.target.obj)
 
 class SquashAndStretch(Deformer):
 
@@ -506,4 +484,62 @@ class SquashAndStretch(Deformer):
             "factor": c4d.DescID(c4d.DescLevel(c4d.ID_CA_SQUASH_OBJECT_FACTOR, c4d.DTYPE_REAL, 0)),
             "top_length": c4d.DescID(c4d.DescLevel(c4d.ID_CA_SQUASH_OBJECT_HIGH, c4d.DTYPE_REAL, 0)),
             "bottom_length": c4d.DescID(c4d.DescLevel(c4d.ID_CA_SQUASH_OBJECT_LOW, c4d.DTYPE_REAL, 0)),
+        }
+
+class Spherify(Deformer):
+
+    def __init__(self, target, radius=200, strength=1, **kwargs):
+        self.radius = radius
+        self.strength = strength
+        super().__init__(target=target, **kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Ospherify) 
+
+    def set_object_properties(self):
+        self.obj[c4d.SPHERIFYOBJECT_RADIUS] = self.radius
+        self.obj[c4d.SPHERIFYOBJECT_STRENGTH] = self.strength
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "radius": c4d.DescID(c4d.DescLevel(c4d.SPHERIFYOBJECT_RADIUS, c4d.DTYPE_REAL, 0)),
+            "strength": c4d.DescID(c4d.DescLevel(c4d.SPHERIFYOBJECT_STRENGTH, c4d.DTYPE_REAL, 0)),
+        }
+
+class Wrap(Deformer):
+
+    def __init__(self, target, mode="spherical", longitude_start=PI/2, longitude_end=2*PI+PI/2, latitude_start=-PI/2, latitude_end=PI/2, width=400, height=400, tension=1, **kwargs):
+        self.mode = mode
+        self.longitude_start = longitude_start
+        self.longitude_end = longitude_end
+        self.latitude_start = latitude_start
+        self.latitude_end = latitude_end
+        self.width = width
+        self.height = height
+        self.tension = tension
+        super().__init__(target=target, **kwargs)
+
+    def set_object_properties(self):
+        wrap_modes = {"spherical": 0, "cylindrical": 1}
+        self.obj[c4d.WRAPOBJECT_TYPE] = wrap_modes[self.mode]
+        self.obj[c4d.WRAPOBJECT_XSANGLE] = self.longitude_start
+        self.obj[c4d.WRAPOBJECT_XEANGLE] = self.longitude_end
+        self.obj[c4d.WRAPOBJECT_YSANGLE] = self.latitude_start
+        self.obj[c4d.WRAPOBJECT_YEANGLE] = self.latitude_end
+        self.obj[c4d.WRAPOBJECT_WIDTH] = self.width
+        self.obj[c4d.WRAPOBJECT_HEIGHT] = self.height
+        self.obj[c4d.WRAPOBJECT_TENSION] = self.tension
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Owrap)
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "longitude_start": c4d.DescID(c4d.DescLevel(c4d.WRAPOBJECT_XSANGLE, c4d.DTYPE_REAL, 0)),
+            "longitude_end": c4d.DescID(c4d.DescLevel(c4d.WRAPOBJECT_XEANGLE, c4d.DTYPE_REAL, 0)),
+            "latitude_start": c4d.DescID(c4d.DescLevel(c4d.WRAPOBJECT_YSANGLE, c4d.DTYPE_REAL, 0)),
+            "latitude_end": c4d.DescID(c4d.DescLevel(c4d.WRAPOBJECT_YEANGLE, c4d.DTYPE_REAL, 0)),
+            "width": c4d.DescID(c4d.DescLevel(c4d.WRAPOBJECT_WIDTH, c4d.DTYPE_REAL, 0)),
+            "height": c4d.DescID(c4d.DescLevel(c4d.WRAPOBJECT_HEIGHT, c4d.DTYPE_REAL, 0)),
+            "tension": c4d.DescID(c4d.DescLevel(c4d.WRAPOBJECT_TENSION, c4d.DTYPE_REAL, 0)),
         }
