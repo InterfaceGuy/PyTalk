@@ -44,6 +44,7 @@ class Sketch(CustomObject):
         self.svg = SVG(self.file_name, color=self.color, filled=self.filled, fill_color=self.fill_color)
         if self.filled:
             self.membrane = self.svg.membrane
+            self.membrane.obj.InsertUnder(self.obj)
         self.parts.append(self.svg)
 
     def specify_parameters(self):

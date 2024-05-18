@@ -385,7 +385,6 @@ class Helix(LineObject):
         self.obj[c4d.PRIM_HELIX_HEIGHTBIAS] = self.height_bias
         self.obj[c4d.PRIM_HELIX_SUB] = self.subdivision
 
-
 class NSide(LineObject):
     def __init__(self, radius=100, point_count=3, **kwargs):
         self.radius = radius
