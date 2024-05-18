@@ -53,6 +53,15 @@ class MaterialTag(Tag):
 
 class SketchTag(MaterialTag):
 
+    def __init__(self, outline=False, folds=False, creases=False, border=False, contour=False, splines=True, **kwargs):
+        self.outline = outline
+        self.folds = folds
+        self.creases = creases
+        self.border = border
+        self.contour = contour
+        self.splines = splines
+        super().__init__(**kwargs)
+
     def specify_tag_type(self):
         self.obj = c4d.BaseTag(1011012)  # create sketch tag
 
@@ -64,11 +73,13 @@ class SketchTag(MaterialTag):
 
     def set_tag_properties(self):
         # enable spline rendering
-        self.obj[c4d.OUTLINEMAT_LINE_SPLINES] = True
+        self.obj[c4d.OUTLINEMAT_LINE_SPLINES] = self.splines
         # disable non spline types
-        self.obj[c4d.OUTLINEMAT_LINE_FOLD] = False
-        self.obj[c4d.OUTLINEMAT_LINE_CREASE] = False
-        self.obj[c4d.OUTLINEMAT_LINE_BORDER] = False
+        self.obj[c4d.OUTLINEMAT_LINE_FOLD] = self.folds
+        self.obj[c4d.OUTLINEMAT_LINE_CREASE] = self.creases
+        self.obj[c4d.OUTLINEMAT_LINE_BORDER] = self.border
+        self.obj[c4d.OUTLINEMAT_LINE_CONTOUR] = self.contour
+        self.obj[c4d.OUTLINEMAT_LINE_OUTLINE] = self.outline
 
     def set_unique_desc_ids(self):
         self.desc_ids = {
