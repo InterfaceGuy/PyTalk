@@ -71,16 +71,21 @@ class Tracer(MoGraphObject):
 
 class Cloner(MoGraphObject):
 
-    def __init__(self, mode="object", clones=[], effectors=[], target_object=None, use_instance=False, step_size=10, offset_start=0, offset_end=0, offset=0, **kwargs):
+    def __init__(self, mode="object", clones=[], effectors=[], target_object=None, use_instance=False, honeycomb_count_width=10, honeycomb_count_height=10, honeycomb_step_size_width=300, honeycomb_step_size_height=346.4102, spline_step_size=10, offset_start=0, offset_end=0, offset=0, orientation="xz", **kwargs):
         self.mode = mode
         self.clones = clones
         self.effectors = effectors
         self.target_object = target_object
         self.use_instance = use_instance
-        self.step_size = step_size
+        self.spline_step_size = spline_step_size
+        self.honeycomb_count_width = honeycomb_count_width
+        self.honeycomb_count_height = honeycomb_count_height
+        self.honeycomb_step_size_width = honeycomb_step_size_width
+        self.honeycomb_step_size_height = honeycomb_step_size_height
         self.offset_start = offset_start
         self.offset_end = 1 - offset_end
         self.offset = offset
+        self.orientation = orientation
         super().__init__(**kwargs)
         self.insert_clones()
         self.add_effectors()
@@ -97,11 +102,22 @@ class Cloner(MoGraphObject):
             "honeycomb": 4
         }
         self.obj[c4d.ID_MG_MOTIONGENERATOR_MODE] = modes[self.mode]
+        if self.mode == "honeycomb":
+            orientations = {
+                "xy": 0,
+                "zy": 1,
+                "xz": 2,
+            }
+            self.obj[c4d.MG_HONEYCOMB_ORIENTATION] = orientations[self.orientation]
+            self.obj[c4d.MG_HONEYCOMB_COUNT_X] = self.honeycomb_count_width
+            self.obj[c4d.MG_HONEYCOMB_COUNT_Y] = self.honeycomb_count_height
+            self.obj[c4d.MG_HONEYCOMB_SIZE_X] = self.honeycomb_step_size_width
+            self.obj[c4d.MG_HONEYCOMB_SIZE_Y] = self.honeycomb_step_size_height
         self.obj[c4d.MGCLONER_FIX_CLONES] = False
         if self.mode == "object":
             self.obj[c4d.MG_OBJECT_LINK] = self.target_object.obj
             self.obj[c4d.MG_SPLINE_MODE] = 1
-            self.obj[c4d.MG_SPLINE_STEP] = self.step_size
+            self.obj[c4d.MG_SPLINE_STEP] = self.spline_step_size
             self.obj[c4d.MG_SPLINE_OFFSET] = self.offset
             self.obj[c4d.MG_SPLINE_START] = self.offset_start
             self.obj[c4d.MG_SPLINE_END] = self.offset_end
@@ -114,6 +130,9 @@ class Cloner(MoGraphObject):
                 clone_instance = Instance(clone)
                 clone_instance.obj.InsertUnder(self.obj)
         else:
+            # check if input is array and if not use the single object
+            if type(self.clones) is not list:
+                self.clones = [self.clones]
             for clone in self.clones:
                 clone.obj.InsertUnder(self.obj)
 
@@ -130,7 +149,7 @@ class Cloner(MoGraphObject):
     def set_unique_desc_ids(self):
         self.desc_ids = {
             "count": c4d.DescID(c4d.DescLevel(c4d.MG_LINEAR_COUNT, c4d.DTYPE_LONG, 0)),
-            "step_size": c4d.DescID(c4d.DescLevel(c4d.MG_SPLINE_STEP, c4d.DTYPE_REAL, 0)),
+            "spline_step_size": c4d.DescID(c4d.DescLevel(c4d.MG_SPLINE_STEP, c4d.DTYPE_REAL, 0)),
             "offset": c4d.DescID(c4d.DescLevel(c4d.MG_SPLINE_OFFSET, c4d.DTYPE_REAL, 0)),
             "offset_start": c4d.DescID(c4d.DescLevel(c4d.MG_SPLINE_START, c4d.DTYPE_REAL, 0)),
             "offset_end": c4d.DescID(c4d.DescLevel(c4d.MG_SPLINE_END, c4d.DTYPE_REAL, 0)),
@@ -239,6 +258,31 @@ class MoSpline(MoGraphObject):
         self.desc_ids = {
             "point_count": c4d.DescID(c4d.DescLevel(c4d.MGMOSPLINEOBJECT_SPLINE_COUNT, c4d.DTYPE_LONG, 0))
         }
+
+class Deformer(ProtoObject):
+    
+    def __init__(self, target, fields=[], **kwargs):
+        self.target = target
+        self.fields = fields
+        self.create_field_list()
+        super().__init__(**kwargs)
+        self.insert_field_list()
+        self.insert_under_target()
+
+    def insert_under_target(self):
+        self.obj.InsertUnder(self.target.obj)
+
+    def create_field_list(self):
+        self.field_list = c4d.FieldList()
+        self.spline_field_layer_id = 10
+        for field in self.fields:
+            field_layer = FieldLayer(c4d.FLfield)
+            field_layer.SetLinkedObject(field.obj)
+            self.field_list.InsertLayer(field_layer)
+
+    def insert_field_list(self):
+        print(self.field_list)
+        self.obj[c4d.FIELDS] = self.field_list
 
 class Effector(ProtoObject):
 
@@ -392,17 +436,17 @@ class PlainEffector(Effector):
     def set_object_properties(self):
         pass
 
-
-class Deformer(ProtoObject):
+class TargetEffector(Effector):
     
     def __init__(self, target, **kwargs):
         self.target = target
         super().__init__(**kwargs)
-        self.insert_under_target()
 
-    def insert_under_target(self):
-        self.obj.InsertUnder(self.target.obj)
+    def specify_object(self):
+        self.obj = c4d.BaseObject(1018889)
 
+    def set_object_properties(self):
+        self.obj[c4d.MGTARGETEFFECTOR_OBJECT] = self.target.obj
 
 class CorrectionDeformer(Deformer):
 
@@ -508,7 +552,7 @@ class Spherify(Deformer):
 
 class Wrap(Deformer):
 
-    def __init__(self, target, mode="spherical", longitude_start=PI/2, longitude_end=2*PI+PI/2, latitude_start=-PI/2, latitude_end=PI/2, width=400, height=400, tension=1, **kwargs):
+    def __init__(self, target, mode="spherical", longitude_start=PI/2, longitude_end=2*PI+PI/2, latitude_start=-PI/2, latitude_end=PI/2, width=400, height=400, radius=100, tension=1, **kwargs):
         self.mode = mode
         self.longitude_start = longitude_start
         self.longitude_end = longitude_end
@@ -516,6 +560,7 @@ class Wrap(Deformer):
         self.latitude_end = latitude_end
         self.width = width
         self.height = height
+        self.radius = radius
         self.tension = tension
         super().__init__(target=target, **kwargs)
 
@@ -528,6 +573,7 @@ class Wrap(Deformer):
         self.obj[c4d.WRAPOBJECT_YEANGLE] = self.latitude_end
         self.obj[c4d.WRAPOBJECT_WIDTH] = self.width
         self.obj[c4d.WRAPOBJECT_HEIGHT] = self.height
+        self.obj[c4d.WRAPOBJECT_RADIUS] = self.radius
         self.obj[c4d.WRAPOBJECT_TENSION] = self.tension
 
     def specify_object(self):
