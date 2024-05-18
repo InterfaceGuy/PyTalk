@@ -8,7 +8,7 @@ from pydeation.animation.animation import VectorAnimation, ScalarAnimation, Colo
 from pydeation.xpresso.userdata import *
 from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength, XBoundingBox, XAction, Movement
 import pydeation.objects.effect_objects as effect_objects
-import pydeation.objects.custom_objects as custom_objects
+#import pydeation.objects.custom_objects as custom_objects
 from abc import ABC, abstractmethod
 import c4d.utils
 import c4d
@@ -241,8 +241,8 @@ class ProtoObject(ABC):
                 master.InsertFirst(parent, action.obj)
 
 
-
-class VisibleObject(ProtoObject):  # visible objects
+class VisibleObject(ProtoObject):
+    # visible objects
 
     def __init__(self, visible=True, creation=0, **kwargs):
         super().__init__(**kwargs)
@@ -550,14 +550,28 @@ class LineObject(VisibleObject):
 class SolidObject(VisibleObject):
     """solid objects only require a fill material"""
 
-    def __init__(self, filled=0, glowing=0, color=WHITE, **kwargs):
+    def __init__(self, filled=0, glowing=0, color=WHITE, fill_color=None, sketch_color=None, draw_order="long_to_short", draw_completion=0, arrow_start=False, arrow_end=False, sketch_opacity=1, outline_only=False, **kwargs):
         self.filled = filled
         self.glowing = glowing
         self.color = color
+        self.fill_color = fill_color
+        self.sketch_color = sketch_color
+        self.draw_order = draw_order
+        self.draw_completion = draw_completion
+        self.arrow_start = arrow_start
+        self.arrow_end = arrow_end
+        self.sketch_opacity = sketch_opacity
+        self.outline_only = outline_only
         super().__init__(**kwargs)
+        self.derive_colors()
+        # fill setup
         self.set_fill_material()
         self.set_fill_tag()
         self.fill_parameter_setup()
+        # sketch setup
+        self.set_sketch_material()
+        self.set_sketch_tag()
+        self.sketch_parameter_setup()
         self.parameters = []
         self.specify_parameters()
         self.insert_parameters()
@@ -570,10 +584,17 @@ class SolidObject(VisibleObject):
         self.specify_creation()
         self.sort_relations_by_priority()
 
+    def derive_colors(self):
+        if not self.fill_color:
+            self.fill_color = self.color
+        if not self.sketch_color:
+            self.sketch_color = self.color
+
     def specify_creation(self):
         """specifies the creation action"""
         creation_action = XAction(
-            Movement(self.fill_parameter, (0, 1)),
+            Movement(self.fill_parameter, (1/3, 1)),
+            Movement(self.draw_parameter, (0, 2/3)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
     def fill_parameter_setup(self):
@@ -583,7 +604,7 @@ class SolidObject(VisibleObject):
 
     def set_fill_material(self):
         self.fill_material = FillMaterial(
-            name=self.name, fill=self.filled, color=self.color)
+            name=self.name, fill=self.filled, color=self.fill_color)
 
     def set_fill_tag(self):
         self.fill_tag = FillTag(target=self, material=self.fill_material)
@@ -616,6 +637,62 @@ class SolidObject(VisibleObject):
     def un_fill(self, completion=0):
         """specifies the unfill animation"""
         desc_id = self.fill_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def sketch_parameter_setup(self):
+        self.specify_sketch_parameters()
+        self.insert_sketch_parameters()
+        self.specify_sketch_relations()
+
+    def set_sketch_material(self):
+        self.sketch_material = SketchMaterial(
+            name=self.__class__.__name__, draw_order=self.draw_order, color=self.sketch_color, arrow_start=self.arrow_start, arrow_end=self.arrow_end)
+
+    def set_sketch_tag(self):
+        outline = True
+        creases = True
+        splines = True
+        if self.outline_only:
+            creases = False
+            splines = False
+        self.sketch_tag = SketchTag(target=self, material=self.sketch_material, splines=splines, outline=outline, creases=creases)
+
+    def specify_sketch_parameters(self):
+        self.draw_parameter = UCompletion(
+            name="Draw", default_value=self.draw_completion)
+        self.opacity_parameter = UCompletion(
+            name="SketchOpacity", default_value=self.sketch_opacity)
+        self.color_parameter = UColor(
+            name="Color", default_value=self.sketch_color)
+        self.sketch_parameters = [self.draw_parameter,
+                                  self.opacity_parameter, self.color_parameter]
+
+    def insert_sketch_parameters(self):
+        self.draw_u_group = UGroup(
+            *self.sketch_parameters, target=self.obj, name="Sketch")
+
+    def specify_sketch_relations(self):
+        draw_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["draw_completion"]],
+                                  parameter=self.draw_parameter)
+        opacity_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["opacity"]],
+                                     parameter=self.opacity_parameter)
+        color_relation = XIdentity(part=self.sketch_material, whole=self, desc_ids=[self.sketch_material.desc_ids["color"]],
+                                   parameter=self.color_parameter)
+
+    def draw(self, completion=1):
+        """specifies the draw animation"""
+        desc_id = self.draw_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+    def un_draw(self, completion=0):
+        """specifies the undraw animation"""
+        desc_id = self.draw_parameter.desc_id
         animation = ScalarAnimation(
             target=self, descriptor=desc_id, value_fin=completion)
         self.obj[desc_id] = completion
