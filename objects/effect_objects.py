@@ -527,3 +527,80 @@ class Spherifier(ActionObject):
             target=self, descriptor=desc_id, value_fin=completion)
         self.obj[desc_id] = completion
         return animation
+
+class Wrapper(ActionObject):
+    """wraps a plane around a sphere or cylinder"""
+
+    def __init__(self, actor, mode="spherical", field_direction="x-", field_length=100, longitude_start=PI/2, longitude_end=2*PI+PI/2, latitude_start=-PI/2, latitude_end=PI/2, width=400, height=400, radius=100, tension=1, **kwargs):
+        self.actor = actor
+        self.object_ini = actor
+        self.object_fin = actor
+        self.mode = mode
+        self.field_direction = field_direction
+        self.field_length = field_length
+        self.longitude_start = longitude_start
+        self.longitude_end = longitude_end
+        self.latitude_start = latitude_start
+        self.latitude_end = latitude_end
+        self.wrap_width = width
+        self.wrap_height = height
+        self.wrap_radius = radius
+        self.tension = tension
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.double = Instance(self.actor)
+        self.linear_field = LinearField(direction=self.field_direction, length=self.field_length)
+        self.wrapper = Wrap(target=self.double, fields=[self.linear_field], mode=self.mode, longitude_start=self.longitude_start, longitude_end=self.longitude_end, latitude_start=self.latitude_start, latitude_end=self.latitude_end, width=self.wrap_width, height=self.wrap_height, radius=self.wrap_radius, tension=self.tension)
+        self.parts += [self.double, self.linear_field, self.wrapper]
+
+    def specify_parameters(self):
+        self.field_length_parameter = ULength(name="FieldMovement", default_value=self.field_length)
+        self.wrap_completion_parameter = UCompletion(name="WrapCompletion", default_value=0)
+        self.parameters += [self.field_length_parameter, self.wrap_completion_parameter]
+
+    def specify_relations(self):
+        wrap_completion_relation = XRelation(
+          whole=self,
+          part=self.linear_field,
+          desc_ids=[POS_X],
+          parameters=[self.wrap_completion_parameter, self.field_length_parameter],
+          formula=f"{self.field_length_parameter.name}*({self.wrap_completion_parameter.name}-1/2)"
+        )
+    
+        self.relations += [wrap_completion_relation]
+
+    def specify_action_parameters(self):
+        self.effect_parameter = UCompletion(name="Wrapper", default_value=0)
+        self.action_parameters += [self.effect_parameter]  
+
+    def specify_actions(self):
+        wrapper_action = XAction(
+          Movement(self.wrap_completion_parameter, (0, 1)),
+          target=self,
+          completion_parameter=self.effect_parameter, 
+          name="Wrapper"
+        )
+        self.actions += [wrapper_action]
+
+    def wrap(self, completion=1):
+        # specifies the wrap animation
+        desc_id = self.effect_parameter.desc_id
+        animation = ScalarAnimation(
+            target=self, descriptor=desc_id, value_fin=completion)
+        self.obj[desc_id] = completion
+        return animation
+
+class Pulser(ActionObject):
+
+    def __init__(self, actor, **kwargs):
+        self.actor = actor
+        super().__init__(**kwargs)
+
+    def specify_parts(self):
+        self.double = Instance(self.actor)
+        self.linear_field = LinearField(direction="x-", length=100)
+        self.plain_effector = PlainEffector(target=self.cloner, fields=[self.spark])
+        self.spark = Circle(radius=1, color=BLUE)
+        self.cloner = Cloner(target=self.double, target_object=self.actor, mode="object")
+        self.parts += [self.double, self.pulse]
