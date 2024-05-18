@@ -13,7 +13,7 @@ BLACK = c4d.Vector(0, 0, 0) / 255
 
 # material constants
 FILLER_TRANSPARENCY = 0.93
-SPLINE_THICKNESS = 3
+SPLINE_THICKNESS = 7
 
 # math
 PI = np.pi
