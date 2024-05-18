@@ -11,6 +11,7 @@ from pydeation.animation.animation import ScalarAnimation
 from pydeation.constants import *
 import random
 import c4d
+from pydeation.objects.sketch_objects import Sketch
 
 
 class Group(CustomObject):
@@ -1006,7 +1007,7 @@ class Letter(CustomObject):
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 class Membrane(CustomObject):
-    """creates a membrane for any given spline using the extrude and mospline object"""
+    """creates a membrane for any given spline using the extrude and instance object"""
 
     def __init__(self, spline, thickness=0, filled=0, color=WHITE, **kwargs):
         self.spline = spline
@@ -1014,11 +1015,15 @@ class Membrane(CustomObject):
         self.filled = filled
         self.color = color
         super().__init__(**kwargs)
+        #self.insert_under_spline()
+
+    def insert_under_spline(self):
+        self.obj.InsertUnder(self.spline.obj)
 
     def specify_parts(self):
-        self.mospline = MoSpline(source_spline=self.spline, generation_mode="vertex")
-        self.extrude = Extrude(self.mospline, color=self.color)
-        self.parts += [self.extrude, self.mospline]
+        self.instance = Instance(self.spline)
+        self.extrude = Extrude(self.instance, color=self.color)
+        self.parts += [self.extrude, self.instance]
 
     def specify_parameters(self):
         self.thickness_parameter = ULength(
@@ -1032,7 +1037,7 @@ class Membrane(CustomObject):
         fill_inheritance = XIdentity(part=self.extrude, whole=self, desc_ids=[self.extrude.fill_parameter.desc_id],
                                      parameter=self.fill_parameter)
         mospline_correction = XCorrectMoSplineTransform(
-            self.mospline, target=self)
+            self.instance, target=self)
 
     def specify_creation(self):
         creation_action = XAction(
@@ -1524,7 +1529,7 @@ class FoldableCube(CustomObject):
                 Movement(self.fold_parameter, (0, 1), output=(0, 1)),
                 target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-class DomesticatedMind(CustomObject):
+class DELETEDomesticatedMind(CustomObject):
 
     def specify_parts(self):
         self.cube = FoldableCube(y=3, z=33, p=PI/2, color=BLUE, diameter=200, bottom=False)
@@ -1537,7 +1542,7 @@ class DomesticatedMind(CustomObject):
             Movement(self.head.creation_parameter, (0, 2/3), part=self.head),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-class MolochConsciousness(CustomObject):
+class DELETEMolochConsciousness(CustomObject):
     
     def specify_parts(self):
         # Create instances of the components of this custom object.
@@ -1556,7 +1561,7 @@ class MolochConsciousness(CustomObject):
             Movement(self.vector_of_domestication.creation_parameter, (1/2, 1), part=self.vector_of_domestication),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
-class MindVirus(CustomObject):
+class DELETEMindVirus(CustomObject):
 
     def specify_parts(self):
         self.foldable_cube = FoldableCube(creation=True, z=-50, h=PI, p=PI/2, drive_opacity=False, color=BLUE)
