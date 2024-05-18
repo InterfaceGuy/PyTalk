@@ -188,7 +188,8 @@ class ThreeDCamera(CustomObject):
         self.obj[desc_id] = frame_width
         return animation
 
-    def move_orbit(self, phi=None, theta=None, radius=None, tilt=None, **kwargs):
+    def move_orbit(self, phi=None, theta=None, radius=None, tilt=None, direction=None, **kwargs):
+        # moves the cameras orbit point to the specified spherical coordinates
         if phi is None:
             phi = self.phi
         if theta is None:
@@ -197,6 +198,25 @@ class ThreeDCamera(CustomObject):
             radius = self.radius
         if tilt is None:
             tilt = self.tilt
+        # coordinates can be specified by shorthand directions
+        if direction == "front":
+            phi = 0
+            theta = 0
+        elif direction == "back":
+            phi = PI
+            theta = 0
+        elif direction == "left":
+            phi = -PI/2
+            theta = 0
+        elif direction == "right":
+            phi = PI/2
+            theta = 0
+        elif direction == "top":
+            phi = 0
+            theta = PI/2
+        elif direction == "bottom":
+            phi = 0
+            theta = -PI/2
         desc_ids = [self.phi_parameter.desc_id, self.theta_parameter.desc_id, self.radius_parameter.desc_id, self.tilt_parameter.desc_id]
         values = [phi, theta, radius, tilt]
         animation = VectorAnimation(target=self, descriptor=desc_ids, vector=values, **kwargs)
