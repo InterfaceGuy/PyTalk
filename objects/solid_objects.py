@@ -166,7 +166,6 @@ class SweepNurbs(SolidObject):
         self.rail.obj.InsertUnder(self.obj)
         self.profile.obj.InsertUnder(self.obj)
 
-
 class Cube(SolidObject):
 
     def __init__(self, width=100, height=100, depth=100, **kwargs):
@@ -189,3 +188,25 @@ class Cube(SolidObject):
             "height": c4d.DescID(c4d.DescLevel(c4d.PRIM_CUBE_LEN, c4d.DTYPE_REAL, 1)),
             "depth": c4d.DescID(c4d.DescLevel(c4d.PRIM_CUBE_LEN, c4d.DTYPE_REAL, 2))
         }
+
+class USD(SolidObject):
+
+    def __init__(self, file_path=None, **kwargs):
+        self.file_path = file_path
+        self.extract_object_from_import()
+        super().__init__(**kwargs)
+
+    def specify_object(self):
+        self.obj = self.mesh
+
+    def extract_object_from_import(self):
+        self.document = c4d.documents.GetActiveDocument()
+        c4d.documents.MergeDocument(self.document, self.file_path, c4d.SCENEFILTER_NONE)
+        # remove superfluous material null
+        material_null = self.document.SearchObject("Materials")
+        material_null.Remove()
+        # get clone of mesh from root null
+        root_null = self.document.SearchObject("Root")
+        self.mesh = root_null.GetDown().GetClone()
+        # remove root null and mesh
+        root_null.Remove()
