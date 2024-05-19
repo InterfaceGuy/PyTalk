@@ -78,7 +78,3 @@ from pydeation.xpresso.xpresso import *
 from pydeation.xpresso.xpressions import *
 from pydeation.xpresso.userdata import *
 from pydeation.animation.abstract_animators import *
-
-# we add the InterBrain path to the sys path to allow for importing the InterBrain modules
-interbrain_path = "/Users/davidrug/Library/Mobile Documents/iCloud~md~obsidian/Documents/InterBrain"
-sys.path.append(interbrain_path)
