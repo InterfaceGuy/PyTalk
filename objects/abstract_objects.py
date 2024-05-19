@@ -747,6 +747,14 @@ class CustomObject(VisibleObject):
         """used to specify the unique creation animation for each individual custom object"""
         pass
 
+
+    def inherit_creation(self):
+        """inheriting creation from parts"""
+        movements = [Movement(part.creation_parameter, (0, 1), part=part)
+                     for part in self.parts]
+        self.creation_action = XAction(*movements,
+                                        target=self, completion_parameter=self.creation_parameter, name="Creation")
+
     def specify_position_inheritance(self):
         """used to specify how the position should be determined"""
         pass
