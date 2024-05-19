@@ -166,6 +166,13 @@ class SweepNurbs(SolidObject):
         self.rail.obj.InsertUnder(self.obj)
         self.profile.obj.InsertUnder(self.obj)
 
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "start_growth": c4d.DescID(c4d.DescLevel(c4d.SWEEPOBJECT_STARTGROWTH, c4d.DTYPE_REAL, 0)),
+            "end_growth": c4d.DescID(c4d.DescLevel(c4d.SWEEPOBJECT_GROWTH, c4d.DTYPE_REAL, 0))
+        }
+
+
 class Cube(SolidObject):
 
     def __init__(self, width=100, height=100, depth=100, **kwargs):
