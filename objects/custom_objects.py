@@ -1523,10 +1523,16 @@ class FoldableCube(CustomObject):
                 Movement(self.back_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.back_rectangle),
                 Movement(self.right_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.right_rectangle),
                 Movement(self.left_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.left_rectangle),
+                Movement(self.bottom_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.bottom_rectangle),
                 target=self, completion_parameter=self.creation_parameter, name="Creation")
         else:
             creation_action = XAction(
                 Movement(self.fold_parameter, (0, 1), output=(0, 1)),
+                Movement(self.front_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.front_rectangle),
+                Movement(self.back_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.back_rectangle),
+                Movement(self.right_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.right_rectangle),
+                Movement(self.left_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.left_rectangle),
+                Movement(self.bottom_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.bottom_rectangle),
                 target=self, completion_parameter=self.creation_parameter, name="Creation")
 
 class DELETEDomesticatedMind(CustomObject):
