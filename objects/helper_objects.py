@@ -34,11 +34,12 @@ class MoGraphObject(ProtoObject):
 
 class Tracer(MoGraphObject):
 
-    def __init__(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False, nodes_to_children=False, **kwargs):
+    def __init__(self, *nodes, spline_type="bezier", tracing_mode="path", reverse=False, nodes_to_children=False, intermediate_points=None, **kwargs):
         self.nodes = nodes
         self.spline_type = spline_type
         self.tracing_mode = tracing_mode
         self.reverse = reverse
+        self.intermediate_points = intermediate_points
         super().__init__(**kwargs)
         if nodes_to_children:
             self.nodes_to_children()
@@ -58,7 +59,7 @@ class Tracer(MoGraphObject):
             trace_list.InsertObject(node.obj, 1)
         # set properties
         self.obj[c4d.MGTRACEROBJECT_OBJECTLIST] = trace_list
-        spline_types = {"bezier": 4, "linear": 0}
+        spline_types = {"linear": 0, "cube": 1, "akima": 2, "b-spline": 3, "bezier": 4}
         self.obj[c4d.SPLINEOBJECT_TYPE] = spline_types[self.spline_type]
         self.obj[c4d.MGTRACEROBJECT_REVERSESPLINE] = self.reverse
         tracing_modes = {"path": 0, "objects": 1, "elements": 2}
