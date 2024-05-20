@@ -2,7 +2,7 @@ import importlib
 import pydeation.materials
 importlib.reload(pydeation.materials)
 from pydeation.materials import FillMaterial, SketchMaterial
-from pydeation.tags import FillTag, SketchTag, XPressoTag
+from pydeation.tags import FillTag, SketchTag, XPressoTag, AlignToSplineTag
 from pydeation.constants import WHITE, SCALE_X, SCALE_Y, SCALE_Z
 from pydeation.animation.animation import VectorAnimation, ScalarAnimation, ColorAnimation
 from pydeation.xpresso.userdata import *
@@ -401,6 +401,10 @@ class VisibleObject(ProtoObject):
             target=self, descriptor=desc_id, value_fin=completion)
         self.obj[desc_id] = completion
         return animation
+
+    def align_to_spline(self, spline=None):
+        self.align_to_spline_tag = AlignToSplineTag(target=self, spline=spline)
+
 
 
 class LineObject(VisibleObject):

@@ -139,3 +139,24 @@ class TargetTag(Tag):
 
     def set_target(self):
         self.obj[c4d.TARGETEXPRESSIONTAG_LINK] = self.focus_point.obj
+
+
+class AlignToSplineTag(Tag):
+
+    def __init__(self, spline=None, tangential=True, **kwargs):
+        self.spline = spline
+        self.tangential = tangential
+        super().__init__(**kwargs)
+        self.set_spline()
+
+    def specify_tag_type(self):
+        self.obj = c4d.BaseTag(c4d.Taligntospline)
+
+    def set_spline(self):
+        self.obj[c4d.ALIGNTOSPLINETAG_LINK] = self.spline.obj
+        self.obj[c4d.ALIGNTOSPLINETAG_TANGENTIAL] = self.tangential
+
+    def set_unique_desc_ids(self):
+        self.desc_ids = {
+            "position": c4d.DescID(c4d.DescLevel(c4d.ALIGNTOSPLINETAG_POSITION, c4d.DTYPE_REAL, 0)),
+        }
