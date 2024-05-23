@@ -460,6 +460,23 @@ class CorrectionDeformer(Deformer):
     def set_object_properties(self):
         pass
 
+class ShrinkWrap(Deformer):
+
+    def __init__(self, target, mode="target_axis", strength=0.9, **kwargs):
+        self.target = target
+        self.mode = mode
+        self.strength = strength
+        super().__init__(target=target, **kwargs)
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(1019774)
+
+    def set_object_properties(self):
+        modes = {"along_normals": 0, "target_axis": 1, "source_axis": 2}
+        self.obj[c4d.SHRINKWRAP_MODE] = modes[self.mode]
+        self.obj[c4d.SHRINKWRAP_TARGETOBJECT] = self.target.obj
+        self.obj[c4d.SHRINKWRAP_STRENGTH] = self.strength
+
 class LinearField(ProtoObject):
 
     def __init__(self, length=100, direction="x+", **kwargs):
