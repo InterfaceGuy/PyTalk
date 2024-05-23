@@ -8,11 +8,9 @@ from pydeation.animation.animation import VectorAnimation, ScalarAnimation, Colo
 from pydeation.xpresso.userdata import *
 from pydeation.xpresso.xpressions import XRelation, XIdentity, XSplineLength, XBoundingBox, XAction, Movement
 import pydeation.objects.effect_objects as effect_objects
-#import pydeation.objects.custom_objects as custom_objects
 from abc import ABC, abstractmethod
 import c4d.utils
 import c4d
-
 
 
 class ProtoObject(ABC):
@@ -58,7 +56,8 @@ class ProtoObject(ABC):
         # self.freeze_tag = XPressoTag(
         #    target=self, name="FreezeTag", priority=0, priority_mode="animation")
         # inserts an xpresso tag used for custom xpressions
-        self.custom_tag = XPressoTag(target=self, name="CustomTag", priority_mode="expression")
+        self.custom_tag = XPressoTag(
+            target=self, name="CustomTag", priority_mode="expression")
 
     def add_composition_tag(self):
         """adds another layer to the composition hierarchy"""
@@ -86,9 +85,9 @@ class ProtoObject(ABC):
         if self.plane == "xy":
             self.rotate(rotation=(0, 0, 0))
         elif self.plane == "yz":
-            self.rotate(rotation=(PI/2, 0, 0))
+            self.rotate(rotation=(PI / 2, 0, 0))
         elif self.plane == "xz":
-            self.rotate(rotation=(0, -PI/2, 0))
+            self.rotate(rotation=(0, -PI / 2, 0))
 
     def specify_parameters(self):
         """specifies optional parameters for the custom object"""
@@ -191,7 +190,7 @@ class ProtoObject(ABC):
         # returns the length of the spline or a specific segment
         spline_help = c4d.utils.SplineHelp()
         spline_help.InitSplineWith(self.obj)
-        
+
         if segment:
             segment_length = spline_help.GetSegmentLength(segment)
             return segment_length
@@ -405,6 +404,168 @@ class VisibleObject(ProtoObject):
     def align_to_spline(self, spline=None):
         self.align_to_spline_tag = AlignToSplineTag(target=self, spline=spline)
 
+    def wrap_around(self, target=None):
+        self.shrink_wrap = effect_objects.ShrinkWrap(target=target)
+        self.shrink_wrap.obj.InsertUnder(self.obj)
+
+    def move_axis(self, position=(0, 0, 0)):
+        """moves the axis without moving the geometry"""
+        vec = c4d.Vector(*position)
+        print(vec)
+        print(position)
+        points = self.obj.GetAllPoints()
+        for i, point in enumerate(points):
+            points[i] = point - vec
+            if i < 3:
+                print(points[i] - point)
+        self.obj.SetAbsPos(self.obj.GetAbsPos() + vec)
+        self.obj.SetAllPoints(points)
+        self.obj.Message(c4d.MSG_UPDATE)
+        c4d.EventAdd()
+
+
+class CustomObject(VisibleObject):
+    """this class is used to create custom objects that are basically
+    groups with coupling of the childrens parameters through xpresso"""
+
+    def __init__(self, diameter=None, **kwargs):
+        super().__init__(**kwargs)
+        self.parts = []
+        self.specify_parts()
+        self.insert_parts()
+        self.parameters = []
+        self.specify_parameters()
+        self.insert_parameters()
+        self.specify_relations()
+        self.action_parameters = []
+        self.specify_action_parameters()
+        self.specify_creation_parameter()
+        self.insert_action_parameters()
+        self.specify_actions()
+        self.specify_creation()
+        self.diameter = diameter
+        self.add_bounding_box_information()
+        self.specify_bounding_box_parameters()
+        self.insert_bounding_box_parameters()
+        self.specify_bounding_box_relations()
+        self.specify_visibility_inheritance_relations()
+        self.specify_position_inheritance()
+        self.sort_relations_by_priority()
+
+    def specify_creation(self):
+        """used to specify the unique creation animation for each individual custom object"""
+        pass
+
+    def inherit_creation(self):
+        """inheriting creation from parts"""
+        movements = [Movement(part.creation_parameter, (0, 1), part=part)
+                     for part in self.parts]
+        self.creation_action = XAction(*movements,
+                                       target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def specify_position_inheritance(self):
+        """used to specify how the position should be determined"""
+        pass
+
+    @abstractmethod
+    def specify_parts(self):
+        """save parts as attributes and write them to self.parts"""
+        pass
+
+    def insert_parts(self):
+        """inserts the parts as children"""
+        for part in self.parts:
+            # check if part is not already child so existing hierarchies won't be disturbed
+            if not part.obj.GetUp():
+                part.obj.InsertUnder(self.obj)
+                part.parent = self
+            # check for membranes
+            if hasattr(part, "membrane"):
+                part.membrane.obj.InsertUnder(self.obj)
+                part.membrane.parent = self
+
+    def specify_object(self):
+        self.obj = c4d.BaseObject(c4d.Onull)
+
+    def specify_visibility_inheritance_relations(self):
+        """inherits visibility to parts"""
+        visibility_relations = []
+        for part in self.parts:
+            if hasattr(part, "visibility_parameter") and not isinstance(part, effect_objects.Morpher):
+                visibility_relation = XIdentity(
+                    part=part, whole=self, desc_ids=[part.visibility_parameter.desc_id], parameter=self.visibility_parameter, name="VisibilityInheritance")
+                visibility_relations.append(visibility_relation)
+
+    def specify_bounding_box_parameters(self):
+        """specifies bounding box parameters"""
+        default_diameter = self.diameter if self.diameter else max(
+            self.width, self.height, self.depth)
+        self.diameter_parameter = ULength(
+            name="Diameter", default_value=default_diameter)
+        self.default_width_parameter = ULength(
+            name="DefaultWidth", default_value=self.width)
+        self.default_height_parameter = ULength(
+            name="DefaultHeight", default_value=self.height)
+        self.default_depth_parameter = ULength(
+            name="DefaultDepth", default_value=self.depth)
+        self.bounding_box_parameters = [self.diameter_parameter, self.default_width_parameter,
+                                        self.default_height_parameter, self.default_depth_parameter]
+
+    def insert_bounding_box_parameters(self):
+        """inserts the bounding box parameters"""
+        self.bounding_box_u_group = UGroup(
+            *self.bounding_box_parameters, target=self.obj, name="BoundingBox")
+
+    def specify_bounding_box_relations(self):
+        """gives the custom object basic control over the bounding box diameter"""
+        diameter_relation = XRelation(part=self, whole=self, desc_ids=[SCALE_X, SCALE_Y, SCALE_Z], parameters=[self.diameter_parameter, self.default_width_parameter, self.default_height_parameter, self.default_depth_parameter],
+                                      formula=f"{self.diameter_parameter.name}/max({self.default_width_parameter.name};max({self.default_height_parameter.name};{self.default_depth_parameter.name}))")
+
+
+class Membrane(CustomObject):
+    """creates a membrane for any given spline using the extrude and instance object"""
+
+    def __init__(self, spline, thickness=0, filled=0, color=WHITE, **kwargs):
+        self.spline = spline
+        self.thickness = thickness
+        self.filled = filled
+        self.color = color
+        super().__init__(**kwargs)
+        # self.insert_under_spline()
+
+    def insert_under_spline(self):
+        self.obj.InsertUnder(self.spline.obj)
+
+    def specify_parts(self):
+        self.instance = Instance(self.spline)
+        self.extrude = Extrude(self.instance, color=self.color)
+        self.parts += [self.extrude, self.instance]
+
+    def specify_parameters(self):
+        self.thickness_parameter = ULength(
+            name="ThicknessParameter", default_value=self.thickness)
+        self.fill_parameter = UCompletion(
+            name="Fill", default_value=self.filled)
+        self.parameters += [self.thickness_parameter, self.fill_parameter]
+
+    def specify_relations(self):
+        thickness_relation = XIdentity(part=self.extrude, whole=self, desc_ids=[self.extrude.desc_ids["offset"]],
+                                       parameter=self.thickness_parameter)
+        fill_inheritance = XIdentity(part=self.extrude, whole=self, desc_ids=[self.extrude.fill_parameter.desc_id],
+                                     parameter=self.fill_parameter)
+        mospline_correction = XCorrectMoSplineTransform(
+            self.instance, target=self)
+
+    def specify_creation(self):
+        creation_action = XAction(
+            Movement(self.fill_parameter, (0, 1)),
+            target=self, completion_parameter=self.creation_parameter, name="Creation")
+
+    def fill(self, opacity):
+        return self.create(opacity)
+
+    def un_fill(self, opacity=0):
+        return self.create(opacity)
 
 
 class LineObject(VisibleObject):
@@ -447,7 +608,8 @@ class LineObject(VisibleObject):
         else:
             color = self.color
 
-        self.membrane = custom_objects.Membrane(self, name=self.name + "Membrane", creation=True, color=color)
+        self.membrane = Membrane(
+            self, name=self.name + "Membrane", creation=True, color=color)
 
     def spline_length_parameter_setup(self):
         self.specify_spline_length_parameter()
@@ -597,8 +759,8 @@ class SolidObject(VisibleObject):
     def specify_creation(self):
         """specifies the creation action"""
         creation_action = XAction(
-            Movement(self.fill_parameter, (1/3, 1)),
-            Movement(self.draw_parameter, (0, 2/3)),
+            Movement(self.fill_parameter, (1 / 3, 1)),
+            Movement(self.draw_parameter, (0, 2 / 3)),
             target=self, completion_parameter=self.creation_parameter, name="Creation")
 
     def fill_parameter_setup(self):
@@ -628,7 +790,7 @@ class SolidObject(VisibleObject):
         self.fill_relation = XRelation(part=self.fill_material, whole=self, desc_ids=[self.fill_material.desc_ids["transparency"]],
                                        parameters=[self.fill_parameter], formula=f"1-{self.fill_parameter.name}")
         self.glow_relation = XRelation(part=self.fill_material, whole=self, desc_ids=[self.fill_material.desc_ids["glow_brightness"]],
-                                        parameters=[self.glow_parameter], formula=f"{self.glow_parameter.name}")
+                                       parameters=[self.glow_parameter], formula=f"{self.glow_parameter.name}")
 
     def fill(self, completion=1):
         """specifies the fill animation"""
@@ -662,7 +824,8 @@ class SolidObject(VisibleObject):
         if self.outline_only:
             creases = False
             splines = False
-        self.sketch_tag = SketchTag(target=self, material=self.sketch_material, splines=splines, outline=outline, creases=creases)
+        self.sketch_tag = SketchTag(
+            target=self, material=self.sketch_material, splines=splines, outline=outline, creases=creases)
 
     def specify_sketch_parameters(self):
         self.draw_parameter = UCompletion(
@@ -717,98 +880,3 @@ class SolidObject(VisibleObject):
             target=self, descriptor=desc_id, value_fin=completion)
         self.obj[desc_id] = completion
         return animation
-
-
-class CustomObject(VisibleObject):
-    """this class is used to create custom objects that are basically
-    groups with coupling of the childrens parameters through xpresso"""
-
-    def __init__(self, diameter=None, **kwargs):
-        super().__init__(**kwargs)
-        self.parts = []
-        self.specify_parts()
-        self.insert_parts()
-        self.parameters = []
-        self.specify_parameters()
-        self.insert_parameters()
-        self.specify_relations()
-        self.action_parameters = []
-        self.specify_action_parameters()
-        self.specify_creation_parameter()
-        self.insert_action_parameters()
-        self.specify_actions()
-        self.specify_creation()
-        self.diameter = diameter
-        self.add_bounding_box_information()
-        self.specify_bounding_box_parameters()
-        self.insert_bounding_box_parameters()
-        self.specify_bounding_box_relations()
-        self.specify_visibility_inheritance_relations()
-        self.specify_position_inheritance()
-        self.sort_relations_by_priority()
-
-    def specify_creation(self):
-        """used to specify the unique creation animation for each individual custom object"""
-        pass
-
-
-    def inherit_creation(self):
-        """inheriting creation from parts"""
-        movements = [Movement(part.creation_parameter, (0, 1), part=part)
-                     for part in self.parts]
-        self.creation_action = XAction(*movements,
-                                        target=self, completion_parameter=self.creation_parameter, name="Creation")
-
-    def specify_position_inheritance(self):
-        """used to specify how the position should be determined"""
-        pass
-
-    @abstractmethod
-    def specify_parts(self):
-        """save parts as attributes and write them to self.parts"""
-        pass
-
-    def insert_parts(self):
-        """inserts the parts as children"""
-        for part in self.parts:
-            # check if part is not already child so existing hierarchies won't be disturbed
-            if not part.obj.GetUp():
-                part.obj.InsertUnder(self.obj)
-                part.parent = self
-
-    def specify_object(self):
-        self.obj = c4d.BaseObject(c4d.Onull)
-
-    def specify_visibility_inheritance_relations(self):
-        """inherits visibility to parts"""
-        visibility_relations = []
-        for part in self.parts:
-            if hasattr(part, "visibility_parameter") and not isinstance(part, effect_objects.Morpher):
-                visibility_relation = XIdentity(
-                    part=part, whole=self, desc_ids=[part.visibility_parameter.desc_id], parameter=self.visibility_parameter, name="VisibilityInheritance")
-                visibility_relations.append(visibility_relation)
-
-    def specify_bounding_box_parameters(self):
-        """specifies bounding box parameters"""
-        default_diameter = self.diameter if self.diameter else max(
-            self.width, self.height, self.depth)
-        self.diameter_parameter = ULength(
-            name="Diameter", default_value=default_diameter)
-        self.default_width_parameter = ULength(
-            name="DefaultWidth", default_value=self.width)
-        self.default_height_parameter = ULength(
-            name="DefaultHeight", default_value=self.height)
-        self.default_depth_parameter = ULength(
-            name="DefaultDepth", default_value=self.depth)
-        self.bounding_box_parameters = [self.diameter_parameter, self.default_width_parameter,
-                                        self.default_height_parameter, self.default_depth_parameter]
-
-    def insert_bounding_box_parameters(self):
-        """inserts the bounding box parameters"""
-        self.bounding_box_u_group = UGroup(
-            *self.bounding_box_parameters, target=self.obj, name="BoundingBox")
-
-    def specify_bounding_box_relations(self):
-        """gives the custom object basic control over the bounding box diameter"""
-        diameter_relation = XRelation(part=self, whole=self, desc_ids=[SCALE_X, SCALE_Y, SCALE_Z], parameters=[self.diameter_parameter, self.default_width_parameter, self.default_height_parameter, self.default_depth_parameter],
-                                      formula=f"{self.diameter_parameter.name}/max({self.default_width_parameter.name};max({self.default_height_parameter.name};{self.default_depth_parameter.name}))")

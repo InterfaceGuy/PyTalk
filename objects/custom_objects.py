@@ -1517,80 +1517,24 @@ class FoldableCube(CustomObject):
     def specify_creation(self):
         # Define the creation action for the foldable cube
         if self.drive_opacity:
-            creation_action = XAction(
+            movements = [
                 Movement(self.fold_parameter, (0, 1), output=(0, 1)),
                 Movement(self.front_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.front_rectangle),
                 Movement(self.back_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.back_rectangle),
                 Movement(self.right_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.right_rectangle),
-                Movement(self.left_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.left_rectangle),
-                Movement(self.bottom_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.bottom_rectangle),
-                target=self, completion_parameter=self.creation_parameter, name="Creation")
+                Movement(self.left_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.left_rectangle)
+            ]
+            if self.bottom:
+                movements.append(Movement(self.bottom_rectangle.opacity_parameter, (1/3, 1), output=(0, 1), part=self.bottom_rectangle))
+            creation_action = XAction(*movements, target=self, completion_parameter=self.creation_parameter, name="Creation")
         else:
-            creation_action = XAction(
+            movements = [
                 Movement(self.fold_parameter, (0, 1), output=(0, 1)),
                 Movement(self.front_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.front_rectangle),
                 Movement(self.back_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.back_rectangle),
                 Movement(self.right_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.right_rectangle),
-                Movement(self.left_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.left_rectangle),
-                Movement(self.bottom_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.bottom_rectangle),
-                target=self, completion_parameter=self.creation_parameter, name="Creation")
-
-class DELETEDomesticatedMind(CustomObject):
-
-    def specify_parts(self):
-        self.cube = FoldableCube(y=3, z=33, p=PI/2, color=BLUE, diameter=200, bottom=False)
-        self.head = Human(y=-10, filled=True, fill_color=BLACK)
-        self.parts = [self.cube, self.head]
-
-    def specify_creation(self):
-        creation_action = XAction(
-            Movement(self.cube.creation_parameter, (1/3, 1), part=self.cube),
-            Movement(self.head.creation_parameter, (0, 2/3), part=self.head),
-            target=self, completion_parameter=self.creation_parameter, name="Creation")
-
-class DELETEMolochConsciousness(CustomObject):
-    
-    def specify_parts(self):
-        # Create instances of the components of this custom object.
-        self.domesticated_mind = DomesticatedMind(creation=True)
-        self.vector_of_domestication = Triangle(creation=True, plane="xy", radius=125, y=-5, color=BLUE)
-        
-        # Combine the parts into a single list to define the whole object.
-        self.parts = [self.domesticated_mind, self.vector_of_domestication]
-    
-    def specify_creation(self):
-        # Here you need to define how the MolochConsciousness is created.
-        # This example assumes similar creation actions as in the existing components.
-        # You'll need to adjust timing, etc., to suit your animation requirements.
-        creation_action = XAction(
-            Movement(self.domesticated_mind.creation_parameter, (0, 1/2), part=self.domesticated_mind),
-            Movement(self.vector_of_domestication.creation_parameter, (1/2, 1), part=self.vector_of_domestication),
-            target=self, completion_parameter=self.creation_parameter, name="Creation")
-
-class DELETEMindVirus(CustomObject):
-
-    def specify_parts(self):
-        self.foldable_cube = FoldableCube(creation=True, z=-50, h=PI, p=PI/2, drive_opacity=False, color=BLUE)
-        self.moloch_eye = Circle(creation=True, radius=25, z=-50, color=BLUE)
-        self.parts = [self.foldable_cube, self.moloch_eye]
-
-    def specify_parameters(self):
-        self.forward_parameter = UCompletion(name="Forward", default_value=0)
-        self.parameters += [self.forward_parameter]
-
-    def specify_relations(self):
-        self.forward_relation_cube = XRelation(part=self.foldable_cube, whole=self, desc_ids=[POS_Z],
-                                    parameters=[self.forward_parameter], formula=f"-50 - 50 * {self.forward_parameter.name}")
-        self.forward_relation_eye = XRelation(part=self.moloch_eye, whole=self, desc_ids=[POS_Z],
-                                    parameters=[self.forward_parameter], formula=f"-50 - 50 * {self.forward_parameter.name}")
-
-    def specify_action_parameters(self):
-        self.thrust_parameter = UCompletion(name="Thrust", default_value=0)
-        self.action_parameters += [self.thrust_parameter]
-
-    def specify_actions(self):
-        # Define the thrust action for the foldable cube
-        thrust_action = XAction(
-            Movement(self.foldable_cube.fold_parameter, (0, 1), output=(0, 1), part=self.foldable_cube),
-            Movement(self.forward_parameter, (0, 1), output=(0, 1)),
-            target=self, completion_parameter=self.thrust_parameter, name="Thrust")
+                Movement(self.left_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.left_rectangle)
+            ]
+            if self.bottom:
+                movement.append(Movement(self.bottom_rectangle.creation_parameter, (1/3, 1), output=(0, 1), part=self.bottom_rectangle))
+            creation_action = XAction(*movements, target=self, completion_parameter=self.creation_parameter, name="Creation")
